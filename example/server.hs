@@ -57,7 +57,7 @@ main = withSocketsDo $ do
         request <- shakeHands ws
         case request of
             Left err -> print err
-            Right  _ -> do
+            Right () -> do
                 -- When a client succesfully connects, give him an ID and add
                 -- him too the list
                 i <- modifyMVar state $ return . addClient ws

@@ -49,18 +49,17 @@ request = requestLine . splitLines
       where
         headerLines' _ [] = Incomplete
         headerLines' h (l : ls) = case BC.break (== ':') l of
-            ("", "") -> payload p h ls
+            ("", "") -> token p h ls
             (_,  "") -> Error
             (k, v)   -> headerLines' ((k, B.drop 2 v) : h) ls
     {-# INLINE headerLines #-}
 
-    -- | Parse the payload
-    payload p h [r]
-        | B.length r >= 8 =
-            let (pl, r') = B.splitAt 8 r in Ok (Request p h pl) r'
+    -- | Parse the token
+    token p h [r]
+        | B.length r >= 8 = let (t, r') = B.splitAt 8 r in Ok (Request p h t) r'
         | otherwise = Incomplete
-    payload _ _ _ = Incomplete
-    {-# INLINE payload #-}
+    token _ _ _ = Incomplete
+    {-# INLINE token #-}
 
 -- | Parse a frame
 frame :: Decoder ByteString

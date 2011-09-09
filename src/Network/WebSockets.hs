@@ -60,10 +60,9 @@ a response, if any.
 If you have any suggestions, bug reports and\/or fixes, feel free to
 send them to <mailto:sinisa@bidin.cc>. Thanks! -}
 module Network.WebSockets (
-shakeHands, getRequest, putResponse, createResponse, getFrame,
-putFrame, createToken, Request(..), HandshakeError(..)) where
+shakeHands, getRequest, putResponse, createResponse,
+createToken, Request(..), HandshakeError(..)) where
 
-import System.IO (Handle, hFlush)
 import Data.Binary (encode)
 import Data.Int (Int32)
 
@@ -71,12 +70,11 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import Data.Digest.Pure.MD5 (md5)
 import Data.Char (isDigit, chr, ord)
-import Data.List (isPrefixOf, isSuffixOf)
-import qualified Control.Exception as E
 import qualified Data.Map as M
 
-import qualified Network.WebSockets.Parse as I
+import qualified Network.WebSockets.Decode as D
 import qualified Network.WebSockets.WebSocket as I
+import qualified Network.WebSockets.Types as I
 
 -- | Contains the request details.
 data Request = Request {
@@ -134,7 +132,7 @@ shakeHands ws = do
 -- an error.
 getRequest :: I.WebSocket -> IO (Either HandshakeError Request)
 getRequest ws = do
-    rq <- I.receive I.request ws
+    rq <- I.receive D.request ws
     case rq of
         Just (I.Request path headers payload) ->
             return $ validateRequest $ M.fromList $
@@ -216,42 +214,6 @@ divBySpaces str =
   let number = read $ filter isDigit str :: Integer
       spaces = fromIntegral . length $ filter (==' ') str
   in  fromIntegral $ number `div` spaces
-
-
--- | Send a strict ByteString. Call this function only after having
--- performed the handshake.
-putFrame :: I.WebSocket -> B.ByteString -> IO ()
-putFrame ws bs = do
-  let frame = B.cons 0 (B.snoc bs 255)
-  I.sendRaw ws frame
-
--- | Receive a strict ByteString. Call this function only after having
--- performed the handshake. This function will block until an entire
--- frame is read. If the writing end of the handle is closed, the
--- function returns an empty ByteString.
-getFrame :: Handle -> IO B.ByteString
-getFrame h = do
-  first <- B.hGet h 1 -- The first byte should be zero.
-  if B.null first -- In case of EOF, return empty ByteString.
-     then return B.empty
-
-     -- What if the first byte isn't zero? The frame is invalid.
-     -- Ignore this and consider the byte part of the frame contents.
-     else if first /= B.singleton 0
-             then readUntil255 first -- Byte becomes first in buffer.
-             else readUntil255 B.empty -- Start with empty buffer, as should be.
-
-  where
-    -- Read bytes from the handle, accumulating them, until 255 is reached.
-    readUntil255 buf = do
-      b <- B.hGet h 1
-      if B.null b
-         then return B.empty -- Return empty in case of EOF.
-         else if b == B.singleton 255
-                 then return buf
-                 else readUntil255 (B.append buf b)
-
-
 
 -- Quick and dirty String<->B.ByteString conversions.
 fromString :: String -> B.ByteString

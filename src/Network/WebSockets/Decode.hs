@@ -1,11 +1,9 @@
 -- | Fast, custom parser for WebSocket data
 {-# LANGUAGE OverloadedStrings, PatternGuards #-}
-module Network.WebSockets.Parse
+module Network.WebSockets.Decode
     ( Result (..)
-    , Parser
-    , Request (..)
+    , Decoder
     , request
-    , Frame
     , frame
     ) where
 
@@ -13,6 +11,8 @@ import Data.ByteString (ByteString)
 import Data.ByteString.Char8 ()
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
+
+import Network.WebSockets.Types
 
 -- | Result of a parser
 data Result a
@@ -25,14 +25,10 @@ data Result a
     deriving (Show)
 
 -- | Alias for parsers
-type Parser a = ByteString -> Result a
-
--- | Simple request type
-data Request = Request !ByteString [(ByteString, ByteString)] !ByteString
-             deriving (Show)
+type Decoder a = ByteString -> Result a
 
 -- | Parse an initial request
-request :: Parser Request
+request :: Decoder Request
 request = requestLine . splitLines
   where
     -- Split bytestring into lines
@@ -66,11 +62,8 @@ request = requestLine . splitLines
     payload _ _ _ = Incomplete
     {-# INLINE payload #-}
 
--- | Alias
-type Frame = ByteString
-
 -- | Parse a frame
-frame :: Parser ByteString
+frame :: Decoder ByteString
 frame bs
     | B.length bs < 2 = Incomplete
     | B.head bs == 0  = case B.break (== 0xff) bs of

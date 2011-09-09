@@ -1,17 +1,17 @@
-import Network.WebSockets (shakeHands, getFrame, putFrame)
+import Network.WebSockets (shakeHands)
 import Network (listenOn, PortID(PortNumber), withSocketsDo)
 import Network.Socket (accept)
-import System.IO (Handle, hClose)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import Network.Socket (setSocketOption, SocketOption (ReuseAddr))
 import Data.ByteString.UTF8 (fromString) -- this is from utf8-string
-import Control.Monad (forever, forM_, unless)
+import Control.Monad (forever, forM_)
 import Control.Concurrent (forkIO)
 import Control.Concurrent (MVar, newMVar, modifyMVar, modifyMVar_, readMVar)
 
 import Network.WebSockets.WebSocket
-import Network.WebSockets.Parse
+import qualified Network.WebSockets.Decode as D
+import qualified Network.WebSockets.Encode as E
 
 -- | State kept on the server
 data ServerState = ServerState
@@ -39,7 +39,7 @@ removeClient i state = state {clients = filter ((/= i) . fst) (clients state)}
 sendMessage :: ByteString -> ServerState -> IO ()
 sendMessage message state = do
     B.putStrLn message
-    forM_ (clients state) $ \(client, handle) -> putFrame handle message
+    forM_ (clients state) $ \(_, ws) -> send E.frame ws message
 
 -- | Accepts clients, spawns a single handler for each one.
 main :: IO ()
@@ -50,8 +50,8 @@ main = withSocketsDo $ do
     state <- newMVar newServerState
     forever $ do
         -- Wait for a new client to connect
-        (s, _) <- accept socket
-        ws <- new s
+        (sock, _) <- accept socket
+        ws <- new sock
 
         -- Shake hands with the client
         request <- shakeHands ws
@@ -73,7 +73,7 @@ main = withSocketsDo $ do
 -- Talks to the client (by echoing messages back) until EOF.
 talk :: MVar ServerState -> Int -> WebSocket -> IO ()
 talk state client ws = do
-    msg <- receive frame ws
+    msg <- receive D.frame ws
     s <- readMVar state
     case msg of
         Nothing -> do

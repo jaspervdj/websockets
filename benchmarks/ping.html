@@ -1,0 +1,48 @@
+<html>
+    <head>
+        <title>Ping benchmark</title>
+        <script type="text/JavaScript"
+            src="http://code.jquery.com/jquery-1.6.3.min.js"></script>
+        <script type="text/JavaScript">
+            $(document).ready(function () {
+                var host = window.location.hostname;
+                if(host == '') host = 'localhost';
+                var uri = 'ws://' + host + ':8088';
+
+                /* Previous time check */
+                var previous = new Date().getTime();
+                var interval = 10000;
+
+                var ws = new WebSocket(uri);
+                ws.onopen = function() {
+                };
+
+                ws.onmessage = function (event) {
+                    var msg = event.data;
+                    if(msg.substr(0, 5) == 'Ping ') {
+                        var n = parseInt(msg.substr(5));
+                        ws.send('Pong ' + n);
+
+                        /* Check time */
+                        if(n % interval == 0) {
+                            var ms = new Date().getTime();
+                            var delta = (ms - previous);
+                            previous = ms;
+                            $('#stats').text(interval + ' pings in ' +
+                                delta + 'ms: ' + (interval / delta * 1000) +
+                                'ping/s');
+                        }
+                    }
+                };
+
+                onclose = function() {
+                };
+            });
+        </script>
+    </head>
+    <body>
+        <h1>Ping benchmark</h1>
+        <div id="stats">
+        </div>
+    </body>
+</html>

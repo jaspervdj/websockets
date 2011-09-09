@@ -21,7 +21,6 @@ $(document).ready(function () {
     };
 
     onclose = function() {
-        $('#messages').append("<p>Closed.</p>");
     };
 });
 

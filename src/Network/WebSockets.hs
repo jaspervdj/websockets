@@ -75,6 +75,8 @@ import Data.List (isPrefixOf, isSuffixOf)
 import qualified Control.Exception as E
 import qualified Data.Map as M
 
+import qualified Network.WebSockets.Parse as I
+import qualified Network.WebSockets.WebSocket as I
 
 -- | Contains the request details.
 data Request = Request {
@@ -120,49 +122,25 @@ data HandshakeError = HsIOError String
 -- If you wish not to blindly accept requests but to filter them
 -- according to their contents, use the 'getRequest' and 'putResponse'
 -- functions.
-shakeHands :: Handle -> IO (Either HandshakeError Request)
-shakeHands h = do
-  request <- getRequest h
+shakeHands :: I.WebSocket -> IO (Either HandshakeError Request)
+shakeHands ws = do
+  request <- getRequest ws
   case request of
-    Right r -> putResponse h r >> return request
+    Right r -> putResponse ws r >> return request
     Left  _ -> return request -- Returns the error.
-
-
 
 -- | Reads the client's opening handshake and returns either a
 -- 'Request' based on its contents, or a 'HandshakeError' in case of
 -- an error.
-getRequest :: Handle -> IO (Either HandshakeError Request)
-getRequest h = do
-  -- The first line should be "GET :path: HTTP/1.1".
-  first <- toString `fmap` B.hGetLine h
-  if "GET " `isPrefixOf` first && " HTTP/1.1\r" `isSuffixOf` first
-    -- Start stepping through following headers, collecting them.
-    then (step.M.singleton "Path" $ words first !! 1)
-         `E.catch`
-         (\e -> return . Left . HsIOError $ show (e::E.SomeException))
-    else return.Left $ HsInvalidGETRequest first
-
-  where
-    -- Collect header keys and values.
-    -- Stops in case of error or upon reading the final 8-byte token.
-    step :: RawRequest -> IO (Either HandshakeError Request)
-    step req = do
-      line <- toString `fmap` B.hGetLine h
-      if null line
-        then return.Left $ HsInvalidHeaderLine line
-
-        -- Else, split line in half. We get the header key (++':') and value.
-        else case break (==' ') (init line) of
-          ("", "") -> do
-            -- The line is empty, so the next 8 bytes are the token.
-            bytes <- (map (chr.fromIntegral) . BL.unpack) `fmap` BL.hGet h 8
-            -- We have the whole request. Validate it and return result.
-            return.validateRequest $ M.insert "Token" bytes req
-
-          (key, val) ->
-            step $ M.insert (init key) (tail val) req
-
+getRequest :: I.WebSocket -> IO (Either HandshakeError Request)
+getRequest ws = do
+    rq <- I.receive I.request ws
+    case rq of
+        Just (I.Request path headers payload) ->
+            return $ validateRequest $ M.fromList $
+                map (\(k, v) -> (toString k, toString v)) headers ++
+                [("Token", toString payload), ("Path", toString path)]
+        Nothing -> return $ Left (HsIOError "herp")
 
 -- Checks if a given raw request is valid or not. A valid request
 -- won't cause a division by zero when calculating a response token
@@ -201,8 +179,8 @@ validateRequest req
 
 -- | Sends an accepting response based on the given 'Request', thus
 -- accepting and ending the handshake.
-putResponse :: Handle -> Request -> IO ()
-putResponse h req = B.hPutStr h (createResponse req)
+putResponse :: I.WebSocket -> Request -> IO ()
+putResponse ws req = I.sendRaw ws (createResponse req)
 
 
 -- | Returns an accepting response based on the given
@@ -242,12 +220,10 @@ divBySpaces str =
 
 -- | Send a strict ByteString. Call this function only after having
 -- performed the handshake.
-putFrame :: Handle -> B.ByteString -> IO ()
-putFrame h bs = do
+putFrame :: I.WebSocket -> B.ByteString -> IO ()
+putFrame ws bs = do
   let frame = B.cons 0 (B.snoc bs 255)
-  B.hPutStr h frame
-  hFlush h
-
+  I.sendRaw ws frame
 
 -- | Receive a strict ByteString. Call this function only after having
 -- performed the handshake. This function will block until an entire

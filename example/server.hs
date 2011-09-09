@@ -1,5 +1,6 @@
 import Network.WebSockets (shakeHands, getFrame, putFrame)
-import Network (listenOn, PortID(PortNumber), accept, withSocketsDo)
+import Network (listenOn, PortID(PortNumber), withSocketsDo)
+import Network.Socket (accept)
 import System.IO (Handle, hClose)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
@@ -9,10 +10,13 @@ import Control.Monad (forever, forM_, unless)
 import Control.Concurrent (forkIO)
 import Control.Concurrent (MVar, newMVar, modifyMVar, modifyMVar_, readMVar)
 
+import Network.WebSockets.WebSocket
+import Network.WebSockets.Parse
+
 -- | State kept on the server
 data ServerState = ServerState
     { nextClientId :: Int
-    , clients :: [(Int, Handle)]
+    , clients :: [(Int, WebSocket)]
     }
 
 -- | Create a new, initial state
@@ -24,8 +28,8 @@ numClients :: ServerState -> Int
 numClients = length . clients
 
 -- | Add a client and yield it's ID
-addClient :: Handle -> ServerState -> (ServerState, Int)
-addClient h (ServerState i c) = (ServerState (i + 1) ((i, h) : c), i)
+addClient :: WebSocket -> ServerState -> (ServerState, Int)
+addClient ws (ServerState i c) = (ServerState (i + 1) ((i, ws) : c), i)
 
 -- | Remove a client by ID
 removeClient :: Int -> ServerState -> ServerState
@@ -46,37 +50,37 @@ main = withSocketsDo $ do
     state <- newMVar newServerState
     forever $ do
         -- Wait for a new client to connect
-        (h, _, _) <- accept socket
+        (s, _) <- accept socket
+        ws <- new s
 
         -- Shake hands with the client
-        request <- shakeHands h
+        request <- shakeHands ws
         case request of
             Left err -> print err
             Right  _ -> do
                 -- When a client succesfully connects, give him an ID and add
                 -- him too the list
-                i <- modifyMVar state $ return . addClient h
+                i <- modifyMVar state $ return . addClient ws
 
                 -- Notification for others
                 s <- readMVar state
                 sendMessage (fromString $ "Client " ++ show i ++ " joined") s
 
                 -- Communicate with the client in a separate thread
-                _ <- forkIO (talk state i h)
+                _ <- forkIO (talk state i ws)
                 return ()
 
 -- Talks to the client (by echoing messages back) until EOF.
-talk :: MVar ServerState -> Int -> Handle -> IO ()
-talk state client h = do
-    msg <- getFrame h
+talk :: MVar ServerState -> Int -> WebSocket -> IO ()
+talk state client ws = do
+    msg <- receive frame ws
     s <- readMVar state
-    if B.null msg
-        then do
+    case msg of
+        Nothing -> do
             sendMessage
                 (fromString $ "Client " ++ show client ++ " disconnected") s
             modifyMVar_ state $ return . removeClient client
-            hClose h
-        else do
+        Just m -> do
             sendMessage
-                (fromString ("Client " ++ show client ++ ": ") `B.append` msg) s
-            talk state client h
+                (fromString ("Client " ++ show client ++ ": ") `B.append` m) s
+            talk state client ws

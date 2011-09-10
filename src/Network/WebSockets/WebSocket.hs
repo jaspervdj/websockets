@@ -3,16 +3,16 @@
 module Network.WebSockets.WebSocket
     ( WebSocket
     , new
+    , close
     , receive
     , send
-    , sendRaw
     ) where
 
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 
 import Network.Socket (Socket, sClose)
-import Network.Socket.ByteString (recv, sendAll)
-import qualified Network.Socket.ByteString.Lazy as L (sendAll)
+import Network.Socket.ByteString (recv)
+import Network.Socket.ByteString.Lazy (sendAll)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import Blaze.ByteString.Builder (toLazyByteString)
@@ -32,6 +32,10 @@ new s = do
     b <- newIORef ""
     return $ WebSocket {buffer = b, socket = s}
 
+-- | Close a websocket
+close :: WebSocket -> IO ()
+close = sClose . socket
+
 -- | Parse a message from a websocket
 receive :: Decoder a -> WebSocket -> IO (Maybe a)
 receive decoder (WebSocket br s) = readIORef br >>= receive'
@@ -48,8 +52,4 @@ receive decoder (WebSocket br s) = readIORef br >>= receive'
 
 -- | Unparse and send
 send :: Encoder a -> WebSocket -> a -> IO ()
-send encoder ws x = L.sendAll (socket ws) (toLazyByteString $ encoder x)
-
--- | Send some raw data
-sendRaw :: WebSocket -> ByteString -> IO ()
-sendRaw ws = sendAll (socket ws)
+send encoder ws x = sendAll (socket ws) (toLazyByteString $ encoder x)

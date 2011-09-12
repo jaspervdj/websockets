@@ -1,71 +1,42 @@
 -- | Fast, custom parser for WebSocket data
 {-# LANGUAGE OverloadedStrings, PatternGuards #-}
 module Network.WebSockets.Decode
-    ( Result (..)
-    , Decoder
-    , request
+    ( request
     , frame
     ) where
 
+import Control.Applicative ((<$>), (<*>), (*>), (<*))
+import Data.Attoparsec (Parser, string, takeTill, takeWhile1, word8)
+import Data.Attoparsec.Combinator (manyTill)
 import Data.ByteString (ByteString)
 import Data.ByteString.Char8 ()
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Char8 as BC
+import Data.ByteString.Internal (c2w)
+import qualified Data.Attoparsec as A
 
 import Network.WebSockets.Types
 
--- | Result of a parser
-data Result a
-    -- | Need more input
-    = Incomplete
-    -- | Result & remainder
-    | Ok !a !ByteString
-    -- | Error occurred
-    | Error
-    deriving (Show)
-
--- | Alias for parsers
-type Decoder a = ByteString -> Result a
-
 -- | Parse an initial request
-request :: Decoder Request
-request = requestLine . splitLines
+request :: Parser Request
+request = Request
+    <$> requestLine
+    <*> manyTill header newline
+    <*> token
   where
-    -- Split bytestring into lines
-    splitLines bs = case B.breakSubstring "\r\n" bs of
-        (b, "") -> [b]
-        ("", b) -> "" : B.drop 2 b : []
-        (b, br) -> b : splitLines (B.drop 2 br)
+    space = word8 (c2w ' ')
+    newline = string "\r\n"
 
-    -- Parse the leading request line
-    requestLine [] = Incomplete
-    requestLine (l : ls) = case BC.split ' ' l of
-        ["GET", path, "HTTP/1.1"] -> headerLines path ls
-        _                         -> Error
-    {-# INLINE requestLine #-}
+    requestLine = string "GET" *> space *> takeWhile1 (/= c2w ' ')
+        <* space
+        <* string "HTTP/1.1" <* newline
 
-    -- Parse the header lines
-    headerLines p = headerLines' []
-      where
-        headerLines' _ [] = Incomplete
-        headerLines' h (l : ls) = case BC.break (== ':') l of
-            ("", "") -> token p h ls
-            (_,  "") -> Error
-            (k, v)   -> headerLines' ((k, B.drop 2 v) : h) ls
-    {-# INLINE headerLines #-}
+    header = (,)
+        <$> takeWhile1 (/= c2w ':') 
+        <*  string ": "
+        <*> takeWhile1 (/= c2w '\r')
+        <*  newline
 
-    -- | Parse the token
-    token p h [r]
-        | B.length r >= 8 = let (t, r') = B.splitAt 8 r in Ok (Request p h t) r'
-        | otherwise = Incomplete
-    token _ _ _ = Incomplete
-    {-# INLINE token #-}
+    token = A.take 8
 
 -- | Parse a frame
-frame :: Decoder ByteString
-frame bs
-    | B.length bs < 2 = Incomplete
-    | B.head bs == 0  = case B.break (== 0xff) bs of
-        (_, "") -> Incomplete
-        (f, br) -> Ok (B.tail f) (B.tail br)
-    | otherwise       = Error
+frame :: Parser ByteString
+frame = word8 0 *> takeTill (== 0xff) <* word8 0xff

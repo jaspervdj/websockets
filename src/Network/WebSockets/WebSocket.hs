@@ -14,10 +14,9 @@ import Network.Socket (Socket, sClose)
 import Network.Socket.ByteString (recv)
 import Network.Socket.ByteString.Lazy (sendAll)
 import Data.ByteString (ByteString)
-import qualified Data.ByteString as B
 import Blaze.ByteString.Builder (toLazyByteString)
+import Data.Attoparsec (Parser, Result (..), parse)
 
-import Network.WebSockets.Decode (Result (..), Decoder)
 import Network.WebSockets.Encode (Encoder)
 
 -- | Holds the state of a websocket, with an internal buffer
@@ -37,18 +36,12 @@ close :: WebSocket -> IO ()
 close = sClose . socket
 
 -- | Parse a message from a websocket
-receive :: Decoder a -> WebSocket -> IO (Maybe a)
-receive decoder (WebSocket br s) = readIORef br >>= receive'
+receive :: Parser a -> WebSocket -> IO (Maybe a)
+receive parser (WebSocket br s) = readIORef br >>= receive' . parse parser
   where
-    bufferSize = 4096
-    receive' "" = recv s bufferSize >>= receive'
-    receive' b = case decoder b of
-        Ok x r     -> writeIORef br r >> return (Just x)
-        Error      -> sClose s >> return Nothing
-        Incomplete -> do
-            putStrLn "Receiving..."
-            b' <- fmap (b `B.append`) $ recv s 4096
-            receive' b'
+    receive' (Done b x)   = writeIORef br b >> return (Just x)
+    receive' (Fail _ _ e) = error e >> sClose s >> return Nothing
+    receive' (Partial f)  = recv s 4096 >>= receive' . f
 
 -- | Unparse and send
 send :: Encoder a -> WebSocket -> a -> IO ()

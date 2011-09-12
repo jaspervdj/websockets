@@ -11,12 +11,17 @@ import Data.ByteString (ByteString)
 type Headers = [(ByteString, ByteString)]
 
 -- | Simple request type
-data Request = Request !ByteString Headers !ByteString
-             deriving (Show)
+data Request = Request
+    { requestPath    :: !ByteString
+    , requestHeaders :: Headers
+    , requestToken   :: !ByteString
+    } deriving (Show)
 
 -- | Response to a 'Request'
-data Response = Response Headers !ByteString
-              deriving (Show)
+data Response = Response
+    { responseHeaders :: Headers
+    , responseToken   :: !ByteString
+    } deriving (Show)
 
 -- | An UTF-8 encoded frame
 type Frame = ByteString

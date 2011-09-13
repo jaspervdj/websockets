@@ -1,9 +1,9 @@
 module Network.WebSockets
     ( 
       -- * WebSocket type
-      I.WebSocket
-    , I.new
-    , I.close
+      I.WebSockets
+    , I.runWebSockets
+    , I.runWithSocket
 
       -- * Types
     , I.Headers
@@ -19,22 +19,30 @@ module Network.WebSockets
       -- * Sending and receiving
     , receiveFrame
     , sendFrame
+
+      -- * Advanced sending
+    , E.Encoder
+    , I.Sender
+    , I.getSender
+    , E.response
+    , E.frame
     ) where
 
 import qualified Network.WebSockets.Decode as D
 import qualified Network.WebSockets.Encode as E
 import qualified Network.WebSockets.Handshake as H
+import qualified Network.WebSockets.Monad as I
+import qualified Network.WebSockets.Socket as I
 import qualified Network.WebSockets.Types as I
-import qualified Network.WebSockets.WebSocket as I
 
-receiveRequest :: I.WebSocket -> IO (Maybe I.Request)
+receiveRequest :: I.WebSockets I.Request
 receiveRequest = I.receive D.request
 
-sendResponse :: I.WebSocket -> I.Response -> IO ()
+sendResponse :: I.Response -> I.WebSockets ()
 sendResponse = I.send E.response
 
-receiveFrame :: I.WebSocket -> IO (Maybe I.Frame)
+receiveFrame :: I.WebSockets I.Frame
 receiveFrame = I.receive D.frame
 
-sendFrame :: I.WebSocket -> I.Frame -> IO ()
+sendFrame :: I.Frame -> I.WebSockets ()
 sendFrame = I.send E.frame

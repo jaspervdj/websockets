@@ -52,7 +52,7 @@ main = withSocketsDo $ do
 
         _ <- forkIO $ runWithSocket sock $ do
             -- Shake hands with the client, assume all is right
-            rq <- receiveRequest
+            Just rq <- receiveRequest
             let Right rsp = handshake rq
             sendResponse rsp
 
@@ -74,14 +74,13 @@ main = withSocketsDo $ do
 talk :: MVar ServerState -> Int -> WebSockets ()
 talk state client = do
     msg <- receiveFrame
-    s <- liftIO $ readMVar state
-    liftIO $ sendMessage
-        (fromString ("Client " ++ show client ++ ": ") `B.append` msg) s
-    talk state client
-
-    -- Disconnect code
-    {-
-    sendMessage
-        (fromString $ "Client " ++ show client ++ " disconnected") s
-    modifyMVar_ state $ return . removeClient client
-    -}
+    case msg of
+        Nothing -> liftIO $ modifyMVar_ state $ \s -> do
+            let s' = removeClient client s
+            sendMessage
+                (fromString $ "Client " ++ show client ++ " disconnected") s'
+            return s'
+        Just m -> do
+            liftIO $ readMVar state >>= sendMessage
+                (fromString ("Client " ++ show client ++ ": ") `B.append` m)
+            talk state client

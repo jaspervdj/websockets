@@ -35,13 +35,13 @@ import qualified Network.WebSockets.Monad as I
 import qualified Network.WebSockets.Socket as I
 import qualified Network.WebSockets.Types as I
 
-receiveRequest :: I.WebSockets I.Request
+receiveRequest :: I.WebSockets (Maybe I.Request)
 receiveRequest = I.receive D.request
 
 sendResponse :: I.Response -> I.WebSockets ()
 sendResponse = I.send E.response
 
-receiveFrame :: I.WebSockets I.Frame
+receiveFrame :: I.WebSockets (Maybe I.Frame)
 receiveFrame = I.receive D.frame
 
 sendFrame :: I.Frame -> I.WebSockets ()

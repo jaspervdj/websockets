@@ -21,7 +21,7 @@ import Data.Attoparsec (Parser)
 import Data.Attoparsec.Enumerator (iterParser)
 import Data.ByteString (ByteString)
 import Data.Enumerator ( Enumerator, Iteratee, Stream (..), checkContinue0
-                       , returnI, run, ($$), (>>==)
+                       , isEOF, returnI, run, ($$), (>>==)
                        )
 
 import Network.WebSockets.Encode (Encoder)
@@ -47,8 +47,10 @@ runWebSockets ws inEnum outIter = do
 
     singleton c = checkContinue0 $ \_ f -> f (Chunks [c]) >>== returnI
 
-receive :: Parser a -> WebSockets a
-receive parser = WebSockets $ lift $ iterParser parser
+receive :: Parser a -> WebSockets (Maybe a)
+receive parser = WebSockets $ lift $ do
+    eof <- isEOF
+    if eof then return Nothing else fmap Just (iterParser parser)
 
 send :: Encoder a -> a -> WebSockets ()
 send encoder x = do

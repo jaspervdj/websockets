@@ -25,4 +25,6 @@ response (Response headers token) =
     header (k, v) = mconcat $ map copyByteString [k, ": ", v, "\r\n"]
 
 frame :: Encoder Frame
-frame bs = fromWord8 0 `mappend` copyByteString bs `mappend` fromWord8 0xff
+frame f = case f of
+    Data bs -> fromWord8 0 `mappend` copyByteString bs `mappend` fromWord8 0xff
+    _       -> error "TODO"

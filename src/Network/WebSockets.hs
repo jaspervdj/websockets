@@ -9,7 +9,7 @@ module Network.WebSockets
     , I.Headers
     , I.Request (..)
     , I.Response (..)
-    , I.Frame
+    , I.Frame (..)
 
       -- * Initial handshake
     , receiveRequest
@@ -18,15 +18,20 @@ module Network.WebSockets
 
       -- * Sending and receiving
     , receiveFrame
+    , receiveData
     , sendFrame
+    , sendData
 
       -- * Advanced sending
+      -- TODO: getDataSender?
     , E.Encoder
     , I.Sender
     , I.getSender
     , E.response
     , E.frame
     ) where
+
+import Data.ByteString (ByteString)
 
 import qualified Network.WebSockets.Decode as D
 import qualified Network.WebSockets.Encode as E
@@ -44,5 +49,15 @@ sendResponse = I.send E.response
 receiveFrame :: I.WebSockets (Maybe I.Frame)
 receiveFrame = I.receive D.frame
 
+receiveData :: I.WebSockets (Maybe ByteString)
+receiveData = do
+    frame <- receiveFrame
+    case frame of
+        Just (I.Data x) -> return (Just x)
+        _               -> error "TODO"
+
 sendFrame :: I.Frame -> I.WebSockets ()
 sendFrame = I.send E.frame
+
+sendData :: ByteString -> I.WebSockets ()
+sendData bs = sendFrame (I.Data bs)

@@ -2,7 +2,7 @@ module Network.WebSockets.Types
     ( Headers
     , Request (..)
     , Response (..)
-    , Frame
+    , Frame (..)
     ) where
 
 import Data.ByteString (ByteString)
@@ -23,5 +23,10 @@ data Response = Response
     , responseToken   :: !ByteString
     } deriving (Show)
 
--- | An UTF-8 encoded frame
-type Frame = ByteString
+-- | A frame
+data Frame
+    = Data ByteString
+    | Close
+    | Ping
+    | Pong
+    deriving (Show)

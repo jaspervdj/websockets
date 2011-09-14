@@ -13,11 +13,11 @@ import qualified Data.ByteString.Char8 as BC
 import Network.WebSockets
 
 echo :: WebSockets ()
-echo = receiveFrame >>= maybe (return ()) ((>> echo) . sendFrame)
+echo = receiveData >>= maybe (return ()) ((>> echo) . sendData)
 
 closeMe :: WebSockets ()
 closeMe = do
-    msg <- receiveFrame
+    msg <- receiveData
     case msg of
         Just "Close me!" -> return ()
         _ -> error "closeme: unexpected input"
@@ -26,7 +26,8 @@ concurrentSend :: WebSockets ()
 concurrentSend = do
     sender <- getSender
     forM_ [1 :: Int .. 100] $ \i -> liftIO $ do
-        _ <- forkIO $ sender frame $ "Herp-a-derp " `mappend` BC.pack (show i)
+        _ <- forkIO $ sender frame $ Data $
+            "Herp-a-derp " `mappend` BC.pack (show i)
         return ()
 
 -- | All tests

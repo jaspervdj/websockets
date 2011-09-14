@@ -2,7 +2,7 @@
 * Utilities                                                                    *
 *******************************************************************************/
 
-function createSocket(path) {
+function createWebSocket(path) {
     var host = window.location.hostname;
     if(host == '') host = 'localhost';
     var uri = 'ws://' + host + ':8000' + path;
@@ -47,7 +47,7 @@ function demo(assert) {
 }
 
 function echo(assert) {
-    var ws = createSocket('/echo');
+    var ws = createWebSocket('/echo');
     var messages = ['Hi folks', 'Hello there', 'What up'];
 
     ws.onopen = function() {
@@ -59,6 +59,17 @@ function echo(assert) {
         assert('equal', message == messages[0]);
         messages = messages.slice(1);
         if(messages.length > 0) ws.send(messages[0]);
+        else ws.close();
+    };
+}
+
+function closeme(assert) {
+    var ws = createWebSocket('/closeme');
+    ws.onopen = function() {
+        ws.send('Close me!');
+    };
+    ws.onclose = function() {
+        assert('closed', true);
     };
 }
 
@@ -69,4 +80,5 @@ function echo(assert) {
 $(document).ready(function() {
     runTest('demo', demo);
     runTest('echo', echo);
+    runTest('closeme', closeme);
 })

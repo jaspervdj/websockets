@@ -5,7 +5,9 @@ function addMessage(message) {
 }
 
 $(document).ready(function () {
-    var uri = 'ws://' + window.location.hostname + ':8088';
+    var host = window.location.hostname;
+    if(host == '') host = 'localhost';
+    var uri = 'ws://' + host + ':8088';
     var ws = new WebSocket(uri);
     ws.onopen = function() {
         $('#message').submit(function() {

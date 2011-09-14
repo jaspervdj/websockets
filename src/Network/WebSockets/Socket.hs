@@ -18,6 +18,7 @@ import Network.WebSockets.Monad
 runWithSocket :: Socket -> WebSockets a -> IO a
 runWithSocket socket ws = do
     r <- runWebSockets ws (receiveEnum socket) (sendIter socket)
+    sClose socket
     either (error . show) return r
 
 receiveEnum :: Socket -> Enumerator ByteString IO a

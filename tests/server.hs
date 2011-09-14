@@ -10,15 +10,21 @@ import Network.Socket (setSocketOption, SocketOption (ReuseAddr))
 import Network.WebSockets
 
 echo :: WebSockets ()
-echo = do
+echo = receiveFrame >>= maybe (return ()) ((>> echo) . sendFrame)
+
+closeme :: WebSockets ()
+closeme = do
     msg <- receiveFrame
     case msg of
-        Just m  -> sendFrame m >> echo
-        Nothing -> return ()
+        Just "Close me!" -> return ()
+        _ -> error "closeme: unexpected input"
 
 -- | All tests
 tests :: [(ByteString, WebSockets ())]
-tests = [("/echo", echo)]
+tests =
+    [ ("/echo", echo)
+    , ("/closeme", closeme)
+    ]
 
 -- | Accepts clients, spawns a single handler for each one.
 main :: IO ()

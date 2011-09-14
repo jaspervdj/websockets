@@ -1,20 +1,28 @@
-Name:           websockets
-Version:        0.3.0.0
+Name:    websockets
+Version: 0.3.0.0
 
 Cabal-version:  >=1.6
 
-Synopsis:       Create WebSocket servers
+Synopsis:
+  Provides a sensible, clean and simple way to write WebSocket-capable servers
+  in Haskell.
 
 Description:
- A library for creating WebSocket-capable servers, where the implemented protocol is defined here: <http://is.gd/eSdLB>.
+ A library for creating WebSocket-capable servers, where the implemented
+ protocol is defined here: <http://is.gd/eSdLB>.
  .
- This library is tested with Chromium >=7, Opera >=11 and Firefox >=4 and is a work in progress. (Note: many of these newest browsers have recently stopped shipping with websockets enabled by default, due to security issues which are yet to be resolved.)
+ This library is tested with Chromium >=7, Opera >=11 and Firefox >=4 and is a
+ work in progress. (Note: many of these newest browsers have recently stopped
+ shipping with websockets enabled by default, due to security issues which are
+ yet to be resolved.)
  .
- An example of usage can be found in the Network.WebSockets module documentation.
+ An example of usage can be found in the Network.WebSockets module
+ documentation.
 
-License:        BSD3
-License-file:   LICENCE
-Copyright:      (c) 2010 Siniša Biđin
+License:      BSD3
+License-file: LICENCE
+Copyright:    (c) 2010-2011 Siniša Biđin
+              (c) 2011 Jasper Van der Jeugt
 
 Author:         Siniša Biđin
 Maintainer:     Siniša Biđin <sinisa@bidin.cc>
@@ -27,8 +35,29 @@ Tested-with:    GHC ==6.12
 Build-type:     Simple
 
 Library
-  Hs-source-dirs: src
-  Exposed-Modules: Network.WebSockets
-  Build-depends: pureMD5 >=2.1, network >=2.2.1.7, base ==4.*,
-                 bytestring >=0.9, binary >=0.5, containers >=0.3
+  Hs-source-dirs:  src
 
+  Exposed-modules:
+    Network.WebSockets
+
+  Other-modules:
+    Network.WebSockets.Decode
+    Network.WebSockets.Encode
+    Network.WebSockets.Handshake
+    Network.WebSockets.Monad
+    Network.WebSockets.Socket
+    Network.WebSockets.Types
+
+  Build-depends:
+    attoparsec               >= 0.9    && < 0.10,
+    attoparsec-enumerator    >= 0.2    && < 0.3,
+    base                     >= 4      && < 5,
+    binary                   >= 0.5    && < 0.6,
+    blaze-builder            >= 0.3    && < 0.4,
+    blaze-builder-enumerator >= 0.2    && < 0.3,
+    bytestring               >= 0.9    && < 0.10,
+    containers               >= 0.3    && < 0.5,
+    enumerator               >= 0.4.14 && < 0.5,
+    mtl                      >= 2.0    && < 2.2,
+    network                  >= 2.3    && < 2.4,
+    pureMD5                  >= 2.1    && < 2.2

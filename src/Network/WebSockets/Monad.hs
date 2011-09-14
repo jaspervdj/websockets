@@ -11,9 +11,8 @@ module Network.WebSockets.Monad
 
 import Control.Concurrent.MVar (newMVar, takeMVar, putMVar)
 import Control.Exception (SomeException)
-import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader (ReaderT, ask, runReaderT)
-import Control.Monad.Trans (lift)
+import Control.Monad.Trans (MonadIO, lift, liftIO)
 
 import Blaze.ByteString.Builder (Builder)
 import Blaze.ByteString.Builder.Enumerator (builderToByteString)

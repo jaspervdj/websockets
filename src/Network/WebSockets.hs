@@ -7,8 +7,8 @@ module Network.WebSockets
 
       -- * Types
     , I.Headers
-    , I.Request
-    , I.Response
+    , I.Request (..)
+    , I.Response (..)
     , I.Frame
 
       -- * Initial handshake

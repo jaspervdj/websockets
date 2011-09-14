@@ -1,29 +1,40 @@
 -- | The server part of the tests
 {-# LANGUAGE OverloadedStrings #-}
 import Control.Concurrent (forkIO)
-import Control.Monad (forever)
+import Control.Monad (forever, forM_)
+import Control.Monad.Trans (liftIO)
 import Data.ByteString (ByteString)
+import Data.Monoid (mappend)
 import Network (listenOn, PortID(PortNumber), withSocketsDo)
 import Network.Socket (accept)
 import Network.Socket (setSocketOption, SocketOption (ReuseAddr))
+import qualified Data.ByteString.Char8 as BC
 
 import Network.WebSockets
 
 echo :: WebSockets ()
 echo = receiveFrame >>= maybe (return ()) ((>> echo) . sendFrame)
 
-closeme :: WebSockets ()
-closeme = do
+closeMe :: WebSockets ()
+closeMe = do
     msg <- receiveFrame
     case msg of
         Just "Close me!" -> return ()
         _ -> error "closeme: unexpected input"
 
+concurrentSend :: WebSockets ()
+concurrentSend = do
+    sender <- getSender
+    forM_ [1 :: Int .. 100] $ \i -> liftIO $ do
+        _ <- forkIO $ sender frame $ "Herp-a-derp " `mappend` BC.pack (show i)
+        return ()
+
 -- | All tests
 tests :: [(ByteString, WebSockets ())]
 tests =
     [ ("/echo", echo)
-    , ("/closeme", closeme)
+    , ("/close-me", closeMe)
+    , ("/concurrent-send", concurrentSend)
     ]
 
 -- | Accepts clients, spawns a single handler for each one.
@@ -43,5 +54,8 @@ main = withSocketsDo $ do
 
             -- When a client succesfully connects, lookup the requested test and
             -- run it
-            let Just test = lookup (requestPath rq) tests in test
+            let name = requestPath rq
+            liftIO $ putStrLn $ "Starting test " ++ show name
+            let Just test = lookup name tests in test
+            liftIO $ putStrLn $ "Test " ++ show name ++ " finished"
         return ()

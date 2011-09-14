@@ -77,8 +77,8 @@ function echo(assert, done) {
     };
 }
 
-function closeme(assert, done) {
-    var ws = createWebSocket('/closeme');
+function closeMe(assert, done) {
+    var ws = createWebSocket('/close-me');
     ws.onopen = function() {
         ws.send('Close me!');
     };
@@ -88,6 +88,24 @@ function closeme(assert, done) {
     };
 }
 
+function concurrentSend(assert, done) {
+    var ws = createWebSocket('/concurrent-send');
+    var expected = [];
+    for(var i = 1; i <= 100; i++) {
+        expected.push('Herp-a-derp ' + i);
+    }
+
+    ws.onmessage = function(event) {
+        var msg = event.data;
+        var idx = expected.indexOf(msg);
+        expected.splice(idx, 1);
+
+        if(expected.length <= 0) {
+            done();
+        }
+    }
+}
+
 /*******************************************************************************
 * Entry point                                                                  *
 *******************************************************************************/
@@ -95,5 +113,6 @@ function closeme(assert, done) {
 $(document).ready(function() {
     runTest('demo', demo);
     runTest('echo', echo);
-    runTest('closeme', closeme);
+    runTest('close me', closeMe);
+    runTest('concurrent send', concurrentSend);
 })

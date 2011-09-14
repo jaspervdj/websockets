@@ -21,16 +21,25 @@ function runTest(name, test) {
     var ol = $(document.createElement('ol'));
     div.append(ol);
 
+    var success = true;
+
     function addItem(str) {
         var li = $(document.createElement('li'));
         li.text(str);
         ol.append(li);
     }
 
+    function assert(str, value) {
+        addItem(str + ': ' + (value ? '✓' : '✗'));
+        success = success && value;
+    }
+
+    function done() {
+        div.append(success ? 'Done' : 'Done, but some tests failed');
+    }
+
     try {
-        test(function(assert, result) {
-            addItem(assert + ': ' + (result ? '✓' : '✗'));
-        });
+        test(assert, done);
     } catch(err) {
         addItem('Crashed: ' + err.message + ' ');
     }
@@ -40,13 +49,14 @@ function runTest(name, test) {
 * Actual tests                                                                 *
 *******************************************************************************/
 
-function demo(assert) {
+function demo(assert, done) {
     assert('Hi', true);
     assert('O', false);
     assert('Sup', true);
+    done();
 }
 
-function echo(assert) {
+function echo(assert, done) {
     var ws = createWebSocket('/echo');
     var messages = ['Hi folks', 'Hello there', 'What up'];
 
@@ -58,18 +68,23 @@ function echo(assert) {
         var message = event.data;
         assert('equal', message == messages[0]);
         messages = messages.slice(1);
-        if(messages.length > 0) ws.send(messages[0]);
-        else ws.close();
+        if(messages.length > 0) {
+            ws.send(messages[0]);
+        } else {
+            ws.close();
+            done();
+        }
     };
 }
 
-function closeme(assert) {
+function closeme(assert, done) {
     var ws = createWebSocket('/closeme');
     ws.onopen = function() {
         ws.send('Close me!');
     };
     ws.onclose = function() {
         assert('closed', true);
+        done();
     };
 }
 

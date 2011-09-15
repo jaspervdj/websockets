@@ -45,15 +45,33 @@ import qualified Network.WebSockets.Monad as I
 import qualified Network.WebSockets.Socket as I
 import qualified Network.WebSockets.Types as I
 
+-- | Read a 'I.Request' from the socket. Blocks until one is received and
+-- returns 'Nothing' if the socket has been closed.
 receiveRequest :: I.WebSockets (Maybe I.Request)
 receiveRequest = I.receive D.request
 
+-- | Send a 'I.Response' to the socket immediately.
 sendResponse :: I.Response -> I.WebSockets ()
 sendResponse = I.send E.response
 
+-- | Read a 'I.Frame' from the socket. Blocks until a frame is received and
+-- returns 'Nothing' if the socket has been closed.
+--
+-- Note that a typical library user will want to use something like
+-- 'receiveByteStringData' instead.
 receiveFrame :: I.WebSockets (Maybe I.Frame)
 receiveFrame = I.receive D.frame
 
+-- | Read frames from the socket, automatically responding:
+--
+-- * On a close operation, close the socket and return 'Nothing'
+--
+-- * On a ping, send a pong
+--
+-- * When we have an actual data frame, return this to the user
+--
+-- This function thus block until a data frame is received. A return value of
+-- 'Nothing' means the socket has been closed.
 receiveByteStringData :: I.WebSockets (Maybe ByteString)
 receiveByteStringData = do
     frame <- receiveFrame
@@ -65,11 +83,16 @@ receiveByteStringData = do
         Just I.Ping     -> error "TODO"
         Just I.Pong     -> error "TODO"
 
+-- | A higher-level variant of 'receiveByteStringData' which does the decoding
+-- for you.
 receiveTextData :: I.WebSockets (Maybe Text)
 receiveTextData = (fmap . fmap) TE.decodeUtf8 receiveByteStringData
 
+-- | Send a 'ByteString' to the socket immediately.
 sendByteStringData :: ByteString -> I.WebSockets ()
 sendByteStringData = I.send E.byteStringData
 
+-- | A higher-level variant of 'sendByteStringData' which does the encoding for
+-- you.
 sendTextData :: Text -> I.WebSockets ()
 sendTextData = I.send E.textData

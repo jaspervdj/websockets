@@ -51,6 +51,7 @@ receive parser = WebSockets $ lift $ do
     eof <- isEOF
     if eof then return Nothing else fmap Just (iterParser parser)
 
+-- | Low-level sending with an arbitrary 'Encoder'
 send :: Encoder a -> a -> WebSockets ()
 send encoder x = do
     sender <- getSender

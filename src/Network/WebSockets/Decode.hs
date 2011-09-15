@@ -1,4 +1,4 @@
--- | Fast, custom parser for WebSocket data
+-- | Provides parsers for the WebSocket protocol. Uses the attoparsec library.
 {-# LANGUAGE OverloadedStrings, PatternGuards #-}
 module Network.WebSockets.Decode
     ( request

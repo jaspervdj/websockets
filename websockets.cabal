@@ -24,9 +24,10 @@ License-file: LICENCE
 Copyright:    (c) 2010-2011 Siniša Biđin
               (c) 2011 Jasper Van der Jeugt
 
-Author:         Siniša Biđin
-Maintainer:     Siniša Biđin <sinisa@bidin.cc>
-Bug-reports:    mailto:sinisa@bidin.cc
+Author:      Siniša Biđin <sinisa@bidin.cc>
+             Jasper Van der Jeugt <m@jaspervdj.be>
+Maintainer:  Siniša Biđin <sinisa@bidin.cc>
+             Jasper Van der Jeugt <m@jaspervdj.be>
 
 Stability:      experimental
 Category:       Network
@@ -56,7 +57,8 @@ Library
     blaze-builder            >= 0.3    && < 0.4,
     blaze-builder-enumerator >= 0.2    && < 0.3,
     bytestring               >= 0.9    && < 0.10,
-    enumerator               >= 0.4.14 && < 0.5,
+    enumerator               >= 0.4.13 && < 0.5,
     mtl                      >= 2.0    && < 2.2,
     network                  >= 2.3    && < 2.4,
-    pureMD5                  >= 2.1    && < 2.2
+    pureMD5                  >= 2.1    && < 2.2,
+    text                     >= 0.10   && < 0.12

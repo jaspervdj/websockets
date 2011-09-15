@@ -18,9 +18,11 @@ module Network.WebSockets
 
       -- * Sending and receiving
     , receiveFrame
-    , receiveData
-    , sendFrame
-    , sendData
+    , receiveByteStringData
+    , receiveTextData
+    , I.send
+    , sendByteStringData
+    , sendTextData
 
       -- * Advanced sending
       -- TODO: getDataSender?
@@ -28,10 +30,13 @@ module Network.WebSockets
     , I.Sender
     , I.getSender
     , E.response
-    , E.frame
+    , E.byteStringData
+    , E.textData
     ) where
 
 import Data.ByteString (ByteString)
+import Data.Text (Text)
+import qualified Data.Text.Encoding as TE
 
 import qualified Network.WebSockets.Decode as D
 import qualified Network.WebSockets.Encode as E
@@ -49,15 +54,22 @@ sendResponse = I.send E.response
 receiveFrame :: I.WebSockets (Maybe I.Frame)
 receiveFrame = I.receive D.frame
 
-receiveData :: I.WebSockets (Maybe ByteString)
-receiveData = do
+receiveByteStringData :: I.WebSockets (Maybe ByteString)
+receiveByteStringData = do
     frame <- receiveFrame
     case frame of
+        Nothing         -> return Nothing
         Just (I.Data x) -> return (Just x)
-        _               -> error "TODO"
+        Just I.Close    -> return Nothing
+        -- TODO: send pong & recurse
+        Just I.Ping     -> error "TODO"
+        Just I.Pong     -> error "TODO"
 
-sendFrame :: I.Frame -> I.WebSockets ()
-sendFrame = I.send E.frame
+receiveTextData :: I.WebSockets (Maybe Text)
+receiveTextData = (fmap . fmap) TE.decodeUtf8 receiveByteStringData
 
-sendData :: ByteString -> I.WebSockets ()
-sendData bs = sendFrame (I.Data bs)
+sendByteStringData :: ByteString -> I.WebSockets ()
+sendByteStringData = I.send E.byteStringData
+
+sendTextData :: Text -> I.WebSockets ()
+sendTextData = I.send E.textData

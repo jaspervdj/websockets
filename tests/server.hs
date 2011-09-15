@@ -8,16 +8,16 @@ import Data.Monoid (mappend)
 import Network (listenOn, PortID(PortNumber), withSocketsDo)
 import Network.Socket (accept)
 import Network.Socket (setSocketOption, SocketOption (ReuseAddr))
-import qualified Data.ByteString.Char8 as BC
+import qualified Data.Text as T
 
 import Network.WebSockets
 
 echo :: WebSockets ()
-echo = receiveData >>= maybe (return ()) ((>> echo) . sendData)
+echo = receiveTextData >>= maybe (return ()) ((>> echo) . sendTextData)
 
 closeMe :: WebSockets ()
 closeMe = do
-    msg <- receiveData
+    msg <- receiveTextData
     case msg of
         Just "Close me!" -> return ()
         _ -> error "closeme: unexpected input"
@@ -26,8 +26,8 @@ concurrentSend :: WebSockets ()
 concurrentSend = do
     sender <- getSender
     forM_ [1 :: Int .. 100] $ \i -> liftIO $ do
-        _ <- forkIO $ sender frame $ Data $
-            "Herp-a-derp " `mappend` BC.pack (show i)
+        _ <- forkIO $ sender textData $
+            "Herp-a-derp " `mappend` T.pack (show i)
         return ()
 
 -- | All tests

@@ -2,15 +2,20 @@
 module Network.WebSockets.Encode
     ( Encoder
     , response
-    , frame
+    , builderData
+    , byteStringData
+    , textData
     ) where
 
 import Data.Monoid (mappend, mconcat)
 
-import Data.ByteString.Char8 ()
 import Blaze.ByteString.Builder (Builder)
 import Blaze.ByteString.Builder.Word (fromWord8)
-import Blaze.ByteString.Builder.ByteString (copyByteString)
+import Blaze.ByteString.Builder.ByteString (copyByteString, fromByteString)
+import Blaze.ByteString.Builder.Char.Utf8 (fromText)
+import Data.ByteString (ByteString)
+import Data.ByteString.Char8 ()
+import Data.Text (Text)
 
 import Network.WebSockets.Types
 
@@ -24,7 +29,11 @@ response (Response headers token) =
   where
     header (k, v) = mconcat $ map copyByteString [k, ": ", v, "\r\n"]
 
-frame :: Encoder Frame
-frame f = case f of
-    Data bs -> fromWord8 0 `mappend` copyByteString bs `mappend` fromWord8 0xff
-    _       -> error "TODO"
+builderData :: Encoder Builder
+builderData b = fromWord8 0 `mappend` b `mappend` fromWord8 0xff
+
+byteStringData :: Encoder ByteString
+byteStringData = builderData . fromByteString
+
+textData :: Encoder Text
+textData = builderData . fromText

@@ -5,7 +5,7 @@ module Network.WebSockets.Decode
     , frame
     ) where
 
-import Control.Applicative ((<$>), (<*>), (*>), (<*))
+import Control.Applicative (pure, (<$>), (<*>), (*>), (<*))
 import Data.Attoparsec (Parser, anyWord8, string, takeTill, takeWhile1, word8)
 import Data.Attoparsec.Combinator (manyTill)
 import Data.ByteString.Char8 ()
@@ -41,6 +41,7 @@ frame :: Parser Frame
 frame = do
     code <- anyWord8
     case code of
-        0 -> Data <$> takeTill (== 0xff) <* word8 0xff
-        -- TODO: implement other frame types
-        _ -> error "TODO"
+        0x00 -> Data <$> takeTill (== 0xff) <* word8 0xff
+        -- These have changed in more recent versions of the protocol
+        0xff -> word8 0x00 *> pure Close
+        _    -> error "Parse error"

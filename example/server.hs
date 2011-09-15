@@ -1,20 +1,20 @@
 import Network (listenOn, PortID(PortNumber), withSocketsDo)
 import Network.Socket (accept)
-import Data.ByteString (ByteString)
-import qualified Data.ByteString as B
+import Data.Text (Text)
 import Network.Socket (setSocketOption, SocketOption (ReuseAddr))
-import Data.ByteString.UTF8 (fromString) -- this is from utf8-string
 import Control.Monad (forever, forM_)
 import Control.Concurrent (forkIO)
 import Control.Concurrent (MVar, newMVar, modifyMVar, modifyMVar_, readMVar)
 import Control.Monad.IO.Class (liftIO)
+import qualified Data.Text as T
+import qualified Data.Text.IO as T
 
 import Network.WebSockets
 
 -- | State kept on the server
 data ServerState = ServerState
     { nextClientId :: Int
-    , clients :: [(Int, Sender Frame)]
+    , clients :: [(Int, Sender Text)]
     }
 
 -- | Create a new, initial state
@@ -26,7 +26,7 @@ numClients :: ServerState -> Int
 numClients = length . clients
 
 -- | Add a client and yield it's ID
-addClient :: Sender Frame -> ServerState -> (ServerState, Int)
+addClient :: Sender Text -> ServerState -> (ServerState, Int)
 addClient s (ServerState i c) = (ServerState (i + 1) ((i, s) : c), i)
 
 -- | Remove a client by ID
@@ -34,10 +34,10 @@ removeClient :: Int -> ServerState -> ServerState
 removeClient i state = state {clients = filter ((/= i) . fst) (clients state)}
 
 -- | Send a message to clients except for the sender
-sendMessage :: ByteString -> ServerState -> IO ()
+sendMessage :: Text -> ServerState -> IO ()
 sendMessage message state = do
-    B.putStrLn message
-    forM_ (clients state) $ \(_, sender) -> sender frame message
+    T.putStrLn message
+    forM_ (clients state) $ \(_, sender) -> sender textData message
 
 -- | Accepts clients, spawns a single handler for each one.
 main :: IO ()
@@ -64,7 +64,7 @@ main = withSocketsDo $ do
             -- Notification for others
             liftIO $ do
                 s <- readMVar state
-                sendMessage (fromString $ "Client " ++ show i ++ " joined") s
+                sendMessage (T.pack $ "Client " ++ show i ++ " joined") s
 
             -- Communicate with the client in a separate thread
             talk state i
@@ -73,14 +73,14 @@ main = withSocketsDo $ do
 -- Talks to the client (by echoing messages back) until EOF.
 talk :: MVar ServerState -> Int -> WebSockets ()
 talk state client = do
-    msg <- receiveFrame
+    msg <- receiveTextData
     case msg of
         Nothing -> liftIO $ modifyMVar_ state $ \s -> do
             let s' = removeClient client s
             sendMessage
-                (fromString $ "Client " ++ show client ++ " disconnected") s'
+                (T.pack $ "Client " ++ show client ++ " disconnected") s'
             return s'
         Just m -> do
             liftIO $ readMVar state >>= sendMessage
-                (fromString ("Client " ++ show client ++ ": ") `B.append` m)
+                (T.pack ("Client " ++ show client ++ ": ") `T.append` m)
             talk state client

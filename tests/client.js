@@ -9,54 +9,18 @@ function createWebSocket(path) {
     return new WebSocket(uri);
 }
 
-function runTest(name, test) {
-    var div = $(document.createElement('div'));
-    $('#results').append(div);
-
-    var title = $(document.createElement('h2'));
-    title.attr('id', name);
-    title.text(name);
-    div.append(title);
-
-    var ol = $(document.createElement('ol'));
-    div.append(ol);
-
-    var success = true;
-
-    function addItem(str) {
-        var li = $(document.createElement('li'));
-        li.text(str);
-        ol.append(li);
-    }
-
-    function assert(str, value) {
-        addItem(str + ': ' + (value ? '✓' : '✗'));
-        success = success && value;
-    }
-
-    function done() {
-        div.append(success ? 'Done' : 'Done, but some tests failed');
-    }
-
-    try {
-        test(assert, done);
-    } catch(err) {
-        addItem('Crashed: ' + err.message + ' ');
-    }
-}
 
 /*******************************************************************************
 * Actual tests                                                                 *
 *******************************************************************************/
 
-function demo(assert, done) {
-    assert('Hi', true);
-    assert('O', false);
-    assert('Sup', true);
-    done();
-}
+module('websockets');
 
-function echo(assert, done) {
+test('demo', function () {
+    ok(true, 'Demo test');
+});
+
+asyncTest('echo', function() {
     var ws = createWebSocket('/echo');
     var messages = ['Hi folks', 'Hello there', 'What up'];
 
@@ -66,29 +30,29 @@ function echo(assert, done) {
 
     ws.onmessage = function (event) {
         var message = event.data;
-        assert('equal', message == messages[0]);
+        equal(message, messages[0]);
         messages = messages.slice(1);
         if(messages.length > 0) {
             ws.send(messages[0]);
         } else {
             ws.close();
-            done();
+            start();
         }
     };
-}
+});
 
-function closeMe(assert, done) {
+asyncTest('close me', function () {
     var ws = createWebSocket('/close-me');
     ws.onopen = function() {
         ws.send('Close me!');
     };
     ws.onclose = function() {
-        assert('closed', true);
-        done();
+        ok(true, 'closed');
+        start();
     };
-}
+});
 
-function concurrentSend(assert, done) {
+asyncTest('concurrent send', function () {
     var ws = createWebSocket('/concurrent-send');
     var expected = [];
     for(var i = 1; i <= 100; i++) {
@@ -101,18 +65,9 @@ function concurrentSend(assert, done) {
         expected.splice(idx, 1);
 
         if(expected.length <= 0) {
-            done();
+            start();
+            ws.close();
+            ok(true, 'all received');
         }
     }
-}
-
-/*******************************************************************************
-* Entry point                                                                  *
-*******************************************************************************/
-
-$(document).ready(function() {
-    runTest('demo', demo);
-    runTest('echo', echo);
-    runTest('close me', closeMe);
-    runTest('concurrent send', concurrentSend);
-})
+});

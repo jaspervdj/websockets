@@ -10,7 +10,7 @@
 -- * Use functions like 'receiveTextData' and 'sendTextData' to do simple,
 --   sequential communication with the client.
 --
--- * 'getSender' allows you obtain a function with which you can send data to
+-- * 'I.getSender' allows you obtain a function with which you can send data to
 --   the client asynchronously.
 --
 -- > {-# LANGUAGE OverloadedStrings #-}

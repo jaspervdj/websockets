@@ -1,39 +1,28 @@
- import Network.WebSockets (shakeHands, getFrame, putFrame)
- import Network (listenOn, PortID(PortNumber), accept, withSocketsDo)
- import System.IO (Handle, hClose)
- import qualified Data.ByteString as B (append, null)
- import Data.ByteString.UTF8 (fromString) -- this is from utf8-string
- import Control.Monad (forever)
- import Control.Concurrent (forkIO)
+-- | This is the example included in the 'Network.WebSockets' documentation
+{-# LANGUAGE OverloadedStrings #-}
+import Control.Monad.Trans (liftIO)
+import qualified Data.Text as T
 
- -- Accepts clients, spawns a single handler for each one.
- main :: IO ()
- main = withSocketsDo $ do
-   socket <- listenOn (PortNumber 8088)
-   putStrLn "Listening on port 8088."
-   forever $ do
-     (h, _, _) <- accept socket
-     forkIO (talkTo h)
+import Network.WebSockets
 
- -- Shakes hands with client. If no error, starts talking.
- talkTo :: Handle -> IO ()
- talkTo h = do
-   request <- shakeHands h
-   case request of
-     Left err -> print err
-     Right  _ -> do
-       putFrame h (fromString "Do you read me, Lieutenant Bowie?")
-       putStrLn "Shook hands, sent welcome message."
-       talkLoop h
+-- Accepts clients, spawns a single handler for each one.
+main :: IO ()
+main = runServer "0.0.0.0" 8000 $ do
+    Just request <- receiveRequest
+    case handshake request of
+        Left err  -> liftIO $ print err
+        Right rsp -> do
+            sendResponse rsp
+            sendTextData "Do you read me, Lieutenant Bowie?"
+            liftIO $ putStrLn "Shook hands, sent welcome message."
+            talkLoop
 
- -- Talks to the client (by echoing messages back) until EOF.
- talkLoop :: Handle -> IO ()
- talkLoop h = do
-   msg <- getFrame h
-   if B.null msg
-      then do
-        putStrLn "EOF encountered. Closing handle."
-        hClose h
-      else do
-        putFrame h $ B.append msg (fromString ", meow.")
-        talkLoop h
+-- Talks to the client (by echoing messages back) until EOF.
+talkLoop :: WebSockets ()
+talkLoop = do
+    msg <- receiveTextData
+    case msg of
+        Nothing -> liftIO $ putStrLn "EOF encountered, quitting"
+        Just m  -> do
+            sendTextData $ m `T.append` ", meow."
+            talkLoop

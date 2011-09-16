@@ -3,6 +3,9 @@ module Network.WebSockets
       -- * WebSocket type
       I.WebSockets
     , I.runWebSockets
+
+      -- * A simple standalone server
+    , I.runServer
     , I.runWithSocket
 
       -- * Types
@@ -12,6 +15,7 @@ module Network.WebSockets
     , I.Frame (..)
 
       -- * Initial handshake
+    , H.HandshakeError (..)
     , receiveRequest
     , sendResponse
     , H.handshake
@@ -68,7 +72,6 @@ receiveFrame = I.receive D.frame
 --
 -- * On a ping, send a pong
 --
--- * When we have an actual data frame, return this to the user
 --
 -- This function thus block until a data frame is received. A return value of
 -- 'Nothing' means the socket has been closed.

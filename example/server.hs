@@ -1,9 +1,5 @@
-import Network (listenOn, PortID(PortNumber), withSocketsDo)
-import Network.Socket (accept)
 import Data.Text (Text)
-import Network.Socket (setSocketOption, SocketOption (ReuseAddr))
-import Control.Monad (forever, forM_)
-import Control.Concurrent (forkIO)
+import Control.Monad (forM_)
 import Control.Concurrent (MVar, newMVar, modifyMVar, modifyMVar_, readMVar)
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.Text as T
@@ -41,34 +37,26 @@ sendMessage message state = do
 
 -- | Accepts clients, spawns a single handler for each one.
 main :: IO ()
-main = withSocketsDo $ do
-    socket <- listenOn (PortNumber 8088)
-    _ <- setSocketOption socket ReuseAddr 1
-    putStrLn "Listening on port 8088."
+main = do
     state <- newMVar newServerState
-    forever $ do
-        -- Wait for a new client to connect
-        (sock, _) <- accept socket
+    runServer "0.0.0.0" 8088 $ do
+        -- Shake hands with the client, assume all is right
+        Just rq <- receiveRequest
+        let Right rsp = handshake rq
+        sendResponse rsp
 
-        _ <- forkIO $ runWithSocket sock $ do
-            -- Shake hands with the client, assume all is right
-            Just rq <- receiveRequest
-            let Right rsp = handshake rq
-            sendResponse rsp
+        -- When a client succesfully connects, give him an ID and add
+        -- him too the list
+        sender <- getSender
+        i <- liftIO $ modifyMVar state $ return . addClient sender
 
-            -- When a client succesfully connects, give him an ID and add
-            -- him too the list
-            sender <- getSender
-            i <- liftIO $ modifyMVar state $ return . addClient sender
+        -- Notification for others
+        liftIO $ do
+            s <- readMVar state
+            sendMessage (T.pack $ "Client " ++ show i ++ " joined") s
 
-            -- Notification for others
-            liftIO $ do
-                s <- readMVar state
-                sendMessage (T.pack $ "Client " ++ show i ++ " joined") s
-
-            -- Communicate with the client in a separate thread
-            talk state i
-        return ()
+        -- Communicate with the client in a separate thread
+        talk state i
 
 -- Talks to the client (by echoing messages back) until EOF.
 talk :: MVar ServerState -> Int -> WebSockets ()

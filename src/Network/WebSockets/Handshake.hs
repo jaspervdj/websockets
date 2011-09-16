@@ -24,9 +24,15 @@ data HandshakeError = HandshakeError String
                     deriving (Show)
 
 instance Error HandshakeError where
-    noMsg = HandshakeError "Handshake error"
+    noMsg  = HandshakeError "Handshake error"
     strMsg = HandshakeError
 
+-- | Provides the logic for the initial handshake defined in the WebSocket
+-- protocol. This function will provide you with a 'Response' which accepts and
+-- upgrades the received 'Request'. Once this 'Response' is sent, you can start
+-- sending and receiving actual application data.
+--
+-- In the case of a malformed request, a 'HandshakeError' is returned.
 handshake :: Request -> Either HandshakeError Response
 handshake (Request path headers token) = do
     origin <- getHeader "Origin"

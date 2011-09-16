@@ -25,11 +25,13 @@ import Data.Enumerator ( Enumerator, Iteratee, Stream (..), checkContinue0
 
 import Network.WebSockets.Encode (Encoder)
 
+-- | The monad in which you can write WebSocket-capable applications
 newtype WebSockets a = WebSockets
     { unWebSockets :: ReaderT
         (Builder -> IO ()) (Iteratee ByteString IO) a
     } deriving (Functor, Monad, MonadIO)
 
+-- | Run a 'WebSockets' application on an 'Enumerator'/'Iteratee' pair.
 runWebSockets :: WebSockets a
               -> Enumerator ByteString IO a
               -> Iteratee ByteString IO ()
@@ -46,6 +48,7 @@ runWebSockets ws inEnum outIter = do
 
     singleton c = checkContinue0 $ \_ f -> f (Chunks [c]) >>== returnI
 
+-- | Receive some data from the socket, using a user-supplied parser.
 receive :: Parser a -> WebSockets (Maybe a)
 receive parser = WebSockets $ lift $ do
     eof <- isEOF
@@ -60,6 +63,9 @@ send encoder x = do
 -- | For asynchronous sending
 type Sender a = Encoder a -> a -> IO ()
 
+-- | In case the user of the library wants to do asynchronous sending to the
+-- socket, he can extract a 'Sender' and pass this value around, for example,
+-- to other threads.
 getSender :: WebSockets (Sender a)
 getSender = WebSockets $ do
     send' <- ask

@@ -54,6 +54,7 @@ module Network.WebSockets
     , I.Headers
     , I.Request (..)
     , I.Response (..)
+    , I.FrameType (..)
     , I.Frame (..)
 
       -- * Initial handshake
@@ -64,8 +65,9 @@ module Network.WebSockets
 
       -- * Sending and receiving
     , receiveFrame
-    , receiveByteStringData
-    , receiveTextData
+    , sendFrame
+    -- , receiveByteStringData
+    -- , receiveTextData
     , I.send
     , sendByteStringData
     , sendTextData
@@ -75,6 +77,7 @@ module Network.WebSockets
     , I.Sender
     , I.getSender
     , E.response
+    , E.frame
     , E.byteStringData
     , E.textData
     ) where
@@ -107,6 +110,10 @@ sendResponse = I.send E.response
 receiveFrame :: I.WebSockets (Maybe I.Frame)
 receiveFrame = I.receive D.frame
 
+-- | A low-level function to send an arbitrary frame over the wire.
+sendFrame :: I.Frame -> I.WebSockets ()
+sendFrame = I.send E.frame
+
 -- | Read frames from the socket, automatically responding:
 --
 -- * On a close operation, close the socket and return 'Nothing'
@@ -116,6 +123,7 @@ receiveFrame = I.receive D.frame
 --
 -- This function thus block until a data frame is received. A return value of
 -- 'Nothing' means the socket has been closed.
+{-
 receiveByteStringData :: I.WebSockets (Maybe ByteString)
 receiveByteStringData = do
     frame <- receiveFrame
@@ -126,11 +134,14 @@ receiveByteStringData = do
         -- TODO: send pong & recurse
         Just I.Ping     -> error "TODO"
         Just I.Pong     -> error "TODO"
+-}
 
 -- | A higher-level variant of 'receiveByteStringData' which does the decoding
 -- for you.
+{-
 receiveTextData :: I.WebSockets (Maybe Text)
 receiveTextData = (fmap . fmap) TE.decodeUtf8 receiveByteStringData
+-}
 
 -- | Send a 'ByteString' to the socket immediately.
 sendByteStringData :: ByteString -> I.WebSockets ()

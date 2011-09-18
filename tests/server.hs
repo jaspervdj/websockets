@@ -4,27 +4,39 @@ import Control.Concurrent (forkIO)
 import Control.Monad (forM_)
 import Control.Monad.Trans (liftIO)
 import Data.ByteString (ByteString)
+import Data.ByteString.Lazy.Char8 ()
 import Data.Monoid (mappend)
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as T
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TL
 
 import Network.WebSockets
 
 echo :: WebSockets ()
-echo = receiveTextData >>= maybe (return ()) ((>> echo) . sendTextData)
+echo = do
+    frame <- receiveFrame
+    liftIO $ putStrLn $ show frame
+    case frame of
+        Just f -> sendFrame f >> echo
+        _      -> return ()
+  where
+    unlazy = B.concat . BL.toChunks
 
 closeMe :: WebSockets ()
 closeMe = do
-    msg <- receiveTextData
+    msg <- receiveFrame
     case msg of
-        Just "Close me!" -> return ()
-        _ -> error "closeme: unexpected input"
+        Just (Frame _ _ "Close me!") -> return ()
+        _                            -> error "closeme: unexpected input"
 
 concurrentSend :: WebSockets ()
 concurrentSend = do
     sender <- getSender
     forM_ [1 :: Int .. 100] $ \i -> liftIO $ do
-        _ <- forkIO $ sender textData $
-            "Herp-a-derp " `mappend` T.pack (show i)
+        _ <- forkIO $ sender frame $ Frame True Text $
+            TL.encodeUtf8 $ "Herp-a-derp " `mappend` TL.pack (show i)
         return ()
 
 -- | All tests

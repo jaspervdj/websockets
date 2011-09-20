@@ -71,6 +71,8 @@ module Network.WebSockets
     , sendFrame
     , receiveMessage
     , receiveDataMessage
+    , receiveTextData
+    , receiveBinaryData
     -- , receiveByteStringData
     -- , receiveTextData
     , I.send
@@ -86,17 +88,19 @@ module Network.WebSockets
     , E.message
     , E.controlMessage
     , E.dataMessage
-    -- , E.byteStringData
-    -- , E.textData
+    , E.textData
+    , E.binaryData
     ) where
 
+import Control.Applicative ((<$>))
 import Control.Monad.State (put, get)
 import Data.Monoid (mappend, mempty)
 
 import Blaze.ByteString.Builder as B
 import Data.ByteString (ByteString)
-import Data.Text (Text)
-import qualified Data.Text.Encoding as TE
+import qualified Data.ByteString.Lazy as BL
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TL
 
 import qualified Network.WebSockets.Decode as D
 import qualified Network.WebSockets.Demultiplex as I
@@ -155,34 +159,18 @@ receiveDataMessage = do
                 I.send E.controlMessage (I.Pong pl)
                 receiveDataMessage
 
--- | Read frames from the socket, automatically responding:
---
--- * On a close operation, close the socket and return 'Nothing'
---
--- * On a ping, send a pong
---
---
--- This function thus block until a data frame is received. A return value of
--- 'Nothing' means the socket has been closed.
-{-
-receiveByteStringData :: I.WebSockets (Maybe ByteString)
-receiveByteStringData = do
-    frame <- receiveFrame
-    case frame of
-        Nothing         -> return Nothing
-        Just (I.Data x) -> return (Just x)
-        Just I.Close    -> return Nothing
-        -- TODO: send pong & recurse
-        Just I.Ping     -> error "TODO"
-        Just I.Pong     -> error "TODO"
--}
+-- | Interpret the next message as UTF-8 encoded data
+receiveTextData :: I.WebSockets (Maybe TL.Text)
+receiveTextData = fmap TL.decodeUtf8 <$> receiveBinaryData
 
--- | A higher-level variant of 'receiveByteStringData' which does the decoding
--- for you.
-{-
-receiveTextData :: I.WebSockets (Maybe Text)
-receiveTextData = (fmap . fmap) TE.decodeUtf8 receiveByteStringData
--}
+-- | Receive the next message as binary data
+receiveBinaryData :: I.WebSockets (Maybe BL.ByteString)
+receiveBinaryData = do
+    dm <- receiveDataMessage
+    case dm of
+        Nothing           -> return Nothing
+        Just (I.Text x)   -> return (Just x)
+        Just (I.Binary x) -> return (Just x)
 
 -- | Send a 'ByteString' to the socket immediately.
 -- sendByteStringData :: ByteString -> I.WebSockets ()

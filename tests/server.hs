@@ -13,38 +13,38 @@ import Network.WebSockets
 
 echo :: WebSockets ()
 echo = do
-    msg <- receiveApplicationMessage
+    msg <- receiveTextData
     liftIO $ putStrLn $ show msg
     case msg of
-        Just m -> send applicationMessage m >> echo
+        Just m -> send textData m >> echo
         _      -> return ()
 
 ping :: WebSockets ()
 ping = do
     forM_ ["Hai", "Come again?", "Right!"] $ \msg -> do
-        send controlMessage $ PingMessage msg
+        send controlMessage $ Ping msg
         fr <- receiveMessage
         case fr of
-            Just (ControlMessage (PongMessage msg'))
+            Just (ControlMessage (Pong msg'))
                 | msg' == msg -> return ()
                 | otherwise   -> error "wrong message from client"
             _ -> error "ping: client closed socket too soon"
 
-    send applicationMessage $ TextMessage "OK"
+    send dataMessage $ Text "OK"
 
 closeMe :: WebSockets ()
 closeMe = do
-    msg <- receiveApplicationMessage
+    msg <- receiveTextData
     case msg of
-        Just (TextMessage "Close me!") -> return ()
-        _                              -> error "closeme: unexpected input"
+        Just "Close me!" -> return ()
+        _                -> error "closeme: unexpected input"
 
 concurrentSend :: WebSockets ()
 concurrentSend = do
     sender <- getSender
     forM_ [1 :: Int .. 100] $ \i -> liftIO $ do
-        _ <- forkIO $ sender applicationMessage $ TextMessage $
-            TL.encodeUtf8 $ "Herp-a-derp " `mappend` TL.pack (show i)
+        _ <- forkIO $ sender textData $
+            "Herp-a-derp " `mappend` TL.pack (show i)
         return ()
 
 -- | All tests

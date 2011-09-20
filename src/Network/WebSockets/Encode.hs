@@ -8,6 +8,8 @@ module Network.WebSockets.Encode
     , message
     , controlMessage
     , dataMessage
+    , textData
+    , binaryData
     ) where
 
 import Data.Monoid (mappend, mempty, mconcat)
@@ -18,6 +20,8 @@ import Blaze.ByteString.Builder.ByteString (copyByteString)
 import Data.Bits ((.|.))
 import Data.ByteString.Char8 ()
 import qualified Data.ByteString.Lazy as BL
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TL
 
 import Network.WebSockets.Types
 
@@ -73,3 +77,9 @@ dataMessage :: Encoder DataMessage
 dataMessage m = frame $ case m of
     Text pl   -> Frame True TextFrame pl
     Binary pl -> Frame True BinaryFrame pl
+
+textData :: Encoder TL.Text
+textData = dataMessage . Text . TL.encodeUtf8
+
+binaryData :: Encoder BL.ByteString
+binaryData = dataMessage . Binary

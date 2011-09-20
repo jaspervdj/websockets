@@ -68,7 +68,9 @@ Library
     mtl                      >= 2.0    && < 2.2,
     network                  >= 2.3    && < 2.4,
     pureMD5                  >= 2.1    && < 2.2,
-    text                     >= 0.10   && < 0.12
+    text                     >= 0.10   && < 0.12,
+    base64-bytestring        >= 0.1    && < 0.2,
+    SHA                      >= 1.5    && < 1.6
 
 Source-repository head
   Type:     git

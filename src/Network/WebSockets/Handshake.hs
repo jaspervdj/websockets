@@ -6,15 +6,9 @@ module Network.WebSockets.Handshake
     ) where
 
 import Data.Monoid (mappend, mconcat)
-import Data.Char (isDigit)
-import Data.Int (Int32)
 import Control.Monad.Error (Error (..), throwError)
 
-import Data.Binary (encode)
-import Data.Digest.Pure.MD5 (md5)
 import Data.Digest.Pure.SHA (bytestringDigest, sha1)
-import Data.ByteString (ByteString)
-import qualified Data.ByteString as B
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy as BL
@@ -36,7 +30,7 @@ instance Error HandshakeError where
 --
 -- In the case of a malformed request, a 'HandshakeError' is returned.
 handshake :: Request -> Either HandshakeError Response
-handshake (Request path headers) = do
+handshake (Request _ headers) = do
     key <- getHeader "Sec-WebSocket-Key"
     let hash = unlazy $ bytestringDigest $ sha1 $ lazy $ key `mappend` guid
     let encoded = B64.encode hash

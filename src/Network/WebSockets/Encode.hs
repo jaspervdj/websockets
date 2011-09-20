@@ -5,21 +5,18 @@ module Network.WebSockets.Encode
     ( Encoder
     , response
     , frame
-    , builderData
-    , byteStringData
-    , textData
+    , message
+    , controlMessage
+    , applicationMessage
     ) where
 
 import Data.Monoid (mappend, mempty, mconcat)
 
 import Blaze.ByteString.Builder (Builder, fromLazyByteString)
 import Blaze.ByteString.Builder.Word (fromWord8, fromWord16be, fromWord64be)
-import Blaze.ByteString.Builder.ByteString (copyByteString, fromByteString)
-import Blaze.ByteString.Builder.Char.Utf8 (fromText)
+import Blaze.ByteString.Builder.ByteString (copyByteString)
 import Data.Bits ((.|.))
-import Data.ByteString (ByteString)
 import Data.ByteString.Char8 ()
-import Data.Text (Text)
 import qualified Data.ByteString.Lazy as BL
 
 import Network.WebSockets.Types
@@ -58,14 +55,21 @@ frame f = fromWord8 byte0 `mappend` fromWord8 byte1 `mappend` len `mappend`
         | len' < 0x10000 = (126, fromWord16be (fromIntegral len'))
         | otherwise      = (127, fromWord64be (fromIntegral len'))
 
--- | Generic method for encoding builders as data
-builderData :: Encoder Builder
-builderData b = fromWord8 0 `mappend` b `mappend` fromWord8 0xff
+-- | Encode a message
+message :: Encoder Message
+message m = case m of
+    ControlMessage m'     -> controlMessage m' 
+    ApplicationMessage m' -> applicationMessage m'
 
--- | Encode a 'ByteString' as a WebSocket frame
-byteStringData :: Encoder ByteString
-byteStringData = builderData . fromByteString
+-- | Encode a control message
+controlMessage :: Encoder ControlMessage
+controlMessage m = frame $ case m of
+    CloseMessage pl -> Frame True Close pl
+    PingMessage pl  -> Frame True Ping pl
+    PongMessage pl  -> Frame True Pong pl
 
--- | Encode some 'Text' as a WebSocket frame
-textData :: Encoder Text
-textData = builderData . fromText
+-- | Encode an application message
+applicationMessage :: Encoder ApplicationMessage
+applicationMessage m = frame $ case m of
+    TextMessage pl   -> Frame True Text pl
+    BinaryMessage pl -> Frame True Binary pl

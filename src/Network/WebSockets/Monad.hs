@@ -1,7 +1,7 @@
 -- | Provides a simple, clean monad to write websocket servers in
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Network.WebSockets.Monad
-    ( WebSockets
+    ( WebSockets (..)
     , runWebSockets
     , receive
     , send
@@ -12,6 +12,7 @@ module Network.WebSockets.Monad
 import Control.Concurrent.MVar (newMVar, takeMVar, putMVar)
 import Control.Exception (SomeException)
 import Control.Monad.Reader (ReaderT, ask, runReaderT)
+import Control.Monad.State (StateT, evalStateT)
 import Control.Monad.Trans (MonadIO, lift, liftIO)
 
 import Blaze.ByteString.Builder (Builder)
@@ -23,12 +24,13 @@ import Data.Enumerator ( Enumerator, Iteratee, Stream (..), checkContinue0
                        , isEOF, returnI, run, ($$), (>>==)
                        )
 
+import Network.WebSockets.Demultiplex (DemultiplexState, emptyDemultiplexState)
 import Network.WebSockets.Encode (Encoder)
 
 -- | The monad in which you can write WebSocket-capable applications
 newtype WebSockets a = WebSockets
-    { unWebSockets :: ReaderT
-        (Builder -> IO ()) (Iteratee ByteString IO) a
+    { unWebSockets :: ReaderT (Builder -> IO ())
+        (StateT DemultiplexState (Iteratee ByteString IO)) a
     } deriving (Functor, Monad, MonadIO)
 
 -- | Run a 'WebSockets' application on an 'Enumerator'/'Iteratee' pair.
@@ -38,7 +40,8 @@ runWebSockets :: WebSockets a
               -> IO (Either SomeException a)
 runWebSockets ws inEnum outIter = do
     sendLock <- newMVar () 
-    let inIter = runReaderT (unWebSockets ws) (makeSend sendLock)
+    let state  = runReaderT (unWebSockets ws) (makeSend sendLock)
+        inIter = evalStateT state emptyDemultiplexState 
     run (inEnum $$ inIter)
   where
     makeSend sendLock x = do
@@ -50,7 +53,7 @@ runWebSockets ws inEnum outIter = do
 
 -- | Receive some data from the socket, using a user-supplied parser.
 receive :: Parser a -> WebSockets (Maybe a)
-receive parser = WebSockets $ lift $ do
+receive parser = WebSockets $ lift $ lift $ do
     eof <- isEOF
     if eof then return Nothing else fmap Just (iterParser parser)
 

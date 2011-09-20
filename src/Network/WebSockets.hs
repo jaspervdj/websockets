@@ -56,6 +56,9 @@ module Network.WebSockets
     , I.Response (..)
     , I.FrameType (..)
     , I.Frame (..)
+    , I.Message (..)
+    , I.ControlMessage (..)
+    , I.ApplicationMessage (..)
 
       -- * Initial handshake
     , H.HandshakeError (..)
@@ -66,11 +69,13 @@ module Network.WebSockets
       -- * Sending and receiving
     , receiveFrame
     , sendFrame
+    , receiveMessage
+    , receiveApplicationMessage
     -- , receiveByteStringData
     -- , receiveTextData
     , I.send
-    , sendByteStringData
-    , sendTextData
+    -- , sendByteStringData
+    -- , sendTextData
 
       -- * Advanced sending
     , E.Encoder
@@ -78,15 +83,23 @@ module Network.WebSockets
     , I.getSender
     , E.response
     , E.frame
-    , E.byteStringData
-    , E.textData
+    , E.message
+    , E.controlMessage
+    , E.applicationMessage
+    -- , E.byteStringData
+    -- , E.textData
     ) where
 
+import Control.Monad.State (put, get)
+import Data.Monoid (mappend, mempty)
+
+import Blaze.ByteString.Builder as B
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 import qualified Data.Text.Encoding as TE
 
 import qualified Network.WebSockets.Decode as D
+import qualified Network.WebSockets.Demultiplex as I
 import qualified Network.WebSockets.Encode as E
 import qualified Network.WebSockets.Handshake as H
 import qualified Network.WebSockets.Monad as I
@@ -113,6 +126,34 @@ receiveFrame = I.receive D.frame
 -- | A low-level function to send an arbitrary frame over the wire.
 sendFrame :: I.Frame -> I.WebSockets ()
 sendFrame = I.send E.frame
+
+-- | Receive a message
+receiveMessage :: I.WebSockets (Maybe I.Message)
+receiveMessage = I.WebSockets $ do
+    mf <- I.unWebSockets receiveFrame
+    case mf of
+        Nothing -> return Nothing
+        Just f  -> do
+            s <- get
+            let (msg, s') = I.demultiplex s f
+            put s'
+            case msg of
+                Nothing -> I.unWebSockets receiveMessage
+                Just m  -> return (Just m)
+
+-- | Receive an application message. Automatically respond to control messages.
+receiveApplicationMessage :: I.WebSockets (Maybe I.ApplicationMessage)
+receiveApplicationMessage = do
+    mm <- receiveMessage
+    case mm of
+        Nothing -> return Nothing
+        Just (I.ApplicationMessage am) -> return (Just am)
+        Just (I.ControlMessage cm) -> case cm of
+            I.CloseMessage _ -> return Nothing
+            I.PongMessage _  -> receiveApplicationMessage
+            I.PingMessage pl -> do
+                I.send E.controlMessage (I.PongMessage pl)
+                receiveApplicationMessage
 
 -- | Read frames from the socket, automatically responding:
 --
@@ -144,10 +185,10 @@ receiveTextData = (fmap . fmap) TE.decodeUtf8 receiveByteStringData
 -}
 
 -- | Send a 'ByteString' to the socket immediately.
-sendByteStringData :: ByteString -> I.WebSockets ()
-sendByteStringData = I.send E.byteStringData
+-- sendByteStringData :: ByteString -> I.WebSockets ()
+-- sendByteStringData = I.send E.byteStringData
 
 -- | A higher-level variant of 'sendByteStringData' which does the encoding for
 -- you.
-sendTextData :: Text -> I.WebSockets ()
-sendTextData = I.send E.textData
+-- sendTextData :: Text -> I.WebSockets ()
+-- sendTextData = I.send E.textData

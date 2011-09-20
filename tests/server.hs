@@ -6,9 +6,6 @@ import Control.Monad.Trans (liftIO)
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy.Char8 ()
 import Data.Monoid (mappend)
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as BL
-import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TL
 
@@ -31,7 +28,7 @@ ping = do
             Just (Frame True Pong msg')
                 | msg' == msg -> return ()
                 | otherwise   -> error "wrong message from client"
-            _          -> error "ping: client closed socket too soon"
+            _ -> error "ping: client closed socket too soon"
 
     sendFrame $ Frame True Text "OK"
 

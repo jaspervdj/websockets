@@ -7,7 +7,7 @@ module Network.WebSockets.Encode
     , frame
     , message
     , controlMessage
-    , applicationMessage
+    , dataMessage
     ) where
 
 import Data.Monoid (mappend, mempty, mconcat)
@@ -40,12 +40,12 @@ frame f = fromWord8 byte0 `mappend` fromWord8 byte1 `mappend` len `mappend`
     byte0  = fin .|. opcode
     fin    = if frameFin f then 0x80 else 0x00
     opcode = case frameType f of
-        Continuation -> 0x00
-        Text         -> 0x01
-        Binary       -> 0x02
-        Close        -> 0x08
-        Ping         -> 0x09
-        Pong         -> 0x0a
+        ContinuationFrame -> 0x00
+        TextFrame         -> 0x01
+        BinaryFrame       -> 0x02
+        CloseFrame        -> 0x08
+        PingFrame         -> 0x09
+        PongFrame         -> 0x0a
 
     byte1 = mask .|. lenflag
     mask  = 0x00  -- We don't support server masking for now
@@ -58,18 +58,18 @@ frame f = fromWord8 byte0 `mappend` fromWord8 byte1 `mappend` len `mappend`
 -- | Encode a message
 message :: Encoder Message
 message m = case m of
-    ControlMessage m'     -> controlMessage m' 
-    ApplicationMessage m' -> applicationMessage m'
+    ControlMessage m' -> controlMessage m' 
+    DataMessage m'    -> dataMessage m'
 
 -- | Encode a control message
 controlMessage :: Encoder ControlMessage
 controlMessage m = frame $ case m of
-    CloseMessage pl -> Frame True Close pl
-    PingMessage pl  -> Frame True Ping pl
-    PongMessage pl  -> Frame True Pong pl
+    Close pl -> Frame True CloseFrame pl
+    Ping pl  -> Frame True PingFrame pl
+    Pong pl  -> Frame True PongFrame pl
 
 -- | Encode an application message
-applicationMessage :: Encoder ApplicationMessage
-applicationMessage m = frame $ case m of
-    TextMessage pl   -> Frame True Text pl
-    BinaryMessage pl -> Frame True Binary pl
+dataMessage :: Encoder DataMessage
+dataMessage m = frame $ case m of
+    Text pl   -> Frame True TextFrame pl
+    Binary pl -> Frame True BinaryFrame pl

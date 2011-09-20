@@ -6,7 +6,7 @@ module Network.WebSockets.Types
     , Frame (..)
     , Message (..)
     , ControlMessage (..)
-    , ApplicationMessage (..)
+    , DataMessage (..)
     ) where
 
 import Data.ByteString (ByteString)
@@ -35,31 +35,31 @@ data Frame = Frame
 
 -- | Type of a frame
 data FrameType
-    = Continuation
-    | Text
-    | Binary
-    | Close
-    | Ping
-    | Pong
+    = ContinuationFrame
+    | TextFrame
+    | BinaryFrame
+    | CloseFrame
+    | PingFrame
+    | PongFrame
     deriving (Show)
 
 -- | The kind of message a server application typically deals with
 data Message
     = ControlMessage ControlMessage
-    | ApplicationMessage ApplicationMessage
+    | DataMessage DataMessage
     deriving (Show)
 
 -- | Different control messages
 data ControlMessage
-    = CloseMessage BL.ByteString
-    | PingMessage BL.ByteString
-    | PongMessage BL.ByteString
+    = Close BL.ByteString
+    | Ping BL.ByteString
+    | Pong BL.ByteString
     deriving (Show)
 
 -- | For an end-user of this library, dealing with 'Frame's would be a bit
 -- low-level. This is why define another type on top of it, which represents
 -- data for the application layer.
-data ApplicationMessage
-    = TextMessage BL.ByteString
-    | BinaryMessage BL.ByteString
+data DataMessage
+    = Text BL.ByteString
+    | Binary BL.ByteString
     deriving (Show)

@@ -58,7 +58,7 @@ module Network.WebSockets
     , I.Frame (..)
     , I.Message (..)
     , I.ControlMessage (..)
-    , I.ApplicationMessage (..)
+    , I.DataMessage (..)
 
       -- * Initial handshake
     , H.HandshakeError (..)
@@ -70,7 +70,7 @@ module Network.WebSockets
     , receiveFrame
     , sendFrame
     , receiveMessage
-    , receiveApplicationMessage
+    , receiveDataMessage
     -- , receiveByteStringData
     -- , receiveTextData
     , I.send
@@ -85,7 +85,7 @@ module Network.WebSockets
     , E.frame
     , E.message
     , E.controlMessage
-    , E.applicationMessage
+    , E.dataMessage
     -- , E.byteStringData
     -- , E.textData
     ) where
@@ -142,18 +142,18 @@ receiveMessage = I.WebSockets $ do
                 Just m  -> return (Just m)
 
 -- | Receive an application message. Automatically respond to control messages.
-receiveApplicationMessage :: I.WebSockets (Maybe I.ApplicationMessage)
-receiveApplicationMessage = do
+receiveDataMessage :: I.WebSockets (Maybe I.DataMessage)
+receiveDataMessage = do
     mm <- receiveMessage
     case mm of
         Nothing -> return Nothing
-        Just (I.ApplicationMessage am) -> return (Just am)
+        Just (I.DataMessage am) -> return (Just am)
         Just (I.ControlMessage cm) -> case cm of
-            I.CloseMessage _ -> return Nothing
-            I.PongMessage _  -> receiveApplicationMessage
-            I.PingMessage pl -> do
-                I.send E.controlMessage (I.PongMessage pl)
-                receiveApplicationMessage
+            I.Close _ -> return Nothing
+            I.Pong _  -> receiveDataMessage
+            I.Ping pl -> do
+                I.send E.controlMessage (I.Pong pl)
+                receiveDataMessage
 
 -- | Read frames from the socket, automatically responding:
 --

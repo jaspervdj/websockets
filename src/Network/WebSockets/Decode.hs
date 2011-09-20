@@ -48,12 +48,12 @@ frame = do
         opcode = byte0 .&. 0x0f
 
     let ft = case opcode of
-            0x00 -> Continuation
-            0x01 -> Text
-            0x02 -> Binary
-            0x08 -> Close
-            0x09 -> Ping
-            0x0a -> Pong
+            0x00 -> ContinuationFrame
+            0x01 -> TextFrame
+            0x02 -> BinaryFrame
+            0x08 -> CloseFrame
+            0x09 -> PingFrame
+            0x0a -> PongFrame
             _    -> error "Unknown opcode"
 
     byte1 <- anyWord8

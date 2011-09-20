@@ -41,6 +41,17 @@ asyncTest('echo', function() {
     };
 });
 
+asyncTest('ping', function() {
+    var ws = createWebSocket('/ping');
+
+    ws.onmessage = function (event) {
+        if(event.data == 'OK') {
+            ws.close();
+            start();
+        }
+    };
+});
+
 asyncTest('close me', function () {
     var ws = createWebSocket('/close-me');
     ws.onopen = function() {

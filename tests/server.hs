@@ -1,5 +1,5 @@
 -- | The server part of the tests
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, PatternGuards #-}
 import Control.Concurrent (forkIO)
 import Control.Monad (forM_)
 import Control.Monad.Trans (liftIO)
@@ -16,13 +16,24 @@ import Network.WebSockets
 
 echo :: WebSockets ()
 echo = do
-    frame <- receiveFrame
-    liftIO $ putStrLn $ show frame
-    case frame of
+    fr <- receiveFrame
+    liftIO $ putStrLn $ show fr
+    case fr of
         Just f -> sendFrame f >> echo
         _      -> return ()
-  where
-    unlazy = B.concat . BL.toChunks
+
+ping :: WebSockets ()
+ping = do
+    forM_ ["Hai", "Come again?", "Right!"] $ \msg -> do
+        sendFrame $ Frame True Ping msg
+        fr <- receiveFrame
+        case fr of
+            Just (Frame True Pong msg')
+                | msg' == msg -> return ()
+                | otherwise   -> error "wrong message from client"
+            _          -> error "ping: client closed socket too soon"
+
+    sendFrame $ Frame True Text "OK"
 
 closeMe :: WebSockets ()
 closeMe = do
@@ -43,6 +54,7 @@ concurrentSend = do
 tests :: [(ByteString, WebSockets ())]
 tests =
     [ ("/echo", echo)
+    , ("/ping", ping)
     , ("/close-me", closeMe)
     , ("/concurrent-send", concurrentSend)
     ]

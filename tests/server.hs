@@ -1,6 +1,7 @@
 -- | The server part of the tests
 {-# LANGUAGE OverloadedStrings, PatternGuards #-}
 import Control.Concurrent (forkIO)
+import Control.Concurrent.MVar (newMVar, putMVar, readMVar, takeMVar)
 import Control.Monad (forM_)
 import Control.Monad.Trans (liftIO)
 import Data.ByteString (ByteString)
@@ -16,7 +17,7 @@ echo = do
     msg <- receiveTextData
     liftIO $ putStrLn $ show msg
     case msg of
-        Just m -> send textData m >> echo
+        Just m -> sendTextData m >> echo
         _      -> return ()
 
 ping :: WebSockets ()
@@ -42,10 +43,14 @@ closeMe = do
 concurrentSend :: WebSockets ()
 concurrentSend = do
     sender <- getSender
-    forM_ [1 :: Int .. 100] $ \i -> liftIO $ do
-        _ <- forkIO $ sender textData $
-            "Herp-a-derp " `mappend` TL.pack (show i)
-        return ()
+    liftIO $ do
+        mvars <- mapM newMVar [1 :: Int .. 100]
+        forM_ mvars $ \mvar -> forkIO $ do
+            i <- readMVar mvar
+            sender textData $ "Herp-a-derp " `mappend` TL.pack (show i)
+            _ <- takeMVar mvar
+            return ()
+        forM_ mvars $ flip putMVar 0
 
 -- | All tests
 tests :: [(ByteString, WebSockets ())]

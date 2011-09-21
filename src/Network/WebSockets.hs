@@ -70,18 +70,18 @@ module Network.WebSockets
     , receiveFrame
     , sendFrame
     , receiveMessage
+    , sendMessage
     , receiveDataMessage
+    , sendDataMessage
     , receiveTextData
+    , sendTextData
     , receiveBinaryData
-    -- , receiveByteStringData
-    -- , receiveTextData
-    , I.send
-    -- , sendByteStringData
-    -- , sendTextData
+    , sendBinaryData
 
       -- * Advanced sending
     , E.Encoder
     , I.Sender
+    , I.send
     , I.getSender
     , E.response
     , E.frame
@@ -145,6 +145,10 @@ receiveMessage = I.WebSockets $ do
                 Nothing -> I.unWebSockets receiveMessage
                 Just m  -> return (Just m)
 
+-- | Send a message
+sendMessage :: I.Message -> I.WebSockets ()
+sendMessage = I.send E.message
+
 -- | Receive an application message. Automatically respond to control messages.
 receiveDataMessage :: I.WebSockets (Maybe I.DataMessage)
 receiveDataMessage = do
@@ -159,9 +163,17 @@ receiveDataMessage = do
                 I.send E.controlMessage (I.Pong pl)
                 receiveDataMessage
 
+-- | Send an application-level message.
+sendDataMessage :: I.DataMessage -> I.WebSockets ()
+sendDataMessage = I.send E.dataMessage
+
 -- | Interpret the next message as UTF-8 encoded data
 receiveTextData :: I.WebSockets (Maybe TL.Text)
 receiveTextData = fmap TL.decodeUtf8 <$> receiveBinaryData
+
+-- | Send a text message
+sendTextData :: TL.Text -> I.WebSockets ()
+sendTextData = I.send E.textData
 
 -- | Receive the next message as binary data
 receiveBinaryData :: I.WebSockets (Maybe BL.ByteString)
@@ -172,11 +184,6 @@ receiveBinaryData = do
         Just (I.Text x)   -> return (Just x)
         Just (I.Binary x) -> return (Just x)
 
--- | Send a 'ByteString' to the socket immediately.
--- sendByteStringData :: ByteString -> I.WebSockets ()
--- sendByteStringData = I.send E.byteStringData
-
--- | A higher-level variant of 'sendByteStringData' which does the encoding for
--- you.
--- sendTextData :: Text -> I.WebSockets ()
--- sendTextData = I.send E.textData
+-- | Send some binary data
+sendBinaryData :: BL.ByteString -> I.WebSockets ()
+sendBinaryData = I.send E.binaryData

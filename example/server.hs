@@ -1,6 +1,7 @@
 -- | This is the Haskell implementation of the example for the WebSockets
 -- library. We implement a simple multi-user chat program.
 {-# LANGUAGE OverloadedStrings #-}
+import Data.Char (isPunctuation, isSpace)
 import Data.Monoid (mappend)
 import Data.Text (Text)
 import Control.Monad (forM_)
@@ -80,22 +81,27 @@ main = do
             Just m
                 -- Check that the first message has the right format
                 | not (prefix `T.isPrefixOf` m) ->
-                    WS.sendTextData ("Wrong announcement." :: Text)
+                    WS.sendTextData ("Wrong announcement" :: Text)
+                -- Check the validity of the username
+                | any ($ fst client)
+                    [T.null, T.any isPunctuation, T.any isSpace] ->
+                        WS.sendTextData ("Name cannot " `mappend`
+                            "contain punctuation or whitespace, and " `mappend`
+                            "cannot be empty" :: Text)
                 -- Check that the given username is not already taken
                 | clientExists client clients ->
-                    WS.sendTextData ("User already exists." :: Text)
+                    WS.sendTextData ("User already exists" :: Text)
                 -- All is right!
                 | otherwise -> do
                     -- We send a "Welcome!", according to our own little
                     -- protocol. We add the client to the list and broadcast the
                     -- fact that he has joined. Then, we give control to the
                     -- 'talk' function.
-                    WS.sendTextData ("Welcome!" :: Text)
                     liftIO $ modifyMVar_ state $ \s -> do
                         let s' = addClient client s
-                        broadcast (fst client `mappend` " joined, " `mappend`
-                            T.pack (show (numClients s')) `mappend`
-                            " users connected") s'
+                        sender WS.textData $ "Welcome! Users: " `mappend`
+                            T.intercalate ", " (map fst s)
+                        broadcast (fst client `mappend` " joined") s'
                         return s'
                     talk state client
               where

@@ -18,3 +18,14 @@ div#warnings {
 
 div#join {
 }
+
+div#users {
+    width: 200px;
+    float: right;
+    margin: 0px;
+}
+
+div#chat {
+    width: 400px;
+    margin: 0px;
+}

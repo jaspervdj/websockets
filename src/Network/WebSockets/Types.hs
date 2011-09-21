@@ -9,15 +9,18 @@ module Network.WebSockets.Types
     , DataMessage (..)
     ) where
 
-import Data.ByteString (ByteString)
+import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
+import qualified Data.Text as T
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TL
 
 -- | Request headers
-type Headers = [(ByteString, ByteString)]
+type Headers = [(B.ByteString, B.ByteString)]
 
 -- | Simple request type
 data Request = Request
-    { requestPath    :: !ByteString
+    { requestPath    :: !B.ByteString
     , requestHeaders :: Headers
     } deriving (Show)
 
@@ -63,3 +66,36 @@ data DataMessage
     = Text BL.ByteString
     | Binary BL.ByteString
     deriving (Show)
+
+-- | In order to have an even more high-level API, we define a typeclass for
+-- values the user can receive from and send to the socket. A few warnings
+-- apply:
+--
+-- * Natively, everything is represented as a 'BL.ByteString', so this is the
+--   fastest instance
+--
+-- * You should only use the 'TL.Text' or the 'T.Text' instance when you are
+--   sure that the data is UTF-8 encoded (which is the case for 'Text'
+--   messages).
+--
+-- * Messages can be very large. If this is the case, it might be inefficient to
+--   use the strict 'B.ByteString' and 'T.Text' instances.
+class WebSocketsData a where
+    fromLazyByteString :: BL.ByteString -> a
+    toLazyByteString   :: a -> BL.ByteString
+
+instance WebSocketsData BL.ByteString where
+    fromLazyByteString = id
+    toLazyByteString   = id
+
+instance WebSocketsData B.ByteString where
+    fromLazyByteString = B.concat . BL.toChunks
+    toLazyByteString   = BL.fromChunks . return
+
+instance WebSocketsData TL.Text where
+    fromLazyByteString = TL.decodeUtf8
+    toLazyByteString   = TL.encodeUtf8
+
+instance WebSocketsData T.Text where
+    fromLazyByteString = T.concat . TL.toChunks . fromLazyByteString
+    toLazyByteString   = toLazyByteString . TL.fromChunks . return

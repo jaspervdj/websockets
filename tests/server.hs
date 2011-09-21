@@ -8,14 +8,13 @@ import Data.ByteString (ByteString)
 import Data.ByteString.Lazy.Char8 ()
 import Data.Monoid (mappend)
 import qualified Data.Text.Lazy as TL
-import qualified Data.Text.Lazy.Encoding as TL
 
 import Network.WebSockets
 
 echo :: WebSockets ()
 echo = do
-    msg <- receiveTextData
-    liftIO $ putStrLn $ show msg
+    msg <- receiveData
+    liftIO $ putStrLn $ show (msg :: Maybe TL.Text)
     case msg of
         Just m -> sendTextData m >> echo
         _      -> return ()
@@ -35,8 +34,8 @@ ping = do
 
 closeMe :: WebSockets ()
 closeMe = do
-    msg <- receiveTextData
-    case msg of
+    msg <- receiveData
+    case (msg :: Maybe TL.Text) of
         Just "Close me!" -> return ()
         _                -> error "closeme: unexpected input"
 

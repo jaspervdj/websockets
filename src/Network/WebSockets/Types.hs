@@ -7,6 +7,7 @@ module Network.WebSockets.Types
     , Message (..)
     , ControlMessage (..)
     , DataMessage (..)
+    , WebSocketsData (..)
     ) where
 
 import qualified Data.ByteString as B

@@ -73,9 +73,8 @@ module Network.WebSockets
     , sendMessage
     , receiveDataMessage
     , sendDataMessage
-    , receiveTextData
+    , receiveData
     , sendTextData
-    , receiveBinaryData
     , sendBinaryData
 
       -- * Advanced sending
@@ -92,15 +91,7 @@ module Network.WebSockets
     , E.binaryData
     ) where
 
-import Control.Applicative ((<$>))
 import Control.Monad.State (put, get)
-import Data.Monoid (mappend, mempty)
-
-import Blaze.ByteString.Builder as B
-import Data.ByteString (ByteString)
-import qualified Data.ByteString.Lazy as BL
-import qualified Data.Text.Lazy as TL
-import qualified Data.Text.Lazy.Encoding as TL
 
 import qualified Network.WebSockets.Decode as D
 import qualified Network.WebSockets.Demultiplex as I
@@ -168,22 +159,18 @@ sendDataMessage :: I.DataMessage -> I.WebSockets ()
 sendDataMessage = I.send E.dataMessage
 
 -- | Interpret the next message as UTF-8 encoded data
-receiveTextData :: I.WebSockets (Maybe TL.Text)
-receiveTextData = fmap TL.decodeUtf8 <$> receiveBinaryData
-
--- | Send a text message
-sendTextData :: TL.Text -> I.WebSockets ()
-sendTextData = I.send E.textData
-
--- | Receive the next message as binary data
-receiveBinaryData :: I.WebSockets (Maybe BL.ByteString)
-receiveBinaryData = do
+receiveData :: I.WebSocketsData a => I.WebSockets (Maybe a)
+receiveData = do
     dm <- receiveDataMessage
     case dm of
         Nothing           -> return Nothing
-        Just (I.Text x)   -> return (Just x)
-        Just (I.Binary x) -> return (Just x)
+        Just (I.Text x)   -> return (Just $ I.fromLazyByteString x)
+        Just (I.Binary x) -> return (Just $ I.fromLazyByteString x)
+
+-- | Send a text message
+sendTextData :: I.WebSocketsData a => a -> I.WebSockets ()
+sendTextData = I.send E.textData
 
 -- | Send some binary data
-sendBinaryData :: BL.ByteString -> I.WebSockets ()
+sendBinaryData :: I.WebSocketsData a => a -> I.WebSockets ()
 sendBinaryData = I.send E.binaryData

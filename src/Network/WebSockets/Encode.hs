@@ -1,5 +1,5 @@
--- | Encoding of types to the WebSocket protocol. We always encode to 'Builder'
--- values.
+-- | Encoding of types to the WebSocket protocol. We always encode to
+-- 'B.Builder' values.
 {-# LANGUAGE OverloadedStrings #-}
 module Network.WebSockets.Encode
     ( Encoder
@@ -12,34 +12,30 @@ module Network.WebSockets.Encode
     , binaryData
     ) where
 
+import Data.Bits ((.|.))
 import Data.Monoid (mappend, mempty, mconcat)
 
-import Blaze.ByteString.Builder (Builder, fromLazyByteString)
-import Blaze.ByteString.Builder.Word (fromWord8, fromWord16be, fromWord64be)
-import Blaze.ByteString.Builder.ByteString (copyByteString)
-import Data.Bits ((.|.))
 import Data.ByteString.Char8 ()
+import qualified Blaze.ByteString.Builder as B
 import qualified Data.ByteString.Lazy as BL
-import qualified Data.Text.Lazy as TL
-import qualified Data.Text.Lazy.Encoding as TL
 
 import Network.WebSockets.Types
 
 -- | The inverse of a parser
-type Encoder a = a -> Builder
+type Encoder a = a -> B.Builder
 
 -- | Encode an HTTP upgrade response
 response :: Encoder Response
 response (Response headers) =
-    copyByteString "HTTP/1.1 101 WebSocket Protocol Handshake\r\n" `mappend`
-    mconcat (map header headers) `mappend` copyByteString "\r\n"
+    B.copyByteString "HTTP/1.1 101 WebSocket Protocol Handshake\r\n" `mappend`
+    mconcat (map header headers) `mappend` B.copyByteString "\r\n"
   where
-    header (k, v) = mconcat $ map copyByteString [k, ": ", v, "\r\n"]
+    header (k, v) = mconcat $ map B.copyByteString [k, ": ", v, "\r\n"]
 
 -- | Encode a frame
 frame :: Encoder Frame
-frame f = fromWord8 byte0 `mappend` fromWord8 byte1 `mappend` len `mappend`
-    fromLazyByteString (framePayload f)
+frame f = B.fromWord8 byte0 `mappend` B.fromWord8 byte1 `mappend` len `mappend`
+    B.fromLazyByteString (framePayload f)
   where
     byte0  = fin .|. opcode
     fin    = if frameFin f then 0x80 else 0x00
@@ -56,8 +52,8 @@ frame f = fromWord8 byte0 `mappend` fromWord8 byte1 `mappend` len `mappend`
     len'  = BL.length (framePayload f)
     (lenflag, len)
         | len' < 126     = (fromIntegral len', mempty)
-        | len' < 0x10000 = (126, fromWord16be (fromIntegral len'))
-        | otherwise      = (127, fromWord64be (fromIntegral len'))
+        | len' < 0x10000 = (126, B.fromWord16be (fromIntegral len'))
+        | otherwise      = (127, B.fromWord64be (fromIntegral len'))
 
 -- | Encode a message
 message :: Encoder Message
@@ -78,8 +74,8 @@ dataMessage m = frame $ case m of
     Text pl   -> Frame True TextFrame pl
     Binary pl -> Frame True BinaryFrame pl
 
-textData :: Encoder TL.Text
-textData = dataMessage . Text . TL.encodeUtf8
+textData :: WebSocketsData a => Encoder a
+textData = dataMessage . Text . toLazyByteString
 
-binaryData :: Encoder BL.ByteString
-binaryData = dataMessage . Binary
+binaryData :: WebSocketsData a => Encoder a
+binaryData = dataMessage . Binary . toLazyByteString

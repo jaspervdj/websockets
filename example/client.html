@@ -7,12 +7,23 @@
     </head>
     <body>
         <h1>WebSocket example</h1>
-        <div id="messages">
+        <div id="warnings">
         </div>
-        <br />
-        <form id="message" action="">
-            <input id="text" type="text" size="40" />
-            <input id="send" type="submit" value="Send" />
-        </form>
+        <div id="join">
+            <form id="join-form" action="">
+                <label for="user">Username: </label>
+                <input id="user" type="text" size="12" />
+                <input id="send" type="submit" value="Join" />
+            </form>
+        </div>
+        <div id="chat" style="display: none">
+            <div id="messages">
+            </div>
+            <br />
+            <form id="message-form" action="">
+                <input id="text" type="text" size="40" />
+                <input id="send" type="submit" value="Send" />
+            </form>
+        </div>
     </body>
 </html>

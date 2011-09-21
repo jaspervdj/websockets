@@ -18,6 +18,10 @@ type ServerState = [Client]
 newServerState :: ServerState
 newServerState = []
 
+-- | Number of active clients
+numClients :: ServerState -> Int
+numClients = length
+
 -- | Check if a user exists
 clientExists :: Client -> ServerState -> Bool
 clientExists client = any ((== fst client) . fst)
@@ -60,9 +64,12 @@ main = do
                     WS.sendTextData ("User already exists." :: Text)
                 | otherwise -> do
                     WS.sendTextData ("Welcome!" :: Text)
+                    WS.sendTextData ("Welcome!" :: Text)
                     liftIO $ modifyMVar_ state $ \s -> do
                         let s' = addClient client s
-                        sendMessage (fst client `mappend` " joined") s'
+                        sendMessage (fst client `mappend` " joined, " `mappend`
+                            T.pack (show (numClients s')) `mappend`
+                            " users connected") s'
                         return s'
                     talk state client
               where

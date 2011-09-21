@@ -1,0 +1,20 @@
+html {
+    font-family: sans-serif;
+    background-color: #bbb;
+}
+
+body {
+    width: 600px;
+    margin: 0px auto 0px auto;
+    padding: 10px;
+    background-color: #fff;
+    height: 100%;
+}
+
+div#warnings {
+    color: red;
+    font-weight: bold;
+}
+
+div#join {
+}

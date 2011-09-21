@@ -21,7 +21,7 @@ $(document).ready(function () {
 
         ws.onopen = function() {
             ws.send('Hi! I am ' + user);
-        }
+        };
 
         ws.onmessage = function(event) {
             if(event.data == 'Welcome!') {
@@ -38,14 +38,14 @@ $(document).ready(function () {
                     $('#text').val('');
                     return false;
                 });
-
             } else {
                 $('#warnings').append(event.data);
                 ws.close();
             }
-        }
+        };
+
+        $('#join').append('Connecting...');
 
         return false;
     });
 });
-

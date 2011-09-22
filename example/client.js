@@ -7,12 +7,6 @@ function createWebSocket(path) {
     return new Socket(uri);
 }
 
-function addMessage(message) {
-    var div = $(document.createElement('div'));
-    div.text(message);
-    $('#messages').append(div);
-}
-
 var users = [];
 
 function refreshUsers() {
@@ -23,7 +17,8 @@ function refreshUsers() {
 }
 
 function onMessage(event) {
-    addMessage(event.data);
+    var p = $(document.createElement('p')).text(event.data);
+    $('#messages').append(p);
 
     if(event.data.match(/^[^:]* joined/)) {
         var user = event.data.replace(/ .*/, '');

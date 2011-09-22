@@ -7,39 +7,26 @@
 --   the initial 'H.handshake'. This yields a 'I.Response' which you can send
 --   back using 'sendResponse'. The WebSocket is now ready.
 --
--- * Use functions like 'receiveTextData' and 'sendTextData' to do simple,
---   sequential communication with the client.
+-- Now you're all set! The WebSockets protocol defines two types of messages:
+-- binary, and UTF-8 encoded messages. At the Haskell side, you can write very
+-- flexible clients using the 'I.WebSocketsData' typeclass. This allows you to
+-- deal with binary and text data using the different Haskell string types
+-- (bytestrings and text).
 --
--- * 'I.getSender' allows you obtain a function with which you can send data to
---   the client asynchronously.
+-- In order to receive messages, most users of this library will want to use
+-- 'receiveData', which simply gives you the data messages in the format you
+-- choose.
 --
--- > {-# LANGUAGE OverloadedStrings #-}
--- > import Control.Monad.Trans (liftIO)
--- > import qualified Data.Text as T
--- >
--- > import Network.WebSockets
--- >
--- > -- Accepts clients, spawns a single handler for each one.
--- > main :: IO ()
--- > main = runServer "0.0.0.0" 8000 $ do
--- >     Just request <- receiveRequest
--- >     case handshake request of
--- >         Left err  -> liftIO $ print err
--- >         Right rsp -> do
--- >             sendResponse rsp
--- >             sendTextData "Do you read me, Lieutenant Bowie?"
--- >             liftIO $ putStrLn "Shook hands, sent welcome message."
--- >             talkLoop
--- >
--- > -- Talks to the client (by echoing messages back) until EOF.
--- > talkLoop :: WebSockets ()
--- > talkLoop = do
--- >     msg <- receiveTextData
--- >     case msg of
--- >         Nothing -> liftIO $ putStrLn "EOF encountered, quitting"
--- >         Just m  -> do
--- >             sendTextData $ m `T.append` ", meow."
--- >             talkLoop
+-- If you want to send messages, the message type must be known: so, use
+-- either 'sendTextData' or 'sendBinaryData'.
+--
+-- In some cases, you want to escape from the 'I.WebSockets' monad and send data
+-- to the websocket from different threads. To this end, the 'I.getSender'
+-- method is provided.
+--
+-- For a full example, see:
+--
+-- <http://github.com/jaspervdj/websockets/tree/master/example>
 module Network.WebSockets
     ( 
       -- * WebSocket type
@@ -59,6 +46,7 @@ module Network.WebSockets
     , I.Message (..)
     , I.ControlMessage (..)
     , I.DataMessage (..)
+    , I.WebSocketsData (..)
 
       -- * Initial handshake
     , H.HandshakeError (..)
@@ -158,7 +146,7 @@ receiveDataMessage = do
 sendDataMessage :: I.DataMessage -> I.WebSockets ()
 sendDataMessage = I.send E.dataMessage
 
--- | Interpret the next message as UTF-8 encoded data
+-- | Receive a message, treating it as data transparently
 receiveData :: I.WebSocketsData a => I.WebSockets (Maybe a)
 receiveData = do
     dm <- receiveDataMessage

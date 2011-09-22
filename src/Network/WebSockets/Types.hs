@@ -1,3 +1,4 @@
+-- | Primary types
 module Network.WebSockets.Types
     ( Headers
     , Request (..)

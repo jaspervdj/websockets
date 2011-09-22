@@ -18,7 +18,9 @@ function refreshUsers() {
 
 function onMessage(event) {
     var p = $(document.createElement('p')).text(event.data);
+
     $('#messages').append(p);
+    $('#messages').animate({scrollTop: $('#messages')[0].scrollHeight});
 
     if(event.data.match(/^[^:]* joined/)) {
         var user = event.data.replace(/ .*/, '');

@@ -11,21 +11,33 @@ body {
     height: 100%;
 }
 
+h2 {
+    border-bottom: 1px solid black;
+    display: block;
+}
+
 div#warnings {
     color: red;
     font-weight: bold;
 }
 
-div#join {
+div#join-section {
 }
 
-div#users {
-    width: 200px;
+div#users-section {
+    width: 190px;
     float: right;
     margin: 0px;
+    padding: 0px;
 }
 
-div#chat {
-    width: 400px;
+ul#users {
+    list-style-type: none;
+    padding-left: 0px;
+}
+
+div#chat-section {
+    width: 390px;
     margin: 0px;
+    float: left;
 }

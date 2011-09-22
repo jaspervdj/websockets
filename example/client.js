@@ -58,10 +58,9 @@ $(document).ready(function () {
                     refreshUsers();
                 }
 
-                $('#join').hide();
-                $('#chat').show();
-                $('#users').show();
-                addMessage(event.data);
+                $('#join-section').hide();
+                $('#chat-section').show();
+                $('#users-section').show();
 
                 ws.onmessage = onMessage;
 

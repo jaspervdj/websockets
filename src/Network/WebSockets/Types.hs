@@ -36,7 +36,7 @@ data Frame = Frame
     { frameFin     :: !Bool
     , frameType    :: !FrameType
     , framePayload :: !BL.ByteString
-    } deriving (Show)
+    } deriving (Eq, Show)
 
 -- | Type of a frame
 data FrameType
@@ -46,7 +46,7 @@ data FrameType
     | CloseFrame
     | PingFrame
     | PongFrame
-    deriving (Show)
+    deriving (Eq, Show)
 
 -- | The kind of message a server application typically deals with
 data Message

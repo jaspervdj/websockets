@@ -72,4 +72,4 @@ type Sender a = Encoder a -> a -> IO ()
 getSender :: WebSockets (Sender a)
 getSender = WebSockets $ do
     send' <- ask
-    return $ \encoder x -> send' (encoder x)
+    return $ \encoder x -> send' (encoder Nothing x)

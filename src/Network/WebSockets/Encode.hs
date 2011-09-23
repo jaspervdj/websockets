@@ -19,14 +19,15 @@ import Data.ByteString.Char8 ()
 import qualified Blaze.ByteString.Builder as B
 import qualified Data.ByteString.Lazy as BL
 
+import Network.WebSockets.Mask
 import Network.WebSockets.Types
 
 -- | The inverse of a parser
-type Encoder a = a -> B.Builder
+type Encoder a = Mask -> a -> B.Builder
 
 -- | Encode an HTTP upgrade response
 response :: Encoder Response
-response (Response headers) =
+response _ (Response headers) =
     B.copyByteString "HTTP/1.1 101 WebSocket Protocol Handshake\r\n" `mappend`
     mconcat (map header headers) `mappend` B.copyByteString "\r\n"
   where
@@ -34,8 +35,8 @@ response (Response headers) =
 
 -- | Encode a frame
 frame :: Encoder Frame
-frame f = B.fromWord8 byte0 `mappend` B.fromWord8 byte1 `mappend` len `mappend`
-    B.fromLazyByteString (framePayload f)
+frame _ f = B.fromWord8 byte0 `mappend` B.fromWord8 byte1 `mappend` len
+    `mappend` B.fromLazyByteString (framePayload f)
   where
     byte0  = fin .|. opcode
     fin    = if frameFin f then 0x80 else 0x00
@@ -57,25 +58,25 @@ frame f = B.fromWord8 byte0 `mappend` B.fromWord8 byte1 `mappend` len `mappend`
 
 -- | Encode a message
 message :: Encoder Message
-message m = case m of
-    ControlMessage m' -> controlMessage m' 
-    DataMessage m'    -> dataMessage m'
+message mask msg = case msg of
+    ControlMessage m -> controlMessage mask m
+    DataMessage m    -> dataMessage mask m
 
 -- | Encode a control message
 controlMessage :: Encoder ControlMessage
-controlMessage m = frame $ case m of
+controlMessage mask msg = frame mask $ case msg of
     Close pl -> Frame True CloseFrame pl
     Ping pl  -> Frame True PingFrame pl
     Pong pl  -> Frame True PongFrame pl
 
 -- | Encode an application message
 dataMessage :: Encoder DataMessage
-dataMessage m = frame $ case m of
+dataMessage mask msg = frame mask $ case msg of
     Text pl   -> Frame True TextFrame pl
     Binary pl -> Frame True BinaryFrame pl
 
 textData :: WebSocketsData a => Encoder a
-textData = dataMessage . Text . toLazyByteString
+textData mask = dataMessage mask . Text . toLazyByteString
 
 binaryData :: WebSocketsData a => Encoder a
-binaryData = dataMessage . Binary . toLazyByteString
+binaryData mask = dataMessage mask . Binary . toLazyByteString

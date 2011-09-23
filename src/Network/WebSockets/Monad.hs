@@ -1,5 +1,5 @@
 -- | Provides a simple, clean monad to write websocket servers in
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, OverloadedStrings #-}
 module Network.WebSockets.Monad
     ( WebSockets (..)
     , runWebSockets
@@ -9,11 +9,14 @@ module Network.WebSockets.Monad
     , getSender
     ) where
 
+import Control.Applicative ((<$>))
 import Control.Concurrent.MVar (newMVar, takeMVar, putMVar)
 import Control.Exception (SomeException)
+import Control.Monad (replicateM)
 import Control.Monad.Reader (ReaderT, ask, runReaderT)
 import Control.Monad.State (StateT, evalStateT)
 import Control.Monad.Trans (MonadIO, lift, liftIO)
+import System.Random (randomRIO)
 
 import Blaze.ByteString.Builder (Builder)
 import Blaze.ByteString.Builder.Enumerator (builderToByteString)
@@ -23,6 +26,7 @@ import Data.ByteString (ByteString)
 import Data.Enumerator ( Enumerator, Iteratee, Stream (..), checkContinue0
                        , isEOF, returnI, run, ($$), (>>==)
                        )
+import qualified Data.ByteString as B
 
 import Network.WebSockets.Demultiplex (DemultiplexState, emptyDemultiplexState)
 import Network.WebSockets.Encode (Encoder)
@@ -72,4 +76,8 @@ type Sender a = Encoder a -> a -> IO ()
 getSender :: WebSockets (Sender a)
 getSender = WebSockets $ do
     send' <- ask
-    return $ \encoder x -> send' (encoder Nothing x)
+    return $ \encoder x -> do
+        bytes <- replicateM 4 (liftIO randomByte)
+        send' (encoder (Just (B.pack bytes)) x)
+  where
+    randomByte = fromIntegral <$> randomRIO (0x00 :: Int, 0xff)

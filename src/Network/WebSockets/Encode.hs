@@ -35,8 +35,9 @@ response _ (Response headers) =
 
 -- | Encode a frame
 frame :: Encoder Frame
-frame _ f = B.fromWord8 byte0 `mappend` B.fromWord8 byte1 `mappend` len
-    `mappend` B.fromLazyByteString (framePayload f)
+frame mask f = B.fromWord8 byte0 `mappend` B.fromWord8 byte1 `mappend`
+    len `mappend` maskbytes `mappend`
+    B.fromLazyByteString (maskPayload mask (framePayload f))
   where
     byte0  = fin .|. opcode
     fin    = if frameFin f then 0x80 else 0x00
@@ -48,8 +49,11 @@ frame _ f = B.fromWord8 byte0 `mappend` B.fromWord8 byte1 `mappend` len
         PingFrame         -> 0x09
         PongFrame         -> 0x0a
 
-    byte1 = mask .|. lenflag
-    mask  = 0x00  -- We don't support server masking for now
+    (maskflag, maskbytes) = case mask of
+        Nothing -> (0x00, mempty)
+        Just m  -> (0x80, B.fromByteString m)
+
+    byte1 = maskflag .|. lenflag
     len'  = BL.length (framePayload f)
     (lenflag, len)
         | len' < 126     = (fromIntegral len', mempty)

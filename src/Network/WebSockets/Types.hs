@@ -33,9 +33,9 @@ data Response = Response
 
 -- | A frame
 data Frame = Frame
-    { frameFin     :: Bool
-    , frameType    :: FrameType
-    , framePayload :: BL.ByteString
+    { frameFin     :: !Bool
+    , frameType    :: !FrameType
+    , framePayload :: !BL.ByteString
     } deriving (Show)
 
 -- | Type of a frame

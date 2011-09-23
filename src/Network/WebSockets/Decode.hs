@@ -6,7 +6,7 @@ module Network.WebSockets.Decode
     ) where
 
 import Control.Applicative (pure, (<$>), (<*>), (*>), (<*))
-import Data.Bits (xor, (.&.))
+import Data.Bits ((.&.))
 
 import Data.Attoparsec (Parser, anyWord8, string, takeWhile1, word8)
 import Data.Attoparsec.Combinator (manyTill)
@@ -16,9 +16,9 @@ import Data.ByteString.Char8 ()
 import Data.ByteString.Internal (c2w)
 import Data.Int (Int64)
 import qualified Data.Attoparsec as A
-import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 
+import Network.WebSockets.Mask
 import Network.WebSockets.Types
 
 -- | Parse an initial request
@@ -65,7 +65,7 @@ frame = do
         127 -> fromIntegral . runGet' getWord64be <$> A.take 8
         _   -> return lenflag
 
-    masker <- if mask then xorMask <$> A.take 4 else pure id
+    masker <- maskPayload <$> if mask then Just <$> A.take 4 else pure Nothing
 
     chunks <- take64 len
 
@@ -83,11 +83,3 @@ frame = do
       where
         intMax :: Int64
         intMax = fromIntegral (maxBound :: Int)
-
-xorMask :: ByteString -> BL.ByteString -> BL.ByteString
-xorMask mask = snd . BL.mapAccumL f 0
-  where
-    len = B.length mask
-    f !i !c = let i' = (i + 1) `mod` len
-                  m = mask `B.index` i
-              in (i', m `xor` c)

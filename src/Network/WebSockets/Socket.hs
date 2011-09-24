@@ -4,6 +4,8 @@
 module Network.WebSockets.Socket
     ( runServer
     , runWithSocket
+    , sendIter
+    , receiveEnum
     ) where
 
 import Control.Concurrent (forkIO)

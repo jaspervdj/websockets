@@ -16,9 +16,10 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TL
+import qualified Data.CaseInsensitive as CI
 
 -- | Request headers
-type Headers = [(B.ByteString, B.ByteString)]
+type Headers = [(CI.CI B.ByteString, B.ByteString)]
 
 -- | Simple request type
 data Request = Request

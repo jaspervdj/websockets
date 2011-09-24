@@ -8,15 +8,14 @@ Synopsis:
   in Haskell.
 
 Description:
- This library allows you to write WebSocket-capable servers. A very simple usage
- example can be found in the 'Network.WebSockets' module documentation, and you
- can find a more complex example at github:
- <http://github.com/jaspervdj/websockets/tree/master/example>.
+ This library allows you to write WebSocket-capable servers.
  .
- This library is tested with Chromium @>= 7@, Opera @>= 11@ and Firefox @>= 4@.
- However, many of these newest browsers have recently stopped shipping with
- websockets enabled by default, due to security issues which are yet to be
- resolved.
+ See an example: <http://github.com/jaspervdj/websockets/tree/master/example>.
+ .
+ The API of the 'Network.WebSockets' module should also contain enough
+ information to get you started.
+ .
+ This library currently works with Chromium @>= 14@, and Firefox @>= 6@.
  .
  See also:
  .
@@ -71,6 +70,7 @@ Library
     enumerator               >= 0.4.13 && < 0.5,
     mtl                      >= 2.0    && < 2.2,
     network                  >= 2.3    && < 2.4,
+    random                   >= 1.0    && < 1.1,
     SHA                      >= 1.5    && < 1.6,
     text                     >= 0.10   && < 0.12
 

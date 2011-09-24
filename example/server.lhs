@@ -70,9 +70,9 @@ When a client connects, we first obtain the request. Once we have that, we use
 the 'WS.handshake' function to generate a response, which we finally send to the
 client.
 
-We can use irrefutable pattern matches here because the server will spawn a
-thread for each connection -- and a crashing thread does not effect the rest of
-the program.
+We use irrefutable pattern matches here because the server will spawn a thread
+for each connection -- and a crashing thread does not effect the rest of the
+program. For a real application, proper logging is appropriate.
 
 >         Just rq <- WS.receiveRequest
 >         let Right rsp = WS.handshake rq
@@ -83,9 +83,8 @@ obtain a sender. We will add this to the server state later.
 
 >         sender <- WS.getSender
 
-When a client is succesfully connected, we read the first message.
-This should be in the format of "Hi, I am Jasper", where Jasper is
-the requested username.
+When a client is succesfully connected, we read the first message. This should
+be in the format of "Hi, I am Jasper", where Jasper is the requested username.
 
 >         msg <- WS.receiveData
 >         clients <- liftIO $ readMVar state

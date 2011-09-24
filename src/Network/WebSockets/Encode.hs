@@ -17,6 +17,7 @@ import Data.Monoid (mappend, mempty, mconcat)
 
 import Data.ByteString.Char8 ()
 import qualified Blaze.ByteString.Builder as B
+import qualified Blaze.ByteString.Builder.Char.Utf8 as B
 import qualified Data.ByteString.Lazy as BL
 
 import Network.WebSockets.Mask
@@ -27,8 +28,10 @@ type Encoder a = Mask -> a -> B.Builder
 
 -- | Encode an HTTP upgrade response
 response :: Encoder Response
-response _ (Response headers) =
-    B.copyByteString "HTTP/1.1 101 WebSocket Protocol Handshake\r\n" `mappend`
+response _ (Response code msg headers) =
+    B.copyByteString "HTTP/1.1 " `mappend` B.fromString (show code) `mappend`
+    B.fromChar ' ' `mappend` B.fromByteString msg `mappend`
+    B.fromByteString "\r\n" `mappend`
     mconcat (map header headers) `mappend` B.copyByteString "\r\n"
   where
     header (k, v) = mconcat $ map B.copyByteString [k, ": ", v, "\r\n"]

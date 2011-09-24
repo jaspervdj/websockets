@@ -3,6 +3,8 @@
 module Network.WebSockets.Handshake
     ( HandshakeError (..)
     , handshake
+    , response101
+    , response400
     ) where
 
 import Data.Monoid (mappend, mconcat)
@@ -35,11 +37,7 @@ handshake (Request _ headers) = do
     let hash = unlazy $ bytestringDigest $ sha1 $ lazy $ key `mappend` guid
     let encoded = B64.encode hash
 
-    return $ Response
-        [ ("Upgrade", "WebSocket")
-        , ("Connection", "Upgrade")
-        , ("Sec-WebSocket-Accept", encoded)
-        ]
+    return $ response101 [("Sec-WebSocket-Accept", encoded)]
   where
     guid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
     lazy = BL.fromChunks . return
@@ -48,3 +46,14 @@ handshake (Request _ headers) = do
         Just t  -> return t
         Nothing -> throwError $
             HandshakeError $ "Header missing: " ++ BC.unpack k
+
+-- | An upgrade response
+response101 :: Headers -> Response
+response101 headers = Response 101 "WebSocket Protocol Handshake" $
+    ("Upgrade", "WebSocket") :
+    ("Connection", "Upgrade") :
+    headers
+
+-- | Bad request
+response400 :: Headers -> Response
+response400 headers = Response 400 "Bad Request" headers

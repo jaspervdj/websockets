@@ -28,7 +28,9 @@ data Request = Request
 
 -- | Response to a 'Request'
 data Response = Response
-    { responseHeaders :: Headers
+    { responseCode    :: !Int
+    , responseMessage :: !B.ByteString
+    , responseHeaders :: Headers
     } deriving (Show)
 
 -- | A frame

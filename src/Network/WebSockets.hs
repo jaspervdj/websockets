@@ -77,6 +77,9 @@ module Network.WebSockets
     , E.dataMessage
     , E.textData
     , E.binaryData
+
+    , I.sendIter
+    , I.receiveEnum
     ) where
 
 import Control.Monad.State (put, get)

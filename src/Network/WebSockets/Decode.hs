@@ -17,6 +17,7 @@ import Data.ByteString.Internal (c2w)
 import Data.Int (Int64)
 import qualified Data.Attoparsec as A
 import qualified Data.ByteString.Lazy as BL
+import qualified Data.CaseInsensitive as CI
 
 import Network.WebSockets.Mask
 import Network.WebSockets.Types
@@ -35,7 +36,7 @@ request = Request
         <* string "HTTP/1.1" <* newline
 
     header = (,)
-        <$> takeWhile1 (/= c2w ':') 
+        <$> (CI.mk <$> takeWhile1 (/= c2w ':'))
         <*  string ": "
         <*> takeWhile1 (/= c2w '\r')
         <*  newline

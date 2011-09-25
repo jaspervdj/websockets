@@ -19,6 +19,7 @@ import Data.ByteString.Char8 ()
 import qualified Blaze.ByteString.Builder as B
 import qualified Blaze.ByteString.Builder.Char.Utf8 as B
 import qualified Data.ByteString.Lazy as BL
+import qualified Data.CaseInsensitive as CI
 
 import Network.WebSockets.Mask
 import Network.WebSockets.Types
@@ -34,7 +35,8 @@ response _ (Response code msg headers) =
     B.fromByteString "\r\n" `mappend`
     mconcat (map header headers) `mappend` B.copyByteString "\r\n"
   where
-    header (k, v) = mconcat $ map B.copyByteString [k, ": ", v, "\r\n"]
+    header (k, v) = mconcat $ map B.copyByteString
+        [CI.original k, ": ", v, "\r\n"]
 
 -- | Encode a frame
 frame :: Encoder Frame

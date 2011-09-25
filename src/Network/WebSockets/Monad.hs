@@ -22,8 +22,8 @@ import Blaze.ByteString.Builder.Enumerator (builderToByteString)
 import Data.Attoparsec (Parser)
 import Data.Attoparsec.Enumerator (iterParser)
 import Data.ByteString (ByteString)
-import Data.Enumerator ( Enumerator, Iteratee, Stream (..), checkContinue0
-                       , isEOF, returnI, run, ($$), (>>==)
+import Data.Enumerator ( Iteratee, Stream (..), checkContinue0, isEOF, returnI
+                       , run, ($$), (>>==)
                        )
 import qualified Data.ByteString as B
 
@@ -38,14 +38,13 @@ newtype WebSockets a = WebSockets
 
 -- | Run a 'WebSockets' application on an 'Enumerator'/'Iteratee' pair.
 runWebSockets :: WebSockets a
-              -> Enumerator ByteString IO a
               -> Iteratee ByteString IO ()
               -> Iteratee ByteString IO a
-runWebSockets ws inEnum outIter = do
+runWebSockets ws outIter = do
     sendLock <- liftIO $ newMVar () 
     let state  = runReaderT (unWebSockets ws) (makeSend sendLock)
-        inIter = evalStateT state emptyDemultiplexState 
-    inEnum $$ inIter
+        iter = evalStateT state emptyDemultiplexState 
+    iter
   where
     makeSend sendLock x = do
         () <- takeMVar sendLock

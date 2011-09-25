@@ -11,7 +11,6 @@ module Network.WebSockets.Monad
 
 import Control.Applicative ((<$>))
 import Control.Concurrent.MVar (newMVar, takeMVar, putMVar)
-import Control.Exception (SomeException)
 import Control.Monad (replicateM)
 import Control.Monad.Reader (ReaderT, ask, runReaderT)
 import Control.Monad.State (StateT, evalStateT)
@@ -41,12 +40,12 @@ newtype WebSockets a = WebSockets
 runWebSockets :: WebSockets a
               -> Enumerator ByteString IO a
               -> Iteratee ByteString IO ()
-              -> IO (Either SomeException a)
+              -> Iteratee ByteString IO a
 runWebSockets ws inEnum outIter = do
-    sendLock <- newMVar () 
+    sendLock <- liftIO $ newMVar () 
     let state  = runReaderT (unWebSockets ws) (makeSend sendLock)
         inIter = evalStateT state emptyDemultiplexState 
-    run (inEnum $$ inIter)
+    inEnum $$ inIter
   where
     makeSend sendLock x = do
         () <- takeMVar sendLock

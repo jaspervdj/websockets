@@ -19,7 +19,7 @@ import Network.Socket.ByteString (recv, sendMany)
 
 import Data.ByteString (ByteString)
 import Data.Enumerator ( Enumerator, Iteratee (..), Stream (..)
-                       , checkContinue0, continue, yield, (>>==)
+                       , checkContinue0, continue, run, yield, (>>==)
                        )
 
 import Network.WebSockets.Monad
@@ -46,7 +46,7 @@ runServer host port ws = withSocketsDo $ do
 -- stand-alone servers.
 runWithSocket :: Socket -> WebSockets a -> IO a
 runWithSocket s ws = do
-    r <- runWebSockets ws (receiveEnum s) (sendIter s)
+    r <- run $ runWebSockets ws (receiveEnum s) (sendIter s)
     sClose s
     either (error . show) return r
 

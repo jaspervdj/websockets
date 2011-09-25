@@ -13,12 +13,13 @@ module Network.WebSockets.Types
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
+import qualified Data.CaseInsensitive as CI
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TL
 
 -- | Request headers
-type Headers = [(B.ByteString, B.ByteString)]
+type Headers = [(CI.CI B.ByteString, B.ByteString)]
 
 -- | Simple request type
 data Request = Request

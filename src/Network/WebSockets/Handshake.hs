@@ -14,6 +14,7 @@ import Data.Digest.Pure.SHA (bytestringDigest, sha1)
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy as BL
+import qualified Data.CaseInsensitive as CI
 
 import Network.WebSockets.Types
 
@@ -45,7 +46,7 @@ handshake (Request _ headers) = do
     getHeader k = case lookup k headers of
         Just t  -> return t
         Nothing -> throwError $
-            HandshakeError $ "Header missing: " ++ BC.unpack k
+            HandshakeError $ "Header missing: " ++ BC.unpack (CI.original k)
 
 -- | An upgrade response
 response101 :: Headers -> Response

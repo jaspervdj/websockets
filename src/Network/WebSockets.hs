@@ -3,22 +3,24 @@
 -- * Get an enumerator/iteratee pair from your favorite web server, or use
 --   'I.runServer' to set up a simple standalone server.
 --
--- * Read the 'I.Request' using 'receiveRequest'. Inspect its path and the perform
---   the initial 'H.handshake'. This yields a 'I.Response' which you can send
---   back using 'sendResponse'. The WebSocket is now ready.
+-- * Read the 'I.Request' using 'receiveRequest'. Inspect its path and the
+--   perform the initial 'H.handshake'. This yields a 'I.Response' which you can
+--   send back using 'sendResponse'. The WebSocket is now ready.
 --
--- Now you're all set! The WebSockets protocol defines two types of messages:
--- binary, and UTF-8 encoded messages. At the Haskell side, you can write very
--- flexible clients using the 'I.WebSocketsData' typeclass. This allows you to
--- deal with binary and text data using the different Haskell string types
--- (bytestrings and text).
+-- There are (informally) three ways in which you can use the library:
 --
--- In order to receive messages, most users of this library will want to use
--- 'receiveData', which simply gives you the data messages in the format you
--- choose.
+-- * The most simple case: You don't care about the internal representation of
+--   the messages. In this case, use the 'I.WebSocketsData' typeclass:
+--   'receiveData', 'sendTextData' and 'sendBinaryData' will be useful.
 --
--- If you want to send messages, the message type must be known: so, use
--- either 'sendTextData' or 'sendBinaryData'.
+-- * You have some protocol, and it is well-specified in which cases the client
+--   should send text messages, and in which cases the client should send binary
+--   messages. In this case, you can use the 'receiveDataMessage' and
+--   'sendDataMessage' methods.
+--
+-- * You need to write a more low-level server in which you have control over
+--   control frames (e.g. ping/pong). In this case, you can use the
+--   'receiveMessage' and 'sendMessage' methods.
 --
 -- In some cases, you want to escape from the 'I.WebSockets' monad and send data
 -- to the websocket from different threads. To this end, the 'I.getSender'

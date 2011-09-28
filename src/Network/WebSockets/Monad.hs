@@ -1,8 +1,11 @@
 -- | Provides a simple, clean monad to write websocket servers in
 {-# LANGUAGE GeneralizedNewtypeDeriving, OverloadedStrings #-}
 module Network.WebSockets.Monad
-    ( WebSockets (..)
+    ( WebSocketsOptions (..)
+    , defaultWebSocketsOptions
+    , WebSockets (..)
     , runWebSockets
+    , runWebSocketsWith
     , receive
     , send
     , Sender
@@ -30,9 +33,23 @@ import qualified Data.ByteString as B
 import Network.WebSockets.Demultiplex (DemultiplexState, emptyDemultiplexState)
 import Network.WebSockets.Encode (Encoder)
 
+-- | Options for the WebSocket program
+data WebSocketsOptions = WebSocketsOptions
+    { onPong :: IO ()
+    }
+
+-- | Default options
+defaultWebSocketsOptions :: WebSocketsOptions
+defaultWebSocketsOptions = WebSocketsOptions
+    { onPong = return ()
+    }
+
+-- | Environment in which the 'WebSockets' monad actually runs
+data WebSocketsEnv = WebSocketsEnv WebSocketsOptions (Builder -> IO ())
+
 -- | The monad in which you can write WebSocket-capable applications
 newtype WebSockets a = WebSockets
-    { unWebSockets :: ReaderT (Builder -> IO ())
+    { unWebSockets :: ReaderT WebSocketsEnv
         (StateT DemultiplexState (Iteratee ByteString IO)) a
     } deriving (Functor, Monad, MonadIO)
 
@@ -40,10 +57,18 @@ newtype WebSockets a = WebSockets
 runWebSockets :: WebSockets a
               -> Iteratee ByteString IO ()
               -> Iteratee ByteString IO a
-runWebSockets ws outIter = do
+runWebSockets = runWebSocketsWith defaultWebSocketsOptions
+
+-- | Version of 'runWebSockets' which allows you to specify custom options
+runWebSocketsWith :: WebSocketsOptions
+                  -> WebSockets a
+                  -> Iteratee ByteString IO ()
+                  -> Iteratee ByteString IO a
+runWebSocketsWith options ws outIter = do
     sendLock <- liftIO $ newMVar () 
-    let state  = runReaderT (unWebSockets ws) (makeSend sendLock)
-        iter = evalStateT state emptyDemultiplexState 
+    let env   = WebSocketsEnv options (makeSend sendLock)
+        state = runReaderT (unWebSockets ws) env
+        iter  = evalStateT state emptyDemultiplexState 
     iter
   where
     makeSend sendLock x = do
@@ -73,7 +98,7 @@ type Sender a = Encoder a -> a -> IO ()
 -- to other threads.
 getSender :: WebSockets (Sender a)
 getSender = WebSockets $ do
-    send' <- ask
+    WebSocketsEnv _ send' <- ask
     return $ \encoder x -> do
         bytes <- replicateM 4 (liftIO randomByte)
         send' (encoder (Just (B.pack bytes)) x)

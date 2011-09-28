@@ -82,6 +82,7 @@ module Network.WebSockets
     ) where
 
 import Control.Monad.State (put, get)
+import Control.Monad.Trans (liftIO)
 
 import qualified Network.WebSockets.Decode as D
 import qualified Network.WebSockets.Demultiplex as I
@@ -139,7 +140,10 @@ receiveDataMessage = do
         Just (I.DataMessage am) -> return (Just am)
         Just (I.ControlMessage cm) -> case cm of
             I.Close _ -> return Nothing
-            I.Pong _  -> receiveDataMessage
+            I.Pong _  -> do
+                options <- I.getOptions
+                liftIO $ I.onPong options
+                receiveDataMessage
             I.Ping pl -> do
                 I.send E.controlMessage (I.Pong pl)
                 receiveDataMessage

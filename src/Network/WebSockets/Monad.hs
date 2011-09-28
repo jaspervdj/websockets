@@ -10,6 +10,7 @@ module Network.WebSockets.Monad
     , send
     , Sender
     , getSender
+    , getOptions
     ) where
 
 import Control.Applicative ((<$>))
@@ -104,3 +105,7 @@ getSender = WebSockets $ do
         send' (encoder (Just (B.pack bytes)) x)
   where
     randomByte = fromIntegral <$> randomRIO (0x00 :: Int, 0xff)
+
+-- | Get the current configuration
+getOptions :: WebSockets WebSocketsOptions
+getOptions = WebSockets $ ask >>= \(WebSocketsEnv options _) -> return options

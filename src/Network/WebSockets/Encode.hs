@@ -7,6 +7,9 @@ module Network.WebSockets.Encode
     , frame
     , message
     , controlMessage
+    , close
+    , ping
+    , pong
     , dataMessage
     , textData
     , binaryData
@@ -77,6 +80,18 @@ controlMessage mask msg = frame mask $ case msg of
     Close pl -> Frame True CloseFrame pl
     Ping pl  -> Frame True PingFrame pl
     Pong pl  -> Frame True PongFrame pl
+
+-- | Encode a close message
+close :: WebSocketsData a => Encoder a
+close mask = controlMessage mask . Close . toLazyByteString
+
+-- | Encode a ping message
+ping :: WebSocketsData a => Encoder a
+ping mask = controlMessage mask . Ping . toLazyByteString
+
+-- | Encode a pong message
+pong :: WebSocketsData a => Encoder a
+pong mask = controlMessage mask . Pong . toLazyByteString
 
 -- | Encode an application message
 dataMessage :: Encoder DataMessage

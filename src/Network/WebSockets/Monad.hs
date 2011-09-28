@@ -15,7 +15,8 @@ module Network.WebSockets.Monad
 
 import Control.Applicative ((<$>))
 import Control.Concurrent.MVar (newMVar, takeMVar, putMVar)
-import Control.Monad (replicateM)
+import Control.Concurrent (forkIO, threadDelay)
+import Control.Monad (forever, replicateM)
 import Control.Monad.Reader (ReaderT, ask, runReaderT)
 import Control.Monad.State (StateT, evalStateT)
 import Control.Monad.Trans (MonadIO, lift, liftIO)
@@ -33,16 +34,19 @@ import qualified Data.ByteString as B
 
 import Network.WebSockets.Demultiplex (DemultiplexState, emptyDemultiplexState)
 import Network.WebSockets.Encode (Encoder)
+import qualified Network.WebSockets.Encode as E
 
 -- | Options for the WebSocket program
 data WebSocketsOptions = WebSocketsOptions
-    { onPong :: IO ()
+    { onPong       :: IO ()
+    , pingInterval :: Maybe Int
     }
 
 -- | Default options
 defaultWebSocketsOptions :: WebSocketsOptions
 defaultWebSocketsOptions = WebSocketsOptions
-    { onPong = return ()
+    { onPong       = return ()
+    , pingInterval = Just 10
     }
 
 -- | Environment in which the 'WebSockets' monad actually runs
@@ -67,9 +71,12 @@ runWebSocketsWith :: WebSocketsOptions
                   -> Iteratee ByteString IO a
 runWebSocketsWith options ws outIter = do
     sendLock <- liftIO $ newMVar () 
-    let env   = WebSocketsEnv options (makeSend sendLock)
-        state = runReaderT (unWebSockets ws) env
-        iter  = evalStateT state emptyDemultiplexState 
+    let sender = makeSend sendLock
+        env    = WebSocketsEnv options sender
+        state  = runReaderT (unWebSockets ws') env
+        iter   = evalStateT state emptyDemultiplexState
+
+
     iter
   where
     makeSend sendLock x = do
@@ -78,6 +85,18 @@ runWebSocketsWith options ws outIter = do
         putMVar sendLock ()
 
     singleton c = checkContinue0 $ \_ f -> f (Chunks [c]) >>== returnI
+
+    -- Spawn a ping thread first
+    ws' = do
+        sender <- getSender
+        case pingInterval options of
+            Nothing -> return ()
+            Just i  -> do
+                _ <- liftIO $ forkIO $ forever $ do
+                    sender E.ping ("herp" :: ByteString)
+                    threadDelay (i * 1000 * 1000)  -- seconds
+                return ()
+        ws
 
 -- | Receive some data from the socket, using a user-supplied parser.
 receive :: Parser a -> WebSockets (Maybe a)

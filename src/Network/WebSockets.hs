@@ -32,8 +32,11 @@
 module Network.WebSockets
     ( 
       -- * WebSocket type
-      I.WebSockets
+      I.WebSocketsOptions (..)
+    , I.defaultWebSocketsOptions
+    , I.WebSockets
     , I.runWebSockets
+    , I.runWebSocketsWith
 
       -- * A simple standalone server
     , I.runServer

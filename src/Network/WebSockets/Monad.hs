@@ -87,16 +87,21 @@ runWebSocketsWith options ws outIter = do
     singleton c = checkContinue0 $ \_ f -> f (Chunks [c]) >>== returnI
 
     -- Spawn a ping thread first
-    ws' = do
-        sender <- getSender
-        case pingInterval options of
-            Nothing -> return ()
-            Just i  -> do
-                _ <- liftIO $ forkIO $ forever $ do
-                    sender E.ping ("herp" :: ByteString)
-                    threadDelay (i * 1000 * 1000)  -- seconds
-                return ()
-        ws
+    ws' = spawnPingThread >> ws
+
+-- | Spawn a thread which sends a ping every few seconds, according to the
+-- options set
+spawnPingThread :: WebSockets ()
+spawnPingThread = do
+    sender <- getSender
+    options <- getOptions
+    case pingInterval options of
+        Nothing -> return ()
+        Just i  -> do
+            _ <- liftIO $ forkIO $ forever $ do
+                sender E.ping ("Hi" :: ByteString)
+                threadDelay (i * 1000 * 1000)  -- seconds
+            return ()
 
 -- | Receive some data from the socket, using a user-supplied parser.
 receive :: Parser a -> WebSockets (Maybe a)

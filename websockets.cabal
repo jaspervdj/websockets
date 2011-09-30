@@ -55,6 +55,8 @@ Library
     Network.WebSockets.Handshake
     Network.WebSockets.Mask
     Network.WebSockets.Monad
+    Network.WebSockets.Protocol
+    Network.WebSockets.Protocol.Hybi10
     Network.WebSockets.Socket
     Network.WebSockets.Types
 

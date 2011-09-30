@@ -7,10 +7,11 @@ module Network.WebSockets.Monad
     , runWebSockets
     , runWebSocketsWith
     , receive
-    , send
-    , Sender
+    , sendMessage
+    , getMessageSender
     , getSender
     , getOptions
+    , getProtocol
     ) where
 
 import Control.Applicative ((<$>))
@@ -24,7 +25,6 @@ import System.Random (randomRIO)
 
 import Blaze.ByteString.Builder (Builder)
 import Blaze.ByteString.Builder.Enumerator (builderToByteString)
-import Data.Attoparsec (Parser)
 import Data.Attoparsec.Enumerator (iterParser)
 import Data.ByteString (ByteString)
 import Data.Enumerator ( Iteratee, Stream (..), checkContinue0, isEOF, returnI
@@ -32,9 +32,13 @@ import Data.Enumerator ( Iteratee, Stream (..), checkContinue0, isEOF, returnI
                        )
 import qualified Data.ByteString as B
 
+import Network.WebSockets.Decode (Decoder)
 import Network.WebSockets.Demultiplex (DemultiplexState, emptyDemultiplexState)
 import Network.WebSockets.Encode (Encoder)
+import Network.WebSockets.Protocol (Protocol (..), SomeProtocol (..))
+import Network.WebSockets.Protocol.Hybi10 (hybi10)
 import qualified Network.WebSockets.Encode as E
+import qualified Network.WebSockets.Types as T
 
 -- | Options for the WebSocket program
 data WebSocketsOptions = WebSocketsOptions
@@ -50,7 +54,11 @@ defaultWebSocketsOptions = WebSocketsOptions
     }
 
 -- | Environment in which the 'WebSockets' monad actually runs
-data WebSocketsEnv = WebSocketsEnv WebSocketsOptions (Builder -> IO ())
+data WebSocketsEnv = WebSocketsEnv
+    { options     :: WebSocketsOptions
+    , sendBuilder :: Builder -> IO ()
+    , protocol    :: SomeProtocol
+    }
 
 -- | The monad in which you can write WebSocket-capable applications
 newtype WebSockets a = WebSockets
@@ -69,10 +77,10 @@ runWebSocketsWith :: WebSocketsOptions
                   -> WebSockets a
                   -> Iteratee ByteString IO ()
                   -> Iteratee ByteString IO a
-runWebSocketsWith options ws outIter = do
+runWebSocketsWith opts ws outIter = do
     sendLock <- liftIO $ newMVar () 
     let sender = makeSend sendLock
-        env    = WebSocketsEnv options sender
+        env    = WebSocketsEnv opts sender hybi10
         state  = runReaderT (unWebSockets ws') env
         iter   = evalStateT state emptyDemultiplexState
 
@@ -93,38 +101,39 @@ runWebSocketsWith options ws outIter = do
 -- options set
 spawnPingThread :: WebSockets ()
 spawnPingThread = do
-    sender <- getSender
-    options <- getOptions
-    case pingInterval options of
+    sender <- getMessageSender
+    opts <- getOptions
+    case pingInterval opts of
         Nothing -> return ()
         Just i  -> do
             _ <- liftIO $ forkIO $ forever $ do
-                sender E.ping ("Hi" :: ByteString)
+                sender $ T.ping ("Hi" :: ByteString)
                 threadDelay (i * 1000 * 1000)  -- seconds
             return ()
 
 -- | Receive some data from the socket, using a user-supplied parser.
-receive :: Parser a -> WebSockets (Maybe a)
+receive :: Decoder a -> WebSockets (Maybe a)
 receive parser = WebSockets $ lift $ lift $ do
     eof <- isEOF
     if eof then return Nothing else fmap Just (iterParser parser)
 
--- | Low-level sending with an arbitrary 'Encoder'
-send :: Encoder a -> a -> WebSockets ()
-send encoder x = do
-    sender <- getSender
-    liftIO $ sender encoder x
-
--- | For asynchronous sending
-type Sender a = Encoder a -> a -> IO ()
+-- | Low-level sending with an arbitrary 'T.Message'
+sendMessage :: T.Message -> WebSockets ()
+sendMessage msg = getMessageSender >>= (liftIO . ($ msg))
 
 -- | In case the user of the library wants to do asynchronous sending to the
 -- socket, he can extract a 'Sender' and pass this value around, for example,
 -- to other threads.
-getSender :: WebSockets (Sender a)
-getSender = WebSockets $ do
-    WebSocketsEnv _ send' <- ask
-    return $ \encoder x -> do
+getMessageSender :: WebSockets (T.Message -> IO ())
+getMessageSender = do
+    proto <- getProtocol
+    let encodeMsg = E.message (encodeFrame proto)
+    getSender encodeMsg
+
+getSender :: Encoder a -> WebSockets (a -> IO ())
+getSender encoder = WebSockets $ do
+    send' <- sendBuilder <$> ask
+    return $ \x -> do
         bytes <- replicateM 4 (liftIO randomByte)
         send' (encoder (Just (B.pack bytes)) x)
   where
@@ -132,4 +141,8 @@ getSender = WebSockets $ do
 
 -- | Get the current configuration
 getOptions :: WebSockets WebSocketsOptions
-getOptions = WebSockets $ ask >>= \(WebSocketsEnv options _) -> return options
+getOptions = WebSockets $ ask >>= return . options
+
+-- | Get the underlying protocol
+getProtocol :: WebSockets SomeProtocol
+getProtocol = WebSockets $ ask >>= return . protocol

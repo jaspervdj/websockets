@@ -9,6 +9,11 @@ module Network.WebSockets.Types
     , ControlMessage (..)
     , DataMessage (..)
     , WebSocketsData (..)
+    , close
+    , ping
+    , pong
+    , textData
+    , binaryData
     ) where
 
 import qualified Data.ByteString as B
@@ -104,3 +109,23 @@ instance WebSocketsData TL.Text where
 instance WebSocketsData T.Text where
     fromLazyByteString = T.concat . TL.toChunks . fromLazyByteString
     toLazyByteString   = toLazyByteString . TL.fromChunks . return
+
+-- | Construct a close message
+close :: WebSocketsData a => a -> Message
+close = ControlMessage . Close . toLazyByteString
+
+-- | Construct a ping message
+ping :: WebSocketsData a => a -> Message
+ping = ControlMessage . Ping . toLazyByteString
+
+-- | Construct a pong message
+pong :: WebSocketsData a => a -> Message
+pong = ControlMessage . Pong . toLazyByteString
+
+-- | Construct a text message
+textData :: WebSocketsData a => a -> Message
+textData = DataMessage . Text . toLazyByteString
+
+-- | Construct a binary message
+binaryData :: WebSocketsData a => a -> Message
+binaryData = DataMessage . Binary . toLazyByteString

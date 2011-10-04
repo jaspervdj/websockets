@@ -99,8 +99,11 @@ spawnPingThread = do
         Nothing -> return ()
         Just i  -> do
             _ <- liftIO $ forkIO $ forever $ do
-                sender E.ping ("Hi" :: ByteString)
+                -- An ugly hack here. We first sleep before sending the first
+                -- ping, so the ping (hopefully) doesn't interfere with the
+                -- intitial request/response.
                 threadDelay (i * 1000 * 1000)  -- seconds
+                sender E.ping ("Hi" :: ByteString)
             return ()
 
 -- | Receive some data from the socket, using a user-supplied parser.

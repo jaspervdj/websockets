@@ -67,6 +67,7 @@ data Request = Request
     { requestPath     :: !B.ByteString
     , requestHeaders  :: Headers
     , requestProtocol :: Protocol
+    , requestResponse :: Response
     }
 
 -- | Response to a 'Request'
@@ -74,6 +75,7 @@ data Response = Response
     { responseCode    :: !Int
     , responseMessage :: !B.ByteString
     , responseHeaders :: Headers
+    , responseBody    :: B.ByteString
     } deriving (Show)
 
 -- | A frame

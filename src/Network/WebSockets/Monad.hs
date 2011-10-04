@@ -83,8 +83,6 @@ runWebSocketsWith opts ws outIter = do
         env    = WebSocketsEnv opts sender hybi10
         state  = runReaderT (unWebSockets ws') env
         iter   = evalStateT state emptyDemultiplexState
-
-
     iter
   where
     makeSend sendLock x = do

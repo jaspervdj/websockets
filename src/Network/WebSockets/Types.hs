@@ -14,6 +14,10 @@ module Network.WebSockets.Types
     , pong
     , textData
     , binaryData
+
+    , HandshakeError(..)
+    , Protocol(..), RequestHttpPart(..)
+    , Encoder, Decoder
     ) where
 
 import qualified Data.ByteString as B
@@ -23,14 +27,47 @@ import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TL
 
+-- for {En,De}coder
+import qualified Blaze.ByteString.Builder as B
+import Data.Attoparsec (Parser)
+import Network.WebSockets.Mask
+
 -- | Request headers
 type Headers = [(CI.CI B.ByteString, B.ByteString)]
 
+-- | An alias so we don't have to import attoparsec everywhere
+type Decoder a = Parser a
+
+-- todo: restructure the module hierarchy
+
+-- | The inverse of a parser
+type Encoder a = Mask -> a -> B.Builder
+
+data Protocol = Protocol
+  { version :: String
+  , encodeFrame :: Encoder Frame
+  , decodeFrame :: Decoder Frame
+  , finishRequest :: RequestHttpPart -> Decoder (Either HandshakeError Request)
+  -- ^ Parse and validate the rest of the request. For hybi10, this is just
+  -- validation, but hybi00 also needs to fetch a "security token"
+  }
+
+-- | Error in case of failed handshake.
+data HandshakeError = HandshakeError String
+                    deriving (Show)
+
+-- | (internal) HTTP headers and requested path.
+data RequestHttpPart = RequestHttpPart
+    { requestHttpPath    :: !B.ByteString
+    , requestHttpHeaders :: Headers
+    } deriving (Show)
+
 -- | Simple request type
 data Request = Request
-    { requestPath    :: !B.ByteString
-    , requestHeaders :: Headers
-    } deriving (Show)
+    { requestPath     :: !B.ByteString
+    , requestHeaders  :: Headers
+    , requestProtocol :: Protocol
+    }
 
 -- | Response to a 'Request'
 data Response = Response

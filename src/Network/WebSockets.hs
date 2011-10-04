@@ -94,7 +94,7 @@ import qualified Network.WebSockets.Types as I
 
 -- | Read a 'I.Request' from the socket. Blocks until one is received and
 -- returns 'Nothing' if the socket has been closed.
-receiveRequest :: I.WebSockets (Maybe I.Request)
+receiveRequest :: I.WebSockets (Maybe I.RequestHttpPart)
 receiveRequest = I.receive D.request
 
 -- | Read a 'I.Frame' from the socket. Blocks until a frame is received and

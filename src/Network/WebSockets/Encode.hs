@@ -19,9 +19,6 @@ import qualified Data.CaseInsensitive as CI
 import Network.WebSockets.Mask
 import Network.WebSockets.Types
 
--- | The inverse of a parser
-type Encoder a = Mask -> a -> B.Builder
-
 -- | Encode an HTTP upgrade response
 response :: Encoder Response
 response _ (Response code msg headers) =

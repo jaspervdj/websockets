@@ -15,12 +15,9 @@ import qualified Data.CaseInsensitive as CI
 
 import Network.WebSockets.Types
 
--- | An alias so we don't have to import attoparsec everywhere
-type Decoder a = Parser a
-
 -- | Parse an initial request
-request :: Decoder Request
-request = Request
+request :: Decoder RequestHttpPart
+request = RequestHttpPart
     <$> requestLine
     <*> manyTill header newline
   where

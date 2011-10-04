@@ -18,17 +18,10 @@ import qualified Data.ByteString.Lazy as BL
 import Network.WebSockets.Decode (Decoder)
 import Network.WebSockets.Encode (Encoder)
 import Network.WebSockets.Mask
-import Network.WebSockets.Protocol (Protocol (..), SomeProtocol (..))
+import Network.WebSockets.Protocol (Protocol (..))
 import Network.WebSockets.Types
 
-data Hybi10 = Hybi10
 
-instance Protocol Hybi10 where
-    decodeFrame _ = decodeFrameHybi10
-    encodeFrame _ = encodeFrameHybi10
-
-hybi10 :: SomeProtocol
-hybi10 = SomeProtocol Hybi10
 
 -- | Parse a frame
 decodeFrameHybi10 :: Decoder Frame
@@ -100,3 +93,6 @@ encodeFrameHybi10 mask f = B.fromWord8 byte0 `mappend`
         | len' < 126     = (fromIntegral len', mempty)
         | len' < 0x10000 = (126, B.fromWord16be (fromIntegral len'))
         | otherwise      = (127, B.fromWord64be (fromIntegral len'))
+
+hybi10 :: Protocol
+hybi10 = Protocol "10" encodeFrameHybi10 decodeFrameHybi10

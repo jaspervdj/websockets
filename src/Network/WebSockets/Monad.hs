@@ -35,7 +35,7 @@ import qualified Data.ByteString as B
 import Network.WebSockets.Decode (Decoder)
 import Network.WebSockets.Demultiplex (DemultiplexState, emptyDemultiplexState)
 import Network.WebSockets.Encode (Encoder)
-import Network.WebSockets.Protocol (Protocol (..), SomeProtocol (..))
+import Network.WebSockets.Protocol (Protocol (..))
 import Network.WebSockets.Protocol.Hybi10 (hybi10)
 import qualified Network.WebSockets.Encode as E
 import qualified Network.WebSockets.Types as T
@@ -57,7 +57,7 @@ defaultWebSocketsOptions = WebSocketsOptions
 data WebSocketsEnv = WebSocketsEnv
     { options     :: WebSocketsOptions
     , sendBuilder :: Builder -> IO ()
-    , protocol    :: SomeProtocol
+    , protocol    :: Protocol
     }
 
 -- | The monad in which you can write WebSocket-capable applications
@@ -144,5 +144,5 @@ getOptions :: WebSockets WebSocketsOptions
 getOptions = WebSockets $ ask >>= return . options
 
 -- | Get the underlying protocol
-getProtocol :: WebSockets SomeProtocol
+getProtocol :: WebSockets Protocol
 getProtocol = WebSockets $ ask >>= return . protocol

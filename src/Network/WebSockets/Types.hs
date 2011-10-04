@@ -44,16 +44,21 @@ type Decoder a = Parser a
 type Encoder a = Mask -> a -> B.Builder
 
 data Protocol = Protocol
-  { version :: String
+  { version :: B.ByteString
   , encodeFrame :: Encoder Frame
   , decodeFrame :: Decoder Frame
   , finishRequest :: RequestHttpPart -> Decoder (Either HandshakeError Request)
   -- ^ Parse and validate the rest of the request. For hybi10, this is just
   -- validation, but hybi00 also needs to fetch a "security token"
+  --
+  -- Todo: Maybe we should introduce our own simplified error type here. (to be
+  -- amended with the RequestHttpPart for the user)
   }
 
 -- | Error in case of failed handshake.
-data HandshakeError = HandshakeError String
+data HandshakeError = NotSupported  -- todo: version parameter
+    | MalformedRequest RequestHttpPart
+    | OtherError String  -- for example "EOF came too early"
                     deriving (Show)
 
 -- | (internal) HTTP headers and requested path.

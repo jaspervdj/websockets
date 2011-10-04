@@ -21,11 +21,14 @@ import Network.WebSockets.Types
 
 -- | Encode an HTTP upgrade response
 response :: Encoder Response
-response _ (Response code msg headers) =
+response _ (Response code msg headers body) =
     B.copyByteString "HTTP/1.1 " `mappend` B.fromString (show code) `mappend`
     B.fromChar ' ' `mappend` B.fromByteString msg `mappend`
     B.fromByteString "\r\n" `mappend`
-    mconcat (map header headers) `mappend` B.copyByteString "\r\n"
+    mconcat (map header headers) `mappend` B.copyByteString "\r\n" `mappend`
+    -- todo: do we provide a Content-Length ? Probably not, but check the spec!
+    -- (body is empty except for version -00)
+    B.copyByteString body  -- todo: make body a Builder?
   where
     header (k, v) = mconcat $ map B.copyByteString
         [CI.original k, ": ", v, "\r\n"]

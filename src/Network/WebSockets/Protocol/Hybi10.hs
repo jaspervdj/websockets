@@ -1,3 +1,6 @@
+
+{-# LANGUAGE OverloadedStrings #-}
+
 module Network.WebSockets.Protocol.Hybi10
     ( hybi10
     ) where
@@ -18,7 +21,7 @@ import qualified Data.ByteString.Lazy as BL
 import Network.WebSockets.Decode (Decoder)
 import Network.WebSockets.Encode (Encoder)
 import Network.WebSockets.Mask
-import Network.WebSockets.Protocol (Protocol (..))
+-- import Network.WebSockets.Protocol (Protocol (..))
 import Network.WebSockets.Types
 
 

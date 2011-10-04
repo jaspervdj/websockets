@@ -95,4 +95,4 @@ encodeFrameHybi10 mask f = B.fromWord8 byte0 `mappend`
         | otherwise      = (127, B.fromWord64be (fromIntegral len'))
 
 hybi10 :: Protocol
-hybi10 = Protocol "10" encodeFrameHybi10 decodeFrameHybi10
+hybi10 = Protocol "hybi10" encodeFrameHybi10 decodeFrameHybi10

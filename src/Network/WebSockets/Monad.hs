@@ -113,7 +113,11 @@ spawnPingThread = do
 
 -- | Receive some data from the socket, using a user-supplied parser.
 receive :: Decoder a -> WebSockets (Maybe a)
-receive parser = WebSockets $ lift $ lift $ do
+receive = WebSockets . lift . lift . receiveIteratee
+
+-- | Low-level interface. 'receive' is just this lifted to WebSockets
+receiveIteratee :: Decoder a -> Iteratee ByteString IO (Maybe a)
+receiveIteratee parser = do
     eof <- isEOF
     if eof then return Nothing else fmap Just (iterParser parser)
 

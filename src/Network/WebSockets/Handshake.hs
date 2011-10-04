@@ -18,10 +18,6 @@ import qualified Data.CaseInsensitive as CI
 
 import Network.WebSockets.Types
 
--- | Error in case of failed handshake.
-data HandshakeError = HandshakeError String
-                    deriving (Show)
-
 instance Error HandshakeError where
     noMsg  = HandshakeError "Handshake error"
     strMsg = HandshakeError
@@ -33,7 +29,7 @@ instance Error HandshakeError where
 --
 -- In the case of a malformed request, a 'HandshakeError' is returned.
 handshake :: Request -> Either HandshakeError Response
-handshake (Request _ headers) = do
+handshake (Request _ headers _) = do
     key <- getHeader "Sec-WebSocket-Key"
     let hash = unlazy $ bytestringDigest $ sha1 $ lazy $ key `mappend` guid
     let encoded = B64.encode hash

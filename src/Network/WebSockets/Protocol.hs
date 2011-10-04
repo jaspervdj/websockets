@@ -6,10 +6,9 @@ module Network.WebSockets.Protocol
 
 import Network.WebSockets.Decode (Decoder)
 import Network.WebSockets.Encode (Encoder)
-import Network.WebSockets.Types (Frame)
+import Network.WebSockets.Types (Frame, RequestHttpPart)
 
-data Protocol = Protocol
-  { version :: String
-  , encodeFrame :: Encoder Frame
-  , decodeFrame :: Decoder Frame
-  }
+import Network.WebSockets.Types (Protocol(..))
+
+-- todo: remove this module
+

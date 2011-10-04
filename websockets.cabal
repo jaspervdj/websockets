@@ -4,8 +4,7 @@ Version: 0.3.1.0
 Cabal-version:  >= 1.6
 
 Synopsis:
-  Provides a sensible, clean and simple way to write WebSocket-capable servers
-  in Haskell.
+  A sensible and clean way to write WebSocket-capable servers in Haskell.
 
 Description:
  This library allows you to write WebSocket-capable servers.

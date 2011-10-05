@@ -27,6 +27,10 @@ import Network.WebSockets.Types
 encodeFrameHybi00 :: Encoder Frame
 encodeFrameHybi00 _ (Frame True _ pl) =
   BB.fromLazyByteString $ "\0" `BL.append` pl `BL.append` "\255"
+-- TODO: otherwise, fail in a sane way (and not with non-exhaustive pattern
+-- match crash) OTOH, we *should* fail when trying to send binary.
+-- TODO: Can't we send a close frame ourselves? Also, how do we do a close
+-- handshake for hybi10? (I guess we don't, at the moment)
 
 decodeFrameHybi00 :: Decoder Frame
 decodeFrameHybi00 = decodeTextFrame <|> decodeCloseFrame
@@ -46,12 +50,13 @@ divBySpaces str =
   let number = read $ filter isDigit str :: Integer
       spaces = fromIntegral . length $ filter (==' ') str
   in  fromIntegral $ number `div` spaces
-
+-- TODO: what if str has 0 spaces?
 
 
 handshakeHybi00 :: Protocol -> RequestHttpPart
                    -> ErrorT HandshakeError A.Parser Request
 handshakeHybi00 p reqHttp@(RequestHttpPart path h) = do
+  -- todo: order correct? (spec, p.22, 28.). Require at least two 0x20!
   _ <- lift . A.word8 $ fromIntegral 0x0d
   _ <- lift . A.word8 $ fromIntegral 0x0a
   keyPart3 <- lift $ A.take 8
@@ -62,6 +67,7 @@ handshakeHybi00 p reqHttp@(RequestHttpPart path h) = do
   let key = B.concat . BL.toChunks . encode . md5 $
             BL.fromChunks [keyPart1 `BC.append` keyPart2 `BC.append` keyPart3]
   host <- getHeader "Host"
+  -- todo: origin right? (also applies to hybi10)
   origin <- getHeader "Origin"
   let response = Response 101 "WebSocket Protocol Handshake"
                  (("Upgrade", "WebSocket") :

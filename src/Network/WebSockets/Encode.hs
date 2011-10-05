@@ -24,7 +24,9 @@ response _ (Response code msg headers body) =
     B.copyByteString "HTTP/1.1 " `mappend` B.fromString (show code) `mappend`
     B.fromChar ' ' `mappend` B.fromByteString msg `mappend`
     B.fromByteString "\r\n" `mappend`
-    mconcat (map header headers) `mappend` B.copyByteString "\r\n"
+    mconcat (map header headers) `mappend` B.copyByteString "\r\n" `mappend`
+    -- (body is empty except for version -00)
+    B.copyByteString body
   where
     header (k, v) = mconcat $ map B.copyByteString
         [CI.original k, ": ", v, "\r\n"]

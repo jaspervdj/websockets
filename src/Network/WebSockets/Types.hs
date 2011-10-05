@@ -32,6 +32,9 @@ import qualified Blaze.ByteString.Builder as B
 import Data.Attoparsec (Parser)
 import Network.WebSockets.Mask
 
+-- just for providing the instance below.
+import Control.Monad.Error (Error(..))
+
 -- | Request headers
 type Headers = [(CI.CI B.ByteString, B.ByteString)]
 
@@ -44,12 +47,15 @@ type Decoder a = Parser a
 type Encoder a = Mask -> a -> B.Builder
 
 data Protocol = Protocol
-  { version :: String
+  { version :: B.ByteString
   , encodeFrame :: Encoder Frame
   , decodeFrame :: Decoder Frame
   , finishRequest :: RequestHttpPart -> Decoder (Either HandshakeError Request)
   -- ^ Parse and validate the rest of the request. For hybi10, this is just
   -- validation, but hybi00 also needs to fetch a "security token"
+  --
+  -- Todo: Maybe we should introduce our own simplified error type here. (to be
+  -- amended with the RequestHttpPart for the user)
   }
 
 -- | Error in case of failed handshake.
@@ -57,6 +63,9 @@ data HandshakeError = NotSupported  -- todo: version parameter
     | MalformedRequest RequestHttpPart String
     | OtherError String  -- for example "EOF came too early"
                     deriving (Show)
+
+instance Error HandshakeError where
+    strMsg = OtherError
 
 -- | (internal) HTTP headers and requested path.
 data RequestHttpPart = RequestHttpPart

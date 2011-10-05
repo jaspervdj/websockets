@@ -21,17 +21,15 @@ import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.CaseInsensitive as CI
 import Control.Monad.Error (Error (..), throwError)
-
+import Data.Monoid (mappend, mconcat)
 
 import Network.WebSockets.Decode (Decoder)
 import Network.WebSockets.Encode (Encoder)
 import Network.WebSockets.Mask
-import Network.WebSockets.Protocol (Protocol (..))
+-- import Network.WebSockets.Protocol (Protocol (..))
 import Network.WebSockets.Types
 
 
-instance Error HandshakeError where
-  strMsg = OtherError
 
 -- | Parse a frame
 decodeFrameHybi10 :: Decoder Frame

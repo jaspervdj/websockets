@@ -1,7 +1,8 @@
 -- | Wrapper for supporting multiple protocol versions
 {-# LANGUAGE ExistentialQuantification #-}
 module Network.WebSockets.Protocol
-    ( Protocol (..)
+    (
+      protocols
     ) where
 
 import Network.WebSockets.Decode (Decoder)
@@ -10,5 +11,11 @@ import Network.WebSockets.Types (Frame, RequestHttpPart)
 
 import Network.WebSockets.Types (Protocol(..))
 
--- todo: remove this module
+import Network.WebSockets.Protocol.Hybi10 (hybi10)
+-- import Network.WebSockets.Protocol.Hybi00 (hybi00)
+
+protocols :: [Protocol]
+protocols = [ hybi10
+            -- , hybi00
+            ]
 

@@ -20,18 +20,21 @@ import Network.WebSockets.Types
 import qualified Network.WebSockets.Decode as D
 import qualified Network.WebSockets.Encode as E
 
+import Network.WebSockets.Protocol.Hybi10 (hybi10)
+
 tests :: Test
 tests = testGroup "Network.WebSockets.Test"
-    [ testProperty "encodeFrameDecodeFrame" encodeFrameDecodeFrame
+    [ testProperty "encodeFrameDecodeFrame-hybi10" (encodeFrameDecodeFrame hybi10)
+    -- todo: for hybi00, we want to construct only special frames.
     ]
 
 -- | Encode a frame, then decode it again. We should obviously get our original
 -- frame back
-encodeFrameDecodeFrame :: ArbitraryMask -> Frame -> Bool
-encodeFrameDecodeFrame (ArbitraryMask m) f =
-    let lbs = Builder.toLazyByteString $ E.frame m f
+encodeFrameDecodeFrame :: Protocol -> ArbitraryMask -> Frame -> Bool
+encodeFrameDecodeFrame proto (ArbitraryMask m) f =
+    let lbs = Builder.toLazyByteString $ (encodeFrame proto) m f
         bs = B.concat $ BL.toChunks lbs
-    in case parse D.frame bs of
+    in case parse (decodeFrame proto) bs of
         Done "" r -> f == r
         err       -> error ("encodeFrameDecodeFrame: " ++ show err)
 

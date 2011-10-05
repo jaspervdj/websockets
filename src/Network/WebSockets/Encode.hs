@@ -16,12 +16,11 @@ import qualified Blaze.ByteString.Builder as B
 import qualified Blaze.ByteString.Builder.Char.Utf8 as B
 import qualified Data.CaseInsensitive as CI
 
-import Network.WebSockets.Mask
 import Network.WebSockets.Types
 
 -- | Encode an HTTP upgrade response
 response :: Encoder Response
-response _ (Response code msg headers) =
+response _ (Response code msg headers body) =
     B.copyByteString "HTTP/1.1 " `mappend` B.fromString (show code) `mappend`
     B.fromChar ' ' `mappend` B.fromByteString msg `mappend`
     B.fromByteString "\r\n" `mappend`

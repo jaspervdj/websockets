@@ -53,9 +53,7 @@ module Network.WebSockets
     , I.DataMessage (..)
     , I.WebSocketsData (..)
 
-      -- * Initial handshake
-    , H.HandshakeError (..)
-    , H.handshake
+
 
       -- * Receiving
     , receiveRequest
@@ -86,7 +84,7 @@ import Control.Monad.Trans (liftIO)
 import qualified Network.WebSockets.Decode as D
 import qualified Network.WebSockets.Demultiplex as I
 import qualified Network.WebSockets.Encode as E
-import qualified Network.WebSockets.Handshake as H
+
 import qualified Network.WebSockets.Monad as I
 import qualified Network.WebSockets.Protocol as I
 import qualified Network.WebSockets.Socket as I

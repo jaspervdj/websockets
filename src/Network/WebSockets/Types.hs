@@ -53,7 +53,9 @@ data Protocol = Protocol
   }
 
 -- | Error in case of failed handshake.
-data HandshakeError = HandshakeError String
+data HandshakeError = NotSupported  -- todo: version parameter
+    | MalformedRequest RequestHttpPart String
+    | OtherError String  -- for example "EOF came too early"
                     deriving (Show)
 
 -- | (internal) HTTP headers and requested path.

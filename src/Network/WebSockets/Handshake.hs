@@ -1,9 +1,7 @@
 -- | Implementation of the WebSocket handshake
 {-# LANGUAGE OverloadedStrings #-}
 module Network.WebSockets.Handshake
-    ( HandshakeError (..)
-    , handshake
-    , response101
+    ( response101
     , response400
     , responseError
     , tryFinishRequest
@@ -25,33 +23,6 @@ import Network.WebSockets.Protocol
 
 import Network.WebSockets.Decode
 
--- todo: move orphan instance
-instance Error HandshakeError where
-    -- noMsg  = OtherError ""
-    strMsg = OtherError
-
--- | Provides the logic for the initial handshake defined in the WebSocket
--- protocol. This function will provide you with a 'Response' which accepts and
--- upgrades the received 'Request'. Once this 'Response' is sent, you can start
--- sending and receiving actual application data.
---
--- In the case of a malformed request, a 'HandshakeError' is returned.
-handshake :: Request -> Either HandshakeError Response
-handshake (Request _ headers _ _) = do
-    key <- getHeader "Sec-WebSocket-Key"
-    let hash = unlazy $ bytestringDigest $ sha1 $ lazy $ key `mappend` guid
-    let encoded = B64.encode hash
-
-    return $ response101 [("Sec-WebSocket-Accept", encoded)]
-  where
-    guid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
-    lazy = BL.fromChunks . return
-    unlazy = mconcat . BL.toChunks
-    getHeader k = case lookup k headers of
-        Just t  -> return t
-        Nothing -> throwError $
-            strMsg $ "Header missing: " ++ BC.unpack (CI.original k)  -- todo: will be moved anyway.
-
 -- | Receives and checks the client handshake.
 -- 
 -- * If this fails, we encountered a syntax error while processing the client's
@@ -65,7 +36,7 @@ handshake (Request _ headers _ _) = do
 -- * Otherwise, we are guaranteed that the client handshake is valid and have
 -- generated a response ready to be sent back.
 
--- todo: not used.
+-- | (try to) receive and validate a complete request. Not used at the moment.
 receiveClientHandshake :: Decoder (Either HandshakeError Request)
 receiveClientHandshake = request >>= tryFinishRequest
 

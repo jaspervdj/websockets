@@ -32,6 +32,9 @@ import qualified Blaze.ByteString.Builder as B
 import Data.Attoparsec (Parser)
 import Network.WebSockets.Mask
 
+-- just for providing the instance below.
+import Control.Monad.Error (Error(..))
+
 -- | Request headers
 type Headers = [(CI.CI B.ByteString, B.ByteString)]
 
@@ -60,6 +63,9 @@ data HandshakeError = NotSupported  -- todo: version parameter
     | MalformedRequest RequestHttpPart
     | OtherError String  -- for example "EOF came too early"
                     deriving (Show)
+
+instance Error HandshakeError where
+    strMsg = OtherError
 
 -- | (internal) HTTP headers and requested path.
 data RequestHttpPart = RequestHttpPart

@@ -1,8 +1,8 @@
 -- | Wrapper for supporting multiple protocol versions
 {-# LANGUAGE ExistentialQuantification #-}
 module Network.WebSockets.Protocol
-    ( Protocol (..)  -- todo: remove.
-    , protocols
+    (
+      protocols
     ) where
 
 import Network.WebSockets.Decode (Decoder)

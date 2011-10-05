@@ -1,8 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-module Network.WebSockets.Tests
-    ( tests
-    ) where
+module Network.WebSockets.Tests where
 
 import Control.Applicative ((<$>), (<*>))
 import Control.Monad (replicateM)
@@ -10,7 +8,7 @@ import Control.Monad (replicateM)
 import Data.Attoparsec (Result (..), parse)
 import Test.Framework (Test, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
-import Test.QuickCheck (Arbitrary (..), elements, oneof)
+import Test.QuickCheck (Arbitrary (..), Gen, elements, oneof)
 import qualified Blaze.ByteString.Builder as Builder
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
@@ -21,11 +19,15 @@ import qualified Network.WebSockets.Decode as D
 import qualified Network.WebSockets.Encode as E
 
 import Network.WebSockets.Protocol.Hybi10 (hybi10)
+import Network.WebSockets.Protocol.Hybi00 (hybi00)
+
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TL
 
 tests :: Test
 tests = testGroup "Network.WebSockets.Test"
     [ testProperty "encodeFrameDecodeFrame-hybi10" (encodeFrameDecodeFrame hybi10)
-    -- todo: for hybi00, we want to construct only special frames.
+    , testProperty "encodeFrameDecodeFrame-hybi00" (encodeFrameDecodeFrameFor00 hybi00)
     ]
 
 -- | Encode a frame, then decode it again. We should obviously get our original
@@ -37,6 +39,16 @@ encodeFrameDecodeFrame proto (ArbitraryMask m) f =
     in case parse (decodeFrame proto) bs of
         Done "" r -> f == r
         err       -> error ("encodeFrameDecodeFrame: " ++ show err)
+
+encodeFrameDecodeFrameFor00 :: Protocol -> ArbitraryMask -> ArbitraryFrameFor00 -> Bool
+encodeFrameDecodeFrameFor00 proto am (ArbitraryFrameFor00 f) = encodeFrameDecodeFrame proto am f
+
+newtype ArbitraryFrameFor00 = ArbitraryFrameFor00 Frame
+    deriving (Show)
+
+instance Arbitrary ArbitraryFrameFor00 where
+    arbitrary = ArbitraryFrameFor00 <$>
+        Frame True TextFrame <$> arbitraryUtf8
 
 newtype ArbitraryMask = ArbitraryMask Mask
                       deriving (Show)
@@ -58,4 +70,14 @@ instance Arbitrary FrameType where
         ]
 
 instance Arbitrary Frame where
-    arbitrary = Frame <$> arbitrary <*> arbitrary <*> (BL.pack <$> arbitrary)
+    arbitrary = do
+        fin <- arbitrary
+        t <- arbitrary
+        payload <- case t of
+            TextFrame -> arbitraryUtf8
+            _ -> BL.pack <$> arbitrary
+        return $ Frame fin t payload
+
+arbitraryUtf8 :: Gen BL.ByteString
+arbitraryUtf8 = toLazyByteString . TL.encodeUtf8 . TL.pack <$> arbitrary
+

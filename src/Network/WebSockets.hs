@@ -53,12 +53,10 @@ module Network.WebSockets
     , I.DataMessage (..)
     , I.WebSocketsData (..)
 
-      -- * Initial handshake
-    , H.HandshakeError (..)
-    , H.handshake
+
 
       -- * Receiving
-    , receiveRequest
+    -- , receiveRequest
     , receiveFrame
     , receiveMessage
     , receiveDataMessage
@@ -86,7 +84,7 @@ import Control.Monad.Trans (liftIO)
 import qualified Network.WebSockets.Decode as D
 import qualified Network.WebSockets.Demultiplex as I
 import qualified Network.WebSockets.Encode as E
-import qualified Network.WebSockets.Handshake as H
+
 import qualified Network.WebSockets.Monad as I
 import qualified Network.WebSockets.Protocol as I
 import qualified Network.WebSockets.Socket as I
@@ -94,8 +92,13 @@ import qualified Network.WebSockets.Types as I
 
 -- | Read a 'I.Request' from the socket. Blocks until one is received and
 -- returns 'Nothing' if the socket has been closed.
-receiveRequest :: I.WebSockets (Maybe I.Request)
+{-
+receiveRequest :: I.WebSockets (Maybe I.RequestHttpPart)
 receiveRequest = I.receive D.request
+-}
+-- This doesn't work this way any more. As the Protocol first has to be
+-- determined by the request, we can't provide this as a WebSockets action. See
+-- the various flavours of runWebSockets.
 
 -- | Read a 'I.Frame' from the socket. Blocks until a frame is received and
 -- returns 'Nothing' if the socket has been closed.

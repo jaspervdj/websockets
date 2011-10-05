@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Network.WebSockets.Protocol.Hybi10
     ( hybi10
     ) where
@@ -14,21 +15,21 @@ import Data.Int (Int64)
 import qualified Blaze.ByteString.Builder as B
 import qualified Data.Attoparsec as A
 import qualified Data.ByteString.Lazy as BL
+import Data.Digest.Pure.SHA (bytestringDigest, sha1)
+import qualified Data.ByteString.Base64 as B64
+import qualified Data.ByteString.Char8 as BC
+import qualified Data.ByteString.Lazy as BL
+import qualified Data.CaseInsensitive as CI
+import Control.Monad.Error (Error (..), throwError)
+import Data.Monoid (mappend, mconcat)
 
 import Network.WebSockets.Decode (Decoder)
 import Network.WebSockets.Encode (Encoder)
 import Network.WebSockets.Mask
-import Network.WebSockets.Protocol (Protocol (..), SomeProtocol (..))
+-- import Network.WebSockets.Protocol (Protocol (..))
 import Network.WebSockets.Types
 
-data Hybi10 = Hybi10
 
-instance Protocol Hybi10 where
-    decodeFrame _ = decodeFrameHybi10
-    encodeFrame _ = encodeFrameHybi10
-
-hybi10 :: SomeProtocol
-hybi10 = SomeProtocol Hybi10
 
 -- | Parse a frame
 decodeFrameHybi10 :: Decoder Frame
@@ -100,3 +101,38 @@ encodeFrameHybi10 mask f = B.fromWord8 byte0 `mappend`
         | len' < 126     = (fromIntegral len', mempty)
         | len' < 0x10000 = (126, B.fromWord16be (fromIntegral len'))
         | otherwise      = (127, B.fromWord64be (fromIntegral len'))
+
+
+handshakeHybi10 :: Protocol -> RequestHttpPart -> Decoder (Either HandshakeError Request)
+handshakeHybi10 p reqHttp@(RequestHttpPart path h) = return $ do
+    key <- getHeader "Sec-WebSocket-Key"
+    let hash = unlazy $ bytestringDigest $ sha1 $ lazy $ key `mappend` guid
+    let encoded = B64.encode hash
+    return $ Request path h p
+      $ response101 [("Sec-WebSocket-Accept", encoded)]
+  where
+    guid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+    lazy = BL.fromChunks . return
+    unlazy = mconcat . BL.toChunks
+    getHeader k = case lookup k h of
+        Just t  -> return t
+        Nothing -> throwError $
+                   MalformedRequest reqHttp $ 
+                   "Header missing: " ++ BC.unpack (CI.original k)
+
+-- | An upgrade response
+response101 :: Headers -> Response
+response101 headers = Response 101 "WebSocket Protocol Handshake" 
+    (("Upgrade", "WebSocket") :
+    ("Connection", "Upgrade") :
+    headers)
+    ""
+
+-- | Bad request
+response400 :: Headers -> Response
+response400 headers = Response 400 "Bad Request" headers ""
+
+
+hybi10 :: Protocol
+hybi10 = Protocol "hybi10" encodeFrameHybi10 decodeFrameHybi10 (handshakeHybi10 hybi10)
+

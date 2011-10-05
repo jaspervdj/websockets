@@ -1,20 +1,21 @@
 -- | Wrapper for supporting multiple protocol versions
 {-# LANGUAGE ExistentialQuantification #-}
 module Network.WebSockets.Protocol
-    ( Protocol (..)
-    , SomeProtocol (..)
+    (
+      protocols
     ) where
 
 import Network.WebSockets.Decode (Decoder)
 import Network.WebSockets.Encode (Encoder)
-import Network.WebSockets.Types (Frame)
+import Network.WebSockets.Types (Frame, RequestHttpPart)
 
-class Protocol p where
-    encodeFrame :: p -> Encoder Frame
-    decodeFrame :: p -> Decoder Frame
+import Network.WebSockets.Types (Protocol(..))
 
-data SomeProtocol = forall p. Protocol p => SomeProtocol p
+import Network.WebSockets.Protocol.Hybi10 (hybi10)
+import Network.WebSockets.Protocol.Hybi00 (hybi00)
 
-instance Protocol SomeProtocol where
-    encodeFrame (SomeProtocol p) = encodeFrame p
-    decodeFrame (SomeProtocol p) = decodeFrame p
+protocols :: [Protocol]
+protocols = [ hybi10
+            , hybi00
+            ]
+

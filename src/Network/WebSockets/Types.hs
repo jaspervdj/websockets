@@ -61,6 +61,7 @@ data Protocol = Protocol
 -- | Error in case of failed handshake.
 data HandshakeError = NotSupported  -- todo: version parameter
     | MalformedRequest RequestHttpPart String
+    | IncompleteHeader
     | OtherError String  -- for example "EOF came too early"
                     deriving (Show)
 

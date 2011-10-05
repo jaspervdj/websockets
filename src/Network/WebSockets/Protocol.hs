@@ -12,10 +12,10 @@ import Network.WebSockets.Types (Frame, RequestHttpPart)
 import Network.WebSockets.Types (Protocol(..))
 
 import Network.WebSockets.Protocol.Hybi10 (hybi10)
--- import Network.WebSockets.Protocol.Hybi00 (hybi00)
+import Network.WebSockets.Protocol.Hybi00 (hybi00)
 
 protocols :: [Protocol]
 protocols = [ hybi10
-            -- , hybi00
+            , hybi00
             ]
 

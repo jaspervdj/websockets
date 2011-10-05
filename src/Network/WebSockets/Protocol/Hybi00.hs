@@ -33,7 +33,7 @@ decodeFrameHybi00 = decodeTextFrame <|> decodeCloseFrame
 
 decodeTextFrame = do
   _ <- A.word8 $ fromIntegral 0
-  utf8string <- A.manyTill A.anyWord8 (A.try . A.word8 . fromIntegral $ 0)
+  utf8string <- A.manyTill A.anyWord8 (A.try . A.word8 . fromIntegral $ 255)
   return $ Frame True TextFrame $ BL.pack utf8string
 
 decodeCloseFrame = do

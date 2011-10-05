@@ -75,7 +75,8 @@ Library
     network                  >= 2.3    && < 2.4,
     random                   >= 1.0    && < 1.1,
     SHA                      >= 1.5    && < 1.6,
-    text                     >= 0.10   && < 0.12
+    text                     >= 0.10   && < 0.12,
+    pureMD5                  >= 0.2.2  && < 2.2
 
 Source-repository head
   Type:     git

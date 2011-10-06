@@ -13,6 +13,7 @@ import Data.Digest.Pure.MD5 (md5)
 import Data.Bits (shift)
 import Data.Word (Word8)
 import Data.Binary (encode)
+import Data.Int (Int32)
 import qualified Blaze.ByteString.Builder as BB
 import qualified Data.CaseInsensitive as CI
 import qualified Data.ByteString.Lazy as BL
@@ -25,7 +26,7 @@ import Network.WebSockets.Types
 
 
 encodeFrameHybi00 :: Encoder Frame
-encodeFrameHybi00 _ (Frame True _ pl) =
+encodeFrameHybi00 _ (Frame True TextFrame pl) =
   BB.fromLazyByteString $ "\0" `BL.append` pl `BL.append` "\255"
 -- TODO: otherwise, fail in a sane way (and not with non-exhaustive pattern
 -- match crash) OTOH, we *should* fail when trying to send binary.
@@ -45,25 +46,30 @@ decodeCloseFrame = do
   _ <- A.word8 $ fromIntegral 0
   return $ Frame True CloseFrame ""
 
-divBySpaces :: String -> Int
+divBySpaces :: String -> Maybe Int32
 divBySpaces str =
   let number = read $ filter isDigit str :: Integer
       spaces = fromIntegral . length $ filter (==' ') str
-  in  fromIntegral $ number `div` spaces
--- TODO: what if str has 0 spaces?
+  in
+   if spaces == 0
+   then Nothing
+   else Just . fromIntegral $ number `div` spaces
+
 
 
 handshakeHybi00 :: RequestHttpPart
                    -> ErrorT HandshakeError A.Parser Request
 handshakeHybi00 reqHttp@(RequestHttpPart path h) = do
-  -- todo: order correct? (spec, p.22, 28.). Require at least two 0x20!
-  _ <- lift . A.word8 $ fromIntegral 0x0d
-  _ <- lift . A.word8 $ fromIntegral 0x0a
+  -- _ <- lift . A.word8 $ fromIntegral 0x0d
+  -- _ <- lift . A.word8 $ fromIntegral 0x0a
   keyPart3 <- lift $ A.take 8
-  keyPart1 <- B.pack . toWord8List . divBySpaces . BC.unpack <$>
-              getHeader "Sec-WebSocket-Key1"
-  keyPart2 <- B.pack . toWord8List . divBySpaces . BC.unpack <$>
-              getHeader "Sec-WebSocket-Key2"
+  let numberFromToken =
+        maybe (throwError $ MalformedRequest reqHttp
+               "Security token does not contain enough spaces")
+        (return . B.pack . toWord8List) .
+        divBySpaces . BC.unpack
+  keyPart1 <- numberFromToken =<< getHeader "Sec-WebSocket-Key1"
+  keyPart2 <- numberFromToken =<< getHeader "Sec-WebSocket-Key2"
   let key = B.concat . BL.toChunks . encode . md5 $
             BL.fromChunks [keyPart1 `BC.append` keyPart2 `BC.append` keyPart3]
   host <- getHeader "Host"

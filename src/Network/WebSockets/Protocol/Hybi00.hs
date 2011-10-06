@@ -53,9 +53,9 @@ divBySpaces str =
 -- TODO: what if str has 0 spaces?
 
 
-handshakeHybi00 :: Protocol -> RequestHttpPart
+handshakeHybi00 :: RequestHttpPart
                    -> ErrorT HandshakeError A.Parser Request
-handshakeHybi00 p reqHttp@(RequestHttpPart path h) = do
+handshakeHybi00 reqHttp@(RequestHttpPart path h) = do
   -- todo: order correct? (spec, p.22, 28.). Require at least two 0x20!
   _ <- lift . A.word8 $ fromIntegral 0x0d
   _ <- lift . A.word8 $ fromIntegral 0x0a
@@ -76,7 +76,7 @@ handshakeHybi00 p reqHttp@(RequestHttpPart path h) = do
                    "ws://" `B.append` host `B.append` path) :
                   ("Sec-WebSocket-Origin", origin) : []) $
                  "\r\n" `B.append` key
-  return $ Request path h p response
+  return $ Request path h response
     where
       getHeader k = case lookup k h of
         Just t  -> return t
@@ -86,4 +86,4 @@ handshakeHybi00 p reqHttp@(RequestHttpPart path h) = do
         map (\k -> (fromIntegral (shift n k)) :: Word8) [24,16,8,0]
 
 hybi00 :: Protocol
-hybi00 = Protocol "hybi00" encodeFrameHybi00 decodeFrameHybi00 $ runErrorT . handshakeHybi00 hybi00
+hybi00 = Protocol "hybi00" encodeFrameHybi00 decodeFrameHybi00 $ runErrorT . handshakeHybi00

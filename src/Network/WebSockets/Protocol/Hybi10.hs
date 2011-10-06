@@ -103,12 +103,12 @@ encodeFrameHybi10 mask f = B.fromWord8 byte0 `mappend`
         | otherwise      = (127, B.fromWord64be (fromIntegral len'))
 
 
-handshakeHybi10 :: Protocol -> RequestHttpPart -> Decoder (Either HandshakeError Request)
-handshakeHybi10 p reqHttp@(RequestHttpPart path h) = return $ do
+handshakeHybi10 :: RequestHttpPart -> Decoder (Either HandshakeError Request)
+handshakeHybi10 reqHttp@(RequestHttpPart path h) = return $ do
     key <- getHeader "Sec-WebSocket-Key"
     let hash = unlazy $ bytestringDigest $ sha1 $ lazy $ key `mappend` guid
     let encoded = B64.encode hash
-    return $ Request path h p
+    return $ Request path h
       $ response101 [("Sec-WebSocket-Accept", encoded)]
   where
     guid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -134,5 +134,5 @@ response400 headers = Response 400 "Bad Request" headers ""
 
 
 hybi10 :: Protocol
-hybi10 = Protocol "hybi10" encodeFrameHybi10 decodeFrameHybi10 (handshakeHybi10 hybi10)
+hybi10 = Protocol "hybi10" encodeFrameHybi10 decodeFrameHybi10 handshakeHybi10
 

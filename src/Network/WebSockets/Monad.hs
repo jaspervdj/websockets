@@ -76,7 +76,7 @@ runWebSocketsHandshake ::
 runWebSocketsHandshake = runWebSocketsWithHandshake defaultWebSocketsOptions
 
 -- | Receives the initial client handshake, then behaves like
--- 'runWebSocketsWith'.
+-- 'runWebSocketsWith.
 runWebSocketsWithHandshake :: WebSocketsOptions
                   -> (Request -> WebSockets a)
                   -> Iteratee ByteString IO ()
@@ -109,14 +109,14 @@ runWebSocketsWith ::
     -> Iteratee ByteString IO ()
     -> Iteratee ByteString IO (Either HandshakeError a)
 runWebSocketsWith opts httpReq goWs outIter = do
-    req <- receiveIteratee $ tryFinishRequest httpReq
-    case req of
+    mreq <- receiveIteratee $ tryFinishRequest httpReq
+    case mreq of
         Nothing -> return . Left $ OtherError "unexpected EOF"  -- todo: should behave like a parse error!
                                                                 -- (see receiveIteratee)
         Just (Left err) -> do
             sendIteratee E.response (responseError err) outIter
             return (Left err)
-        Just (Right r) -> Right `fmap` runWebSocketsWith' opts (requestProtocol r) (goWs r) outIter
+        Just (Right (r, p)) -> Right `fmap` runWebSocketsWith' opts p (goWs r) outIter
 
 runWebSocketsWith' :: WebSocketsOptions
                   -> Protocol

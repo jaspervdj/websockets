@@ -78,7 +78,6 @@ data RequestHttpPart = RequestHttpPart
 data Request = Request
     { requestPath     :: !B.ByteString
     , requestHeaders  :: Headers
-    , requestProtocol :: Protocol
     , requestResponse :: Response
     }
 

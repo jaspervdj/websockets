@@ -1,5 +1,6 @@
 -- | Provides a simple, clean monad to write websocket servers in
 {-# LANGUAGE GeneralizedNewtypeDeriving, OverloadedStrings, NoMonomorphismRestriction #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Network.WebSockets.Monad
     ( WebSocketsOptions (..)
     , defaultWebSocketsOptions
@@ -28,10 +29,12 @@ import System.Random (randomRIO)
 import Blaze.ByteString.Builder (Builder)
 import Blaze.ByteString.Builder.Enumerator (builderToByteString)
 import Data.Attoparsec.Enumerator (iterParser)
+import Data.Attoparsec (parse, Parser(..), Result(..))
 import Data.ByteString (ByteString)
 import Data.Enumerator ( Enumerator, Iteratee, Stream (..), checkContinue0, isEOF, returnI
                        , run, ($$), (>>==)
                        )
+import qualified Data.Enumerator as E
 import qualified Data.ByteString as B
 
 import Network.WebSockets.Decode (Decoder, request)
@@ -52,7 +55,11 @@ data WebSocketsOptions = WebSocketsOptions
 defaultWebSocketsOptions :: WebSocketsOptions
 defaultWebSocketsOptions = WebSocketsOptions
     { onPong       = return ()
-    , pingInterval = Just 10
+    -- , pingInterval = Just 10
+    -- TODO: reset this and don't spawn the ping thread on -00
+    -- (otherwise it will instantly crash with -00 because we don't
+    -- have pings there)
+    , pingInterval = Nothing
     }
 
 -- | Environment in which the 'WebSockets' monad actually runs
@@ -109,7 +116,7 @@ runWebSocketsWith ::
     -> Iteratee ByteString IO ()
     -> Iteratee ByteString IO (Either HandshakeError a)
 runWebSocketsWith opts httpReq goWs outIter = do
-    mreq <- receiveIteratee $ tryFinishRequest httpReq
+    mreq <- receiveIteratee' $ tryFinishRequest httpReq
     case mreq of
         Nothing -> return . Left $ OtherError "unexpected EOF"  -- todo: should behave like a parse error!
                                                                 -- (see receiveIteratee)
@@ -159,10 +166,26 @@ receive = WebSockets . lift . lift . receiveIteratee
 -- ^ todo: again, why does this have a Maybe type? It won't do what the user
 -- expects!
 
+-- todo: move some stuff to another module. "Decode"?
+
+-- TODO: WRONG for parsers that possibly don't take any data (= only validate). Also the isEOF.
 receiveIteratee :: Decoder a -> Iteratee ByteString IO (Maybe a)
 receiveIteratee parser = do
     eof <- isEOF
     if eof then return Nothing else fmap Just (iterParser parser)
+
+-- | Like receiveIteratee, but if the supplied parser is happy with no input,
+-- we don't supply any more. This is very, very important when we have parsers
+-- that don't necessarily read data, like hybi10's completeRequest.
+--
+-- todo: Does this function not yet existing mean we're abusing attoparsec?
+receiveIteratee' :: Decoder a -> Iteratee ByteString IO (Maybe a)
+receiveIteratee' parser = trace "receiveIteratee'" $
+    -- todo: we are redoing part of the parse. Which is not good. In fact, we
+    -- should be re-using a Partial result.
+    case parse parser "" of
+        Done _ a -> return (Just a)
+        _ -> fmap Just $ iterParser parser
 
 sendIteratee :: Encoder a -> a -> Iteratee ByteString IO () -> Iteratee ByteString IO ()
 sendIteratee enc resp outIter = do

@@ -63,7 +63,7 @@ data HandshakeError = NotSupported  -- todo: version parameter
     | MalformedRequest RequestHttpPart String
     | IncompleteHeader
     | OtherError String  -- for example "EOF came too early"
-                    deriving (Show)
+                    deriving (Eq, Show)
 
 instance Error HandshakeError where
     strMsg = OtherError
@@ -72,7 +72,7 @@ instance Error HandshakeError where
 data RequestHttpPart = RequestHttpPart
     { requestHttpPath    :: !B.ByteString
     , requestHttpHeaders :: Headers
-    } deriving (Show)
+    } deriving (Eq, Show)
 
 -- | Simple request type
 data Request = Request
@@ -80,6 +80,7 @@ data Request = Request
     , requestHeaders  :: Headers
     , requestResponse :: Response
     }
+    deriving (Show)
 
 -- | Response to a 'Request'
 data Response = Response

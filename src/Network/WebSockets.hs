@@ -37,6 +37,8 @@ module Network.WebSockets
     , I.WebSockets
     , I.runWebSockets
     , I.runWebSocketsWith
+    , I.runWebSocketsHandshake
+    , I.runWebSocketsWithHandshake
 
       -- * A simple standalone server
     , I.runServer

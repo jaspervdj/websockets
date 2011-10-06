@@ -66,12 +66,12 @@ handshakeHybi00 reqHttp@(RequestHttpPart path h) = do
   let numberFromToken =
         maybe (throwError $ MalformedRequest reqHttp
                "Security token does not contain enough spaces")
-        (return . B.pack . toWord8List) .
+        (return . encode) .
         divBySpaces . BC.unpack
   keyPart1 <- numberFromToken =<< getHeader "Sec-WebSocket-Key1"
   keyPart2 <- numberFromToken =<< getHeader "Sec-WebSocket-Key2"
   let key = B.concat . BL.toChunks . encode . md5 $
-            BL.fromChunks [keyPart1 `BC.append` keyPart2 `BC.append` keyPart3]
+            BL.concat [keyPart1, keyPart2, BL.fromChunks [keyPart3]]
   host <- getHeader "Host"
   -- todo: origin right? (also applies to hybi10)
   origin <- getHeader "Origin"
@@ -81,15 +81,13 @@ handshakeHybi00 reqHttp@(RequestHttpPart path h) = do
                   ("Sec-WebSocket-Location",
                    "ws://" `B.append` host `B.append` path) :
                   ("Sec-WebSocket-Origin", origin) : []) $
-                 "\r\n" `B.append` key
+                  key
   return $ Request path h response
     where
       getHeader k = case lookup k h of
         Just t  -> return t
         Nothing -> throwError $
                    MalformedRequest reqHttp $ "Header missing: " ++ BC.unpack (CI.original k)
-      toWord8List n =
-        map (\k -> (fromIntegral (shift n k)) :: Word8) [24,16,8,0]
 
 hybi00 :: Protocol
 hybi00 = Protocol "hybi00" encodeFrameHybi00 decodeFrameHybi00 $ runErrorT . handshakeHybi00

@@ -22,7 +22,6 @@ myApp req = do
     sendTextData $ TL.pack "Hello World"
     liftIO . putStrLn $ "Sent Hello World"
     t <- receiveData
-    -- again, why is this maybe?
     liftIO . putStrLn $ "Received Data: "++TL.unpack t
     sendTextData t
     liftIO . putStrLn $ "Sent Data Back"

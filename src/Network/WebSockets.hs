@@ -100,12 +100,6 @@ import qualified Network.WebSockets.Handshake as I
 
 import qualified Network.WebSockets.Feature as F
 
--- | Read a 'I.Request' from the socket. Blocks until one is received and
--- returns 'Nothing' if the socket has been closed.
-{-
-receiveRequest :: I.WebSockets (Maybe I.RequestHttpPart)
-receiveRequest = I.receive D.request
--}
 -- This doesn't work this way any more. As the Protocol first has to be
 -- determined by the request, we can't provide this as a WebSockets action. See
 -- the various flavours of runWebSockets.

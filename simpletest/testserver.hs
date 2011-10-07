@@ -21,7 +21,7 @@ myApp req = do
     liftIO . putStrLn $ "Send Response"
     sendTextData $ TL.pack "Hello World"
     liftIO . putStrLn $ "Sent Hello World"
-    t <- fromMaybe (error "Nothing, that's bad") `fmap` receiveData
+    t <- receiveData
     -- again, why is this maybe?
     liftIO . putStrLn $ "Received Data: "++TL.unpack t
     sendTextData t

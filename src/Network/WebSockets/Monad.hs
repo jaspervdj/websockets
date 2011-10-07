@@ -175,7 +175,7 @@ receive = WebSockets . lift . lift . receiveIteratee
 receiveIteratee :: Decoder a -> Iteratee ByteString IO (Maybe a)
 receiveIteratee parser = do
     eof <- isEOF
-    if eof then return Nothing else fmap Just (iterParser parser)
+    if eof then return Nothing else wrappingParseError $ fmap Just $ iterParser parser
 
 -- | Like receiveIteratee, but if the supplied parser is happy with no input,
 -- we don't supply any more. This is very, very important when we have parsers
@@ -183,7 +183,13 @@ receiveIteratee parser = do
 --
 -- todo: Does this function not yet existing mean we're abusing attoparsec?
 receiveIterateeShy :: Decoder a -> Iteratee ByteString IO (Maybe a)
-receiveIterateeShy parser = fmap Just $ shyIterParser parser
+receiveIterateeShy parser = wrappingParseError $ fmap Just $ shyIterParser parser
+
+-- | Execute an iteratee, wrapping a possible parse error into the ParseError
+-- constructor
+wrappingParseError :: (Monad m) => Iteratee a m b -> Iteratee a m b
+wrappingParseError = flip E.catchError $ \e -> E.throwError $
+    maybe e (toException . ParseError) $ fromException e
 
 sendIteratee :: Encoder a -> a -> Iteratee ByteString IO () -> Iteratee ByteString IO ()
 sendIteratee enc resp outIter = do

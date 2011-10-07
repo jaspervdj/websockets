@@ -34,8 +34,8 @@ main = WSS.runServer "0.0.0.0" 8001 myApp
     runWebSocketsHandshake myApp putter)-}
 
 -- The sample from the -00 spec.
-cld :: B.ByteString
-cld =
+cld00 :: B.ByteString
+cld00 =
        "GET /demo HTTP/1.1\r\n\
        \Host: example.com\r\n\
        \Connection: Upgrade\r\n\
@@ -45,6 +45,18 @@ cld =
        \Sec-WebSocket-Key1: 4 @1  46546xW%0l 1 5\r\n\
        \Origin: http://example.com\r\n\r\n\
        \^n:ds[4U"
+
+-- The sample from the -10 spec.
+cld10 :: B.ByteString
+cld10 =
+        "GET /chat HTTP/1.1\r\n\
+        \Host: server.example.com\r\n\
+        \Upgrade: websocket\r\n\
+        \Connection: Upgrade\r\n\
+        \Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\
+        \Sec-WebSocket-Origin: http://example.com\r\n\
+        \Sec-WebSocket-Protocol: chat, superchat\r\n\
+        \Sec-WebSocket-Version: 8\r\n\r\n"
 
 putter :: Iteratee B.ByteString IO ()
 putter = printChunks True
@@ -67,7 +79,7 @@ req = RequestHttpPart
 
 foo :: IO ()
 foo = do
-    i <- runIteratee $ runWebSockets req myApp putter
+    i <- runIteratee $ enumList 1 [cld10] $$ runWebSocketsHandshake myApp putter
     case i of
         Error err -> do
             putStrLn $ "---- error: "++show err

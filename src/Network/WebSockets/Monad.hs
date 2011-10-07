@@ -31,6 +31,7 @@ import System.Random (randomRIO)
 import Blaze.ByteString.Builder (Builder)
 import Blaze.ByteString.Builder.Enumerator (builderToByteString)
 import Data.Attoparsec.Enumerator (iterParser)
+import qualified Data.Attoparsec.Enumerator as AE
 import Data.Attoparsec (parse, Parser(..), Result(..))
 import Data.ByteString (ByteString)
 import Data.Enumerator ( Enumerator, Iteratee, Stream (..), checkContinue0, isEOF, returnI
@@ -94,9 +95,7 @@ runWebSocketsWithHandshake :: WebSocketsOptions
                   -> Iteratee ByteString IO a
 runWebSocketsWithHandshake opts goWs outIter = do
     httpReq <- receiveIteratee request
-    case httpReq of
-        Nothing -> E.throwError ConnectionClosed
-        Just r  -> runWebSocketsWith opts r goWs outIter
+    runWebSocketsWith opts httpReq goWs outIter
 
 -- | Run a 'WebSockets' application on an 'Enumerator'/'Iteratee' pair, given
 -- that you (read: your web server) has already received the HTTP part of the
@@ -122,11 +121,10 @@ runWebSocketsWith ::
 runWebSocketsWith opts httpReq goWs outIter = do
     mreq <- receiveIterateeShy $ tryFinishRequest httpReq
     case mreq of
-        Nothing -> E.throwError ConnectionClosed
-        Just (Left err) -> do
+        (Left err) -> do
             sendIteratee E.response (responseError err) outIter
             E.throwError err
-        Just (Right (r, p)) -> runWebSocketsWith' opts p (goWs r) outIter
+        (Right (r, p)) -> runWebSocketsWith' opts p (goWs r) outIter
 
 runWebSocketsWith' :: WebSocketsOptions
                   -> Protocol
@@ -163,30 +161,27 @@ spawnPingThread = hasFeatures F.ping >>= when `flip` do
             return ()
 
 -- | Receive some data from the socket, using a user-supplied parser.
-receive :: Decoder a -> WebSockets (Maybe a)
+receive :: Decoder a -> WebSockets a
 receive = WebSockets . lift . lift . receiveIteratee
-
--- ^ todo: again, why does this have a Maybe type? It won't do what the user
--- expects!
 
 -- todo: move some stuff to another module. "Decode"?
 
--- TODO: WRONG for parsers that possibly don't take any data (= only validate). Also the isEOF.
-receiveIteratee :: Decoder a -> Iteratee ByteString IO (Maybe a)
+-- | Underlying iteratee version of 'receive'.
+receiveIteratee :: Decoder a -> Iteratee ByteString IO a
 receiveIteratee parser = do
     eof <- isEOF
-    if eof then return Nothing else wrappingParseError $ fmap Just $ iterParser parser
+    if eof
+        then E.throwError ConnectionClosed
+        else wrappingParseError . iterParser $ parser
 
 -- | Like receiveIteratee, but if the supplied parser is happy with no input,
 -- we don't supply any more. This is very, very important when we have parsers
 -- that don't necessarily read data, like hybi10's completeRequest.
---
--- todo: Does this function not yet existing mean we're abusing attoparsec?
-receiveIterateeShy :: Decoder a -> Iteratee ByteString IO (Maybe a)
-receiveIterateeShy parser = wrappingParseError $ fmap Just $ shyIterParser parser
+receiveIterateeShy :: Decoder a -> Iteratee ByteString IO a
+receiveIterateeShy parser = wrappingParseError $ shyIterParser parser
 
--- | Execute an iteratee, wrapping a possible parse error into the ParseError
--- constructor
+-- | Execute an iteratee, wrapping attoparsec-enumeratee's ParseError into the
+-- ParseError constructor (which is a ConnectionError).
 wrappingParseError :: (Monad m) => Iteratee a m b -> Iteratee a m b
 wrappingParseError = flip E.catchError $ \e -> E.throwError $
     maybe e (toException . ParseError) $ fromException e

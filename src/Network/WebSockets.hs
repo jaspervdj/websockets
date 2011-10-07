@@ -110,39 +110,35 @@ receiveRequest = I.receive D.request
 -- determined by the request, we can't provide this as a WebSockets action. See
 -- the various flavours of runWebSockets.
 
--- | Read a 'I.Frame' from the socket. Blocks until a frame is received and
--- returns 'Nothing' if the socket has been closed.
+-- | Read a 'I.Frame' from the socket. Blocks until a frame is received. If the
+-- socket is closed, throws 'ConnectionClosed' (a 'ConnectionError')
 --
 -- Note that a typical library user will want to use something like
 -- 'receiveByteStringData' instead.
-receiveFrame :: I.WebSockets (Maybe I.Frame)
+receiveFrame :: I.WebSockets I.Frame
 receiveFrame = do
     proto <- I.getProtocol
     I.receive $ I.decodeFrame proto
 
 -- | Receive a message
-receiveMessage :: I.WebSockets (Maybe I.Message)
+receiveMessage :: I.WebSockets I.Message
 receiveMessage = I.WebSockets $ do
-    mf <- I.unWebSockets receiveFrame
-    case mf of
-        Nothing -> return Nothing
-        Just f  -> do
-            s <- get
-            let (msg, s') = I.demultiplex s f
-            put s'
-            case msg of
-                Nothing -> I.unWebSockets receiveMessage
-                Just m  -> return (Just m)
+    f <- I.unWebSockets receiveFrame
+    s <- get
+    let (msg, s') = I.demultiplex s f
+    put s'
+    case msg of
+        Nothing -> I.unWebSockets receiveMessage
+        Just m  -> return m
 
 -- | Receive an application message. Automatically respond to control messages.
-receiveDataMessage :: I.WebSockets (Maybe I.DataMessage)
+receiveDataMessage :: I.WebSockets I.DataMessage
 receiveDataMessage = do
-    mm <- receiveMessage
-    case mm of
-        Nothing -> return Nothing
-        Just (I.DataMessage am) -> return (Just am)
-        Just (I.ControlMessage cm) -> case cm of
-            I.Close _ -> return Nothing
+    m <- receiveMessage
+    case m of
+        (I.DataMessage am) -> return am
+        (I.ControlMessage cm) -> case cm of
+            I.Close _ -> I.throwWsError I.ConnectionClosed
             I.Pong _  -> do
                 options <- I.getOptions
                 liftIO $ I.onPong options
@@ -152,13 +148,12 @@ receiveDataMessage = do
                 receiveDataMessage
 
 -- | Receive a message, treating it as data transparently
-receiveData :: I.WebSocketsData a => I.WebSockets (Maybe a)
+receiveData :: I.WebSocketsData a => I.WebSockets a
 receiveData = do
     dm <- receiveDataMessage
     case dm of
-        Nothing           -> return Nothing
-        Just (I.Text x)   -> return (Just $ I.fromLazyByteString x)
-        Just (I.Binary x) -> return (Just $ I.fromLazyByteString x)
+        I.Text x   -> return (I.fromLazyByteString x)
+        I.Binary x -> return (I.fromLazyByteString x)
 
 -- | Send a 'I.Response' to the socket immediately.
 sendResponse :: I.Response -> I.WebSockets ()

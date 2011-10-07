@@ -1,5 +1,6 @@
 -- | Provides a simple, clean monad to write websocket servers in
 {-# LANGUAGE GeneralizedNewtypeDeriving, OverloadedStrings, NoMonomorphismRestriction #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Network.WebSockets.Monad
     ( WebSocketsOptions (..)
     , defaultWebSocketsOptions
@@ -14,24 +15,29 @@ module Network.WebSockets.Monad
     , getSender
     , getOptions
     , getProtocol
+    , throwWsError
     ) where
 
 import Control.Applicative ((<$>))
 import Control.Concurrent.MVar (newMVar, withMVar)
 import Control.Concurrent (forkIO, threadDelay)
-import Control.Monad (forever, replicateM)
-import Control.Monad.Reader (ReaderT, ask, runReaderT)
+import Control.Monad
+import Control.Monad.Reader
 import Control.Monad.State (StateT, evalStateT)
 import Control.Monad.Trans (MonadIO, lift, liftIO)
+import Control.Exception.Base
 import System.Random (randomRIO)
 
 import Blaze.ByteString.Builder (Builder)
 import Blaze.ByteString.Builder.Enumerator (builderToByteString)
 import Data.Attoparsec.Enumerator (iterParser)
+import qualified Data.Attoparsec.Enumerator as AE
+import Data.Attoparsec (parse, Parser(..), Result(..))
 import Data.ByteString (ByteString)
 import Data.Enumerator ( Enumerator, Iteratee, Stream (..), checkContinue0, isEOF, returnI
-                       , run, ($$), (>>==)
+                       , run, ($$), (>>==), throwError
                        )
+import qualified Data.Enumerator as E
 import qualified Data.ByteString as B
 
 import Network.WebSockets.Decode (Decoder, request)
@@ -41,6 +47,12 @@ import qualified Network.WebSockets.Encode as E
 import Network.WebSockets.Types as T
 
 import Network.WebSockets.Handshake
+
+import Network.WebSockets.ShyIterParser
+
+import Network.WebSockets.Feature (Feature)
+import qualified Network.WebSockets.Feature as F
+import Data.List (sort, isPrefixOf)
 
 -- | Options for the WebSocket program
 data WebSocketsOptions = WebSocketsOptions
@@ -72,20 +84,18 @@ newtype WebSockets a = WebSockets
 runWebSocketsHandshake :: 
         (Request -> WebSockets a)
      -> Iteratee ByteString IO ()
-     -> Iteratee ByteString IO (Either HandshakeError a)
+     -> Iteratee ByteString IO a
 runWebSocketsHandshake = runWebSocketsWithHandshake defaultWebSocketsOptions
 
 -- | Receives the initial client handshake, then behaves like
--- 'runWebSocketsWith'.
+-- 'runWebSocketsWith.
 runWebSocketsWithHandshake :: WebSocketsOptions
                   -> (Request -> WebSockets a)
                   -> Iteratee ByteString IO ()
-                  -> Iteratee ByteString IO (Either HandshakeError a)
+                  -> Iteratee ByteString IO a
 runWebSocketsWithHandshake opts goWs outIter = do
     httpReq <- receiveIteratee request
-    case httpReq of
-        Nothing -> return . Left $ OtherError "unexpected EOF"  -- todo: should behave like a parse error!
-        Just r -> runWebSocketsWith opts r goWs outIter
+    runWebSocketsWith opts httpReq goWs outIter
 
 -- | Run a 'WebSockets' application on an 'Enumerator'/'Iteratee' pair, given
 -- that you (read: your web server) has already received the HTTP part of the
@@ -98,7 +108,7 @@ runWebSocketsWithHandshake opts goWs outIter = do
 runWebSockets :: RequestHttpPart
               -> (Request -> WebSockets a)
               -> Iteratee ByteString IO ()
-              -> Iteratee ByteString IO (Either HandshakeError a)
+              -> Iteratee ByteString IO a
 runWebSockets = runWebSocketsWith defaultWebSocketsOptions
 
 -- | Version of 'runWebSockets' which allows you to specify custom options
@@ -107,16 +117,14 @@ runWebSocketsWith ::
     -> RequestHttpPart
     -> (Request -> WebSockets a)
     -> Iteratee ByteString IO ()
-    -> Iteratee ByteString IO (Either HandshakeError a)
+    -> Iteratee ByteString IO a
 runWebSocketsWith opts httpReq goWs outIter = do
-    req <- receiveIteratee $ tryFinishRequest httpReq
-    case req of
-        Nothing -> return . Left $ OtherError "unexpected EOF"  -- todo: should behave like a parse error!
-                                                                -- (see receiveIteratee)
-        Just (Left err) -> do
+    mreq <- receiveIterateeShy $ tryFinishRequest httpReq
+    case mreq of
+        (Left err) -> do
             sendIteratee E.response (responseError err) outIter
-            return (Left err)
-        Just (Right r) -> Right `fmap` runWebSocketsWith' opts (requestProtocol r) (goWs r) outIter
+            E.throwError err
+        (Right (r, p)) -> runWebSocketsWith' opts p (goWs r) outIter
 
 runWebSocketsWith' :: WebSocketsOptions
                   -> Protocol
@@ -141,7 +149,7 @@ runWebSocketsWith' opts proto ws outIter = do
 -- | Spawn a thread which sends a ping every few seconds, according to the
 -- options set
 spawnPingThread :: WebSockets ()
-spawnPingThread = do
+spawnPingThread = hasFeatures F.ping >>= when `flip` do
     sender <- getMessageSender
     opts <- getOptions
     case pingInterval opts of
@@ -153,16 +161,30 @@ spawnPingThread = do
             return ()
 
 -- | Receive some data from the socket, using a user-supplied parser.
-receive :: Decoder a -> WebSockets (Maybe a)
+receive :: Decoder a -> WebSockets a
 receive = WebSockets . lift . lift . receiveIteratee
 
--- ^ todo: again, why does this have a Maybe type? It won't do what the user
--- expects!
+-- todo: move some stuff to another module. "Decode"?
 
-receiveIteratee :: Decoder a -> Iteratee ByteString IO (Maybe a)
+-- | Underlying iteratee version of 'receive'.
+receiveIteratee :: Decoder a -> Iteratee ByteString IO a
 receiveIteratee parser = do
     eof <- isEOF
-    if eof then return Nothing else fmap Just (iterParser parser)
+    if eof
+        then E.throwError ConnectionClosed
+        else wrappingParseError . iterParser $ parser
+
+-- | Like receiveIteratee, but if the supplied parser is happy with no input,
+-- we don't supply any more. This is very, very important when we have parsers
+-- that don't necessarily read data, like hybi10's completeRequest.
+receiveIterateeShy :: Decoder a -> Iteratee ByteString IO a
+receiveIterateeShy parser = wrappingParseError $ shyIterParser parser
+
+-- | Execute an iteratee, wrapping attoparsec-enumeratee's ParseError into the
+-- ParseError constructor (which is a ConnectionError).
+wrappingParseError :: (Monad m) => Iteratee a m b -> Iteratee a m b
+wrappingParseError = flip E.catchError $ \e -> E.throwError $
+    maybe e (toException . ParseError) $ fromException e
 
 sendIteratee :: Encoder a -> a -> Iteratee ByteString IO () -> Iteratee ByteString IO ()
 sendIteratee enc resp outIter = do
@@ -206,3 +228,12 @@ getOptions = WebSockets $ ask >>= return . options
 -- | Get the underlying protocol
 getProtocol :: WebSockets Protocol
 getProtocol = WebSockets $ ask >>= return . protocol
+
+-- | Check if the given features are supported with the current protocol.
+hasFeatures :: F.Features -> WebSockets Bool
+hasFeatures fs = (fs `F.isSubsetOf`) . features <$> getProtocol
+
+-- | Throw an iteratee error in the WebSockets monad
+throwWsError :: (Exception e) => e -> WebSockets a
+throwWsError e = WebSockets . lift . lift $ throwError e
+

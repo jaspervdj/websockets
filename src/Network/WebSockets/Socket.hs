@@ -46,7 +46,7 @@ runServer host port ws = withSocketsDo $ do
 
 -- | This function wraps 'runWebSockets' in order to provide a simple API for
 -- stand-alone servers.
-runWithSocket :: Socket -> (Request -> WebSockets a) -> IO (Either HandshakeError a)
+runWithSocket :: Socket -> (Request -> WebSockets a) -> IO a
 runWithSocket s ws = do
     r <- run $ receiveEnum s $$ runWebSocketsWithHandshake defaultWebSocketsOptions ws (sendIter s)
     sClose s

@@ -1,4 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
+
+{-# OPTIONS -Wall #-}
+
 module Network.WebSockets.Protocol.Hybi00
        ( hybi00
        ) where
@@ -24,14 +27,24 @@ import qualified Data.Attoparsec as A
 import Network.WebSockets.Encode (Encoder)
 import Network.WebSockets.Types
 
+import qualified Network.WebSockets.Feature as F
+
+missingFeatures :: F.Features -> a
+missingFeatures = criticalMissingFeatures hybi00
 
 encodeFrameHybi00 :: Encoder Frame
 encodeFrameHybi00 _ (Frame True TextFrame pl) =
   BB.fromLazyByteString $ "\0" `BL.append` pl `BL.append` "\255"
--- TODO: otherwise, fail in a sane way (and not with non-exhaustive pattern
--- match crash) OTOH, we *should* fail when trying to send binary.
+encodeFrameHybi00 _ (Frame False TextFrame pl) =
+    missingFeatures F.fragmentation
+encodeFrameHybi00 _ (Frame _ t pl) = missingFeatures $ case t of
+    ContinuationFrame -> F.fragmentation
+    BinaryFrame       -> F.binary
+    CloseFrame        -> F.close
 -- TODO: Can't we send a close frame ourselves? Also, how do we do a close
 -- handshake for hybi10? (I guess we don't, at the moment)
+    PingFrame         -> F.ping
+    PongFrame         -> F.ping
 
 decodeFrameHybi00 :: Decoder Frame
 decodeFrameHybi00 = decodeTextFrame <|> decodeCloseFrame
@@ -54,8 +67,6 @@ divBySpaces str =
    if spaces == 0
    then Nothing
    else Just . fromIntegral $ number `div` spaces
-
-
 
 handshakeHybi00 :: RequestHttpPart
                    -> ErrorT HandshakeError A.Parser Request
@@ -89,5 +100,16 @@ handshakeHybi00 reqHttp@(RequestHttpPart path h) = do
         Nothing -> throwError $
                    MalformedRequest reqHttp $ "Header missing: " ++ BC.unpack (CI.original k)
 
+featuresHybi00 :: F.Features
+featuresHybi00 = F.empty
+
 hybi00 :: Protocol
-hybi00 = Protocol "hybi00" encodeFrameHybi00 decodeFrameHybi00 $ runErrorT . handshakeHybi00
+hybi00 = Protocol
+    { version = "hybi00"
+    , headerVersion = "0"  -- but the client will elide it
+    , encodeFrame = encodeFrameHybi00
+    , decodeFrame = decodeFrameHybi00
+    , finishRequest = runErrorT . handshakeHybi00
+    , features = featuresHybi00
+    }
+

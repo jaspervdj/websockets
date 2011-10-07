@@ -54,8 +54,12 @@ module Network.WebSockets
     , I.ControlMessage (..)
     , I.DataMessage (..)
     , I.WebSocketsData (..)
+    -- todo
 
-
+      -- * Handshake
+    , requireFeatures
+    , acceptRequest
+    , rejectRequest
 
       -- * Receiving
     -- , receiveRequest
@@ -82,6 +86,7 @@ module Network.WebSockets
 
 import Control.Monad.State (put, get)
 import Control.Monad.Trans (liftIO)
+import Control.Monad
 
 import qualified Network.WebSockets.Decode as D
 import qualified Network.WebSockets.Demultiplex as I
@@ -91,6 +96,9 @@ import qualified Network.WebSockets.Monad as I
 import qualified Network.WebSockets.Protocol as I
 import qualified Network.WebSockets.Socket as I
 import qualified Network.WebSockets.Types as I
+import qualified Network.WebSockets.Handshake as I
+
+import qualified Network.WebSockets.Feature as F
 
 -- | Read a 'I.Request' from the socket. Blocks until one is received and
 -- returns 'Nothing' if the socket has been closed.
@@ -172,3 +180,35 @@ sendTextData = I.sendMessage . I.textData
 -- | Send some binary data
 sendBinaryData :: I.WebSocketsData a => a -> I.WebSockets ()
 sendBinaryData = I.sendMessage . I.binaryData
+
+-- | If the current protocol supports the given features, continue. .
+-- Otherwise, send a "Bad Request", providing the protocols that support the
+-- features, and throw "MissingFeatures". Use like
+--
+-- > runWebSocketsHandshake $ \req -> do
+-- >     requireFeatures [binary]
+-- >     ... (inspect req)
+-- >     acceptRequest req
+-- >     ...
+-- >     sendBinaryData ...
+requireFeatures :: [F.Feature] -> I.WebSockets ()
+requireFeatures rfs = do
+    fs <- I.features `fmap` I.getProtocol
+    let mfs = (F.fromList rfs) `F.difference` fs
+    unless (F.null mfs) $
+        failHandshakeWith $ I.MissingFeatures mfs
+
+-- | Reject a request, sending a 400 (Bad Request) to the client and throwing a
+-- RequestRejected (HandshakeError)
+rejectRequest :: I.Request -> String -> I.WebSockets a
+rejectRequest req reason = failHandshakeWith $ I.RequestRejected req reason
+
+failHandshakeWith :: I.HandshakeError -> I.WebSockets a
+failHandshakeWith err = do
+    sendResponse  $ I.responseError err
+    I.throwWsError err
+
+-- | Accept a request. After this, you can start sending and receiving data.
+acceptRequest :: I.Request -> I.WebSockets ()
+acceptRequest = sendResponse . I.requestResponse
+

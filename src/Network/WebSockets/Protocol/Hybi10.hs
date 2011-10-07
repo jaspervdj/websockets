@@ -28,6 +28,7 @@ import Network.WebSockets.Encode (Encoder)
 import Network.WebSockets.Mask
 -- import Network.WebSockets.Protocol (Protocol (..))
 import Network.WebSockets.Types
+import qualified Network.WebSockets.Feature as F
 
 import Control.Monad
 
@@ -106,8 +107,9 @@ encodeFrameHybi10 mask f = B.fromWord8 byte0 `mappend`
 
 handshakeHybi10 :: RequestHttpPart -> Decoder (Either HandshakeError Request)
 handshakeHybi10 reqHttp@(RequestHttpPart path h) = return $ do
-    let maybeVersion = getHeader "Sec-WebSocket-Version" in
-        unless (maybeVersion == Right "8") $ throwError NotSupported
+    case getHeader "Sec-WebSocket-Version" of
+        Right "8" -> return ()
+        _         -> throwError NotSupported
     key <- getHeader "Sec-WebSocket-Key"
     let hash = unlazy $ bytestringDigest $ sha1 $ lazy $ key `mappend` guid
     let encoded = B64.encode hash
@@ -135,7 +137,16 @@ response101 headers = Response 101 "WebSocket Protocol Handshake"
 response400 :: Headers -> Response
 response400 headers = Response 400 "Bad Request" headers ""
 
+featuresHybi10 :: F.Features
+featuresHybi10 = F.unions [F.binary, F.ping, F.fragmentation, F.close]
 
 hybi10 :: Protocol
-hybi10 = Protocol "hybi10" encodeFrameHybi10 decodeFrameHybi10 handshakeHybi10
+hybi10 = Protocol
+    { version = "hybi10"
+    , headerVersion = "8"
+    , encodeFrame = encodeFrameHybi10
+    , decodeFrame = decodeFrameHybi10
+    , finishRequest = handshakeHybi10
+    , features = featuresHybi10
+    }
 

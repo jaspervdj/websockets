@@ -19,6 +19,7 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.CaseInsensitive as CI
 
 import Network.WebSockets.Types
+import qualified Network.WebSockets.Feature as F
 import Network.WebSockets.Protocol
 
 import Network.WebSockets.Decode
@@ -27,7 +28,6 @@ import Network.WebSockets.Decode
 -- 
 -- * If this fails, we encountered a syntax error while processing the client's
 -- request. That is very bad.
--- TODO: The resulting error will be lifted to the iteratee. What's gonna happen then?
 -- 
 -- * If it returns @Left@, we either don't support the protocol requested by
 -- the client ('NotSupported') or the data the client sent doesn't match the
@@ -68,7 +68,11 @@ response400 headers = Response 400 "Bad Request" headers ""
 -- | Respond to errors encountered during handshake
 responseError :: HandshakeError -> Response
 responseError err = response400 $ case err of
-    -- List available versions ("version negotiation")
-    NotSupported -> [("Sec-WebSocket-Version", B.intercalate ", " $ map version protocols)]
+    NotSupported       -> versionHeader F.empty -- List all available versions ("version negotiation")
+    MissingFeatures fs -> versionHeader fs      -- List available versions with the required features
     _ -> []
+    where versionHeader fs =
+             let has p = fs `F.isSubsetOf` (features p)
+              in [("Sec-WebSocket-Version", B.intercalate ", " $
+                    map headerVersion . filter has $ protocols)]
 

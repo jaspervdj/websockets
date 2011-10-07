@@ -15,15 +15,17 @@ module Network.WebSockets.Monad
     , getSender
     , getOptions
     , getProtocol
+    , throwWsError
     ) where
 
 import Control.Applicative ((<$>))
 import Control.Concurrent.MVar (newMVar, withMVar)
 import Control.Concurrent (forkIO, threadDelay)
-import Control.Monad (forever, replicateM)
-import Control.Monad.Reader (ReaderT, ask, runReaderT)
+import Control.Monad
+import Control.Monad.Reader
 import Control.Monad.State (StateT, evalStateT)
 import Control.Monad.Trans (MonadIO, lift, liftIO)
+import Control.Exception.Base
 import System.Random (randomRIO)
 
 import Blaze.ByteString.Builder (Builder)
@@ -32,7 +34,7 @@ import Data.Attoparsec.Enumerator (iterParser)
 import Data.Attoparsec (parse, Parser(..), Result(..))
 import Data.ByteString (ByteString)
 import Data.Enumerator ( Enumerator, Iteratee, Stream (..), checkContinue0, isEOF, returnI
-                       , run, ($$), (>>==)
+                       , run, ($$), (>>==), throwError
                        )
 import qualified Data.Enumerator as E
 import qualified Data.ByteString as B
@@ -47,6 +49,10 @@ import Network.WebSockets.Handshake
 
 import Network.WebSockets.ShyIterParser
 
+import Network.WebSockets.Feature (Feature)
+import qualified Network.WebSockets.Feature as F
+import Data.List (sort, isPrefixOf)
+
 -- | Options for the WebSocket program
 data WebSocketsOptions = WebSocketsOptions
     { onPong       :: IO ()
@@ -57,11 +63,7 @@ data WebSocketsOptions = WebSocketsOptions
 defaultWebSocketsOptions :: WebSocketsOptions
 defaultWebSocketsOptions = WebSocketsOptions
     { onPong       = return ()
-    -- , pingInterval = Just 10
-    -- TODO: reset this and don't spawn the ping thread on -00
-    -- (otherwise it will instantly crash with -00 because we don't
-    -- have pings there)
-    , pingInterval = Nothing
+    , pingInterval = Just 10
     }
 
 -- | Environment in which the 'WebSockets' monad actually runs
@@ -81,7 +83,7 @@ newtype WebSockets a = WebSockets
 runWebSocketsHandshake :: 
         (Request -> WebSockets a)
      -> Iteratee ByteString IO ()
-     -> Iteratee ByteString IO (Either HandshakeError a)
+     -> Iteratee ByteString IO a
 runWebSocketsHandshake = runWebSocketsWithHandshake defaultWebSocketsOptions
 
 -- | Receives the initial client handshake, then behaves like
@@ -89,12 +91,12 @@ runWebSocketsHandshake = runWebSocketsWithHandshake defaultWebSocketsOptions
 runWebSocketsWithHandshake :: WebSocketsOptions
                   -> (Request -> WebSockets a)
                   -> Iteratee ByteString IO ()
-                  -> Iteratee ByteString IO (Either HandshakeError a)
+                  -> Iteratee ByteString IO a
 runWebSocketsWithHandshake opts goWs outIter = do
     httpReq <- receiveIteratee request
     case httpReq of
-        Nothing -> return . Left $ OtherError "unexpected EOF"  -- todo: should behave like a parse error!
-        Just r -> runWebSocketsWith opts r goWs outIter
+        Nothing -> E.throwError ConnectionClosed
+        Just r  -> runWebSocketsWith opts r goWs outIter
 
 -- | Run a 'WebSockets' application on an 'Enumerator'/'Iteratee' pair, given
 -- that you (read: your web server) has already received the HTTP part of the
@@ -107,7 +109,7 @@ runWebSocketsWithHandshake opts goWs outIter = do
 runWebSockets :: RequestHttpPart
               -> (Request -> WebSockets a)
               -> Iteratee ByteString IO ()
-              -> Iteratee ByteString IO (Either HandshakeError a)
+              -> Iteratee ByteString IO a
 runWebSockets = runWebSocketsWith defaultWebSocketsOptions
 
 -- | Version of 'runWebSockets' which allows you to specify custom options
@@ -116,16 +118,15 @@ runWebSocketsWith ::
     -> RequestHttpPart
     -> (Request -> WebSockets a)
     -> Iteratee ByteString IO ()
-    -> Iteratee ByteString IO (Either HandshakeError a)
+    -> Iteratee ByteString IO a
 runWebSocketsWith opts httpReq goWs outIter = do
     mreq <- receiveIterateeShy $ tryFinishRequest httpReq
     case mreq of
-        Nothing -> return . Left $ OtherError "unexpected EOF"  -- todo: should behave like a parse error!
-                                                                -- (see receiveIteratee)
+        Nothing -> E.throwError ConnectionClosed
         Just (Left err) -> do
             sendIteratee E.response (responseError err) outIter
-            return (Left err)
-        Just (Right (r, p)) -> Right `fmap` runWebSocketsWith' opts p (goWs r) outIter
+            E.throwError err
+        Just (Right (r, p)) -> runWebSocketsWith' opts p (goWs r) outIter
 
 runWebSocketsWith' :: WebSocketsOptions
                   -> Protocol
@@ -150,7 +151,7 @@ runWebSocketsWith' opts proto ws outIter = do
 -- | Spawn a thread which sends a ping every few seconds, according to the
 -- options set
 spawnPingThread :: WebSockets ()
-spawnPingThread = do
+spawnPingThread = hasFeatures F.ping >>= when `flip` do
     sender <- getMessageSender
     opts <- getOptions
     case pingInterval opts of
@@ -226,3 +227,12 @@ getOptions = WebSockets $ ask >>= return . options
 -- | Get the underlying protocol
 getProtocol :: WebSockets Protocol
 getProtocol = WebSockets $ ask >>= return . protocol
+
+-- | Check if the given features are supported with the current protocol.
+hasFeatures :: F.Features -> WebSockets Bool
+hasFeatures fs = (fs `F.isSubsetOf`) . features <$> getProtocol
+
+-- | Throw an iteratee error in the WebSockets monad
+throwWsError :: (Exception e) => e -> WebSockets a
+throwWsError e = WebSockets . lift . lift $ throwError e
+

@@ -45,6 +45,8 @@ import Network.WebSockets.Types as T
 
 import Network.WebSockets.Handshake
 
+import Network.WebSockets.ShyIterParser
+
 -- | Options for the WebSocket program
 data WebSocketsOptions = WebSocketsOptions
     { onPong       :: IO ()
@@ -116,7 +118,7 @@ runWebSocketsWith ::
     -> Iteratee ByteString IO ()
     -> Iteratee ByteString IO (Either HandshakeError a)
 runWebSocketsWith opts httpReq goWs outIter = do
-    mreq <- receiveIteratee' $ tryFinishRequest httpReq
+    mreq <- receiveIterateeShy $ tryFinishRequest httpReq
     case mreq of
         Nothing -> return . Left $ OtherError "unexpected EOF"  -- todo: should behave like a parse error!
                                                                 -- (see receiveIteratee)
@@ -179,13 +181,8 @@ receiveIteratee parser = do
 -- that don't necessarily read data, like hybi10's completeRequest.
 --
 -- todo: Does this function not yet existing mean we're abusing attoparsec?
-receiveIteratee' :: Decoder a -> Iteratee ByteString IO (Maybe a)
-receiveIteratee' parser = trace "receiveIteratee'" $
-    -- todo: we are redoing part of the parse. Which is not good. In fact, we
-    -- should be re-using a Partial result.
-    case parse parser "" of
-        Done _ a -> return (Just a)
-        _ -> fmap Just $ iterParser parser
+receiveIterateeShy :: Decoder a -> Iteratee ByteString IO (Maybe a)
+receiveIterateeShy parser = fmap Just $ shyIterParser parser
 
 sendIteratee :: Encoder a -> a -> Iteratee ByteString IO () -> Iteratee ByteString IO ()
 sendIteratee enc resp outIter = do

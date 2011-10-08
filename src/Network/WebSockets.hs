@@ -86,6 +86,9 @@ module Network.WebSockets
       -- * Error Handling
     , I.throwWsError
     , I.catchWsError
+    , I.HandshakeError(..)
+    , I.ConnectionError(..)
+    , I.WsUserError(..)
     ) where
 
 import Control.Monad.State (put, get)

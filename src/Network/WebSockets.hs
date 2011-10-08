@@ -82,6 +82,13 @@ module Network.WebSockets
     , I.pong
     , I.textData
     , I.binaryData
+
+      -- * Error Handling
+    , I.throwWsError
+    , I.catchWsError
+    , I.HandshakeError(..)
+    , I.ConnectionError(..)
+    , I.WsUserError(..)
     ) where
 
 import Control.Monad.State (put, get)

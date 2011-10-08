@@ -52,12 +52,15 @@ Library
     Network.WebSockets.Decode
     Network.WebSockets.Demultiplex
     Network.WebSockets.Encode
+    Network.WebSockets.Feature
     Network.WebSockets.Handshake
     Network.WebSockets.Mask
     Network.WebSockets.Monad
     Network.WebSockets.Protocol
+    Network.WebSockets.Protocol.Hybi00
     Network.WebSockets.Protocol.Hybi10
     Network.WebSockets.Socket
+    Network.WebSockets.ShyIterParser
     Network.WebSockets.Types
 
   Build-depends:

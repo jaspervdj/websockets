@@ -16,6 +16,7 @@ module Network.WebSockets.Monad
     , getOptions
     , getProtocol
     , throwWsError
+    , catchWsError
     ) where
 
 import Control.Applicative ((<$>))
@@ -23,7 +24,7 @@ import Control.Concurrent.MVar (newMVar, withMVar)
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Monad
 import Control.Monad.Reader
-import Control.Monad.State (StateT, evalStateT)
+import Control.Monad.State (StateT, evalStateT, get, put)
 import Control.Monad.Trans (MonadIO, lift, liftIO)
 import Control.Exception.Base
 import System.Random (randomRIO)
@@ -162,7 +163,7 @@ spawnPingThread = hasFeatures F.ping >>= when `flip` do
 
 -- | Receive some data from the socket, using a user-supplied parser.
 receive :: Decoder a -> WebSockets a
-receive = WebSockets . lift . lift . receiveIteratee
+receive = liftIteratee . receiveIteratee
 
 -- todo: move some stuff to another module. "Decode"?
 
@@ -235,5 +236,20 @@ hasFeatures fs = (fs `F.isSubsetOf`) . features <$> getProtocol
 
 -- | Throw an iteratee error in the WebSockets monad
 throwWsError :: (Exception e) => e -> WebSockets a
-throwWsError e = WebSockets . lift . lift $ throwError e
+throwWsError = liftIteratee . throwError
+
+-- | Catch an iteratee error in the WebSockets monad
+catchWsError :: WebSockets a -> (SomeException -> WebSockets a) -> WebSockets a
+catchWsError act c = WebSockets $ do
+    env <- ask
+    state <- get
+    let it  = peelWebSockets state env $ act
+        cit = peelWebSockets state env . c
+    lift . lift $ it `E.catchError` cit
+    where peelWebSockets state env =
+            flip evalStateT state . flip runReaderT env . unWebSockets
+
+-- | Lift an Iteratee computation to WebSockets
+liftIteratee :: Iteratee ByteString IO a -> WebSockets a
+liftIteratee = WebSockets . lift . lift
 

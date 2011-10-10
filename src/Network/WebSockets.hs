@@ -57,7 +57,6 @@ module Network.WebSockets
     -- todo
 
       -- * Handshake
-    , requireFeatures
     , acceptRequest
     , rejectRequest
 
@@ -89,7 +88,6 @@ module Network.WebSockets
     , I.catchWsError
     , I.HandshakeError(..)
     , I.ConnectionError(..)
-    , I.WsUserError(..)
     ) where
 
 import Control.Monad.State (put, get)
@@ -100,13 +98,12 @@ import qualified Network.WebSockets.Decode as D
 import qualified Network.WebSockets.Demultiplex as I
 import qualified Network.WebSockets.Encode as E
 
+import qualified Network.WebSockets.Handshake as I
 import qualified Network.WebSockets.Monad as I
 import qualified Network.WebSockets.Protocol as I
+import qualified Network.WebSockets.Protocol.Hybi00 as I
 import qualified Network.WebSockets.Socket as I
 import qualified Network.WebSockets.Types as I
-import qualified Network.WebSockets.Handshake as I
-
-import qualified Network.WebSockets.Feature as F
 
 -- This doesn't work this way any more. As the Protocol first has to be
 -- determined by the request, we can't provide this as a WebSockets action. See
@@ -117,13 +114,13 @@ import qualified Network.WebSockets.Feature as F
 --
 -- Note that a typical library user will want to use something like
 -- 'receiveByteStringData' instead.
-receiveFrame :: I.WebSockets I.Frame
+receiveFrame :: I.Protocol p => I.WebSockets p I.Frame
 receiveFrame = do
     proto <- I.getProtocol
     I.receive $ I.decodeFrame proto
 
 -- | Receive a message
-receiveMessage :: I.WebSockets I.Message
+receiveMessage :: I.Protocol p => I.WebSockets p I.Message
 receiveMessage = I.WebSockets $ do
     f <- I.unWebSockets receiveFrame
     s <- get
@@ -134,7 +131,7 @@ receiveMessage = I.WebSockets $ do
         Just m  -> return m
 
 -- | Receive an application message. Automatically respond to control messages.
-receiveDataMessage :: I.WebSockets I.DataMessage
+receiveDataMessage :: I.Protocol p => I.WebSockets p I.DataMessage
 receiveDataMessage = do
     m <- receiveMessage
     case m of
@@ -150,7 +147,7 @@ receiveDataMessage = do
                 receiveDataMessage
 
 -- | Receive a message, treating it as data transparently
-receiveData :: I.WebSocketsData a => I.WebSockets a
+receiveData :: I.Protocol p => I.WebSocketsData a => I.WebSockets p a
 receiveData = do
     dm <- receiveDataMessage
     case dm of
@@ -158,54 +155,36 @@ receiveData = do
         I.Binary x -> return (I.fromLazyByteString x)
 
 -- | Send a 'I.Response' to the socket immediately.
-sendResponse :: I.Response -> I.WebSockets ()
+sendResponse :: I.Protocol p => I.Response -> I.WebSockets p ()
 sendResponse response = do
     sender <- I.getSender E.response
     liftIO $ sender response
 
 -- | A low-level function to send an arbitrary frame over the wire.
-sendFrame :: I.Frame -> I.WebSockets ()
+sendFrame :: I.Protocol p => I.Frame -> I.WebSockets p ()
 sendFrame frame = do
     proto <- I.getProtocol
     sender <- I.getSender (I.encodeFrame proto)
     liftIO $ sender frame
 
 -- | Send a text message
-sendTextData :: I.WebSocketsData a => a -> I.WebSockets ()
+sendTextData :: (I.Protocol p, I.WebSocketsData a) => a -> I.WebSockets p ()
 sendTextData = I.sendMessage . I.textData
 
 -- | Send some binary data
-sendBinaryData :: I.WebSocketsData a => a -> I.WebSockets ()
+sendBinaryData :: (I.Protocol p, I.WebSocketsData a) => a -> I.WebSockets p ()
 sendBinaryData = I.sendMessage . I.binaryData
-
--- | If the current protocol supports the given features, continue. .
--- Otherwise, send a "Bad Request", providing the protocols that support the
--- features, and throw "MissingFeatures". Use like
---
--- > runWebSocketsHandshake $ \req -> do
--- >     requireFeatures [binary]
--- >     ... (inspect req)
--- >     acceptRequest req
--- >     ...
--- >     sendBinaryData ...
-requireFeatures :: [F.Feature] -> I.WebSockets ()
-requireFeatures rfs = do
-    fs <- I.features `fmap` I.getProtocol
-    let mfs = (F.fromList rfs) `F.difference` fs
-    unless (F.null mfs) $
-        failHandshakeWith $ I.MissingFeatures mfs
 
 -- | Reject a request, sending a 400 (Bad Request) to the client and throwing a
 -- RequestRejected (HandshakeError)
-rejectRequest :: I.Request -> String -> I.WebSockets a
+rejectRequest :: I.Request -> String -> I.WebSockets I.SomeProtocol a
 rejectRequest req reason = failHandshakeWith $ I.RequestRejected req reason
 
-failHandshakeWith :: I.HandshakeError -> I.WebSockets a
+failHandshakeWith :: I.HandshakeError -> I.WebSockets I.SomeProtocol a
 failHandshakeWith err = do
-    sendResponse  $ I.responseError err
+    sendResponse  $ I.responseError I.hybi00Protocols err
     I.throwWsError err
 
 -- | Accept a request. After this, you can start sending and receiving data.
-acceptRequest :: I.Request -> I.WebSockets ()
+acceptRequest :: I.Protocol p => I.Request -> I.WebSockets p ()
 acceptRequest = sendResponse . I.requestResponse
-

@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.WebSockets.Protocol.Hybi10
-    ( hybi10
+    ( Hybi10 (..)
     ) where
 
 import Control.Applicative (pure, (<$>))
@@ -26,12 +26,19 @@ import Data.Monoid (mappend, mconcat)
 import Network.WebSockets.Decode (Decoder)
 import Network.WebSockets.Encode (Encoder)
 import Network.WebSockets.Mask
--- import Network.WebSockets.Protocol (Protocol (..))
+import Network.WebSockets.Protocol (Protocol (..))
 import Network.WebSockets.Types
-import qualified Network.WebSockets.Feature as F
 
 import Control.Monad
 
+data Hybi10 = Hybi10
+
+instance Protocol Hybi10 where
+    version       Hybi10 = "hybi10"
+    headerVersion Hybi10 = "8"
+    encodeFrame   Hybi10 = encodeFrameHybi10
+    decodeFrame   Hybi10 = decodeFrameHybi10
+    finishRequest Hybi10 = handshakeHybi10
 
 -- | Parse a frame
 decodeFrameHybi10 :: Decoder Frame
@@ -136,17 +143,3 @@ response101 headers = Response 101 "WebSocket Protocol Handshake"
 -- | Bad request
 response400 :: Headers -> Response
 response400 headers = Response 400 "Bad Request" headers ""
-
-featuresHybi10 :: F.Features
-featuresHybi10 = F.unions [F.binary, F.ping, F.fragmentation, F.close]
-
-hybi10 :: Protocol
-hybi10 = Protocol
-    { version = "hybi10"
-    , headerVersion = "8"
-    , encodeFrame = encodeFrameHybi10
-    , decodeFrame = decodeFrameHybi10
-    , finishRequest = handshakeHybi10
-    , features = featuresHybi10
-    }
-

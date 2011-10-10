@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
-
 {-# OPTIONS -Wall #-}
 
 module Network.WebSockets.Protocol.Hybi00
-       ( hybi00
+       ( Hybi00 (..)
+       , hybi00Protocols
        ) where
 
 import Control.Applicative
@@ -25,39 +25,41 @@ import qualified Data.ByteString.Char8 as BC
 import qualified Data.Attoparsec as A
 
 import Network.WebSockets.Encode (Encoder)
+import Network.WebSockets.Protocol
 import Network.WebSockets.Types
+import Network.WebSockets.Protocol.Hybi10 (Hybi10 (..))
 
-import qualified Network.WebSockets.Feature as F
+data Hybi00 = Hybi00
 
-missingFeatures :: F.Features -> a
-missingFeatures = criticalMissingFeatures hybi00
+instance Protocol Hybi00 where
+    version       Hybi00 = "hybi00"
+    headerVersion Hybi00 = "0"  -- but the client will elide it
+    encodeFrame   Hybi00 = encodeFrameHybi00
+    decodeFrame   Hybi00 = decodeFrameHybi00
+    finishRequest Hybi00 = runErrorT . handshakeHybi00
+
+-- | Protocols compatible with hybi-00
+hybi00Protocols :: [SomeProtocol]
+hybi00Protocols = [SomeProtocol Hybi10, SomeProtocol Hybi00]
 
 encodeFrameHybi00 :: Encoder Frame
 encodeFrameHybi00 _ (Frame True TextFrame pl) =
-  BB.fromLazyByteString $ "\0" `BL.append` pl `BL.append` "\255"
-encodeFrameHybi00 _ (Frame False TextFrame pl) =
-    missingFeatures F.fragmentation
-encodeFrameHybi00 _ (Frame _ t pl) = missingFeatures $ case t of
-    ContinuationFrame -> F.fragmentation
-    BinaryFrame       -> F.binary
-    CloseFrame        -> F.close
--- TODO: Can't we send a close frame ourselves? Also, how do we do a close
--- handshake for hybi10? (I guess we don't, at the moment)
-    PingFrame         -> F.ping
-    PongFrame         -> F.ping
+    BB.fromLazyByteString $ "\0" `BL.append` pl `BL.append` "\255"
+-- TODO: prevent the user from doing this using type tags
+encodeFrameHybi00 _ _ = error "Not supported"
 
 decodeFrameHybi00 :: Decoder Frame
 decodeFrameHybi00 = decodeTextFrame <|> decodeCloseFrame
+  where
+    decodeTextFrame = do
+        _ <- A.word8 $ fromIntegral 0
+        utf8string <- A.manyTill A.anyWord8 (A.try . A.word8 . fromIntegral $ 255)
+        return $ Frame True TextFrame $ BL.pack utf8string
 
-decodeTextFrame = do
-  _ <- A.word8 $ fromIntegral 0
-  utf8string <- A.manyTill A.anyWord8 (A.try . A.word8 . fromIntegral $ 255)
-  return $ Frame True TextFrame $ BL.pack utf8string
-
-decodeCloseFrame = do
-  _ <- A.word8 $ fromIntegral 255
-  _ <- A.word8 $ fromIntegral 0
-  return $ Frame True CloseFrame ""
+    decodeCloseFrame = do
+        _ <- A.word8 $ fromIntegral 255
+        _ <- A.word8 $ fromIntegral 0
+        return $ Frame True CloseFrame ""
 
 divBySpaces :: String -> Maybe Int32
 divBySpaces str =
@@ -103,17 +105,3 @@ handshakeHybi00 reqHttp@(RequestHttpPart path h) = do
         Just t  -> return t
         Nothing -> throwError $
                    MalformedRequest reqHttp $ "Header missing: " ++ BC.unpack (CI.original k)
-
-featuresHybi00 :: F.Features
-featuresHybi00 = F.empty
-
-hybi00 :: Protocol
-hybi00 = Protocol
-    { version = "hybi00"
-    , headerVersion = "0"  -- but the client will elide it
-    , encodeFrame = encodeFrameHybi00
-    , decodeFrame = decodeFrameHybi00
-    , finishRequest = runErrorT . handshakeHybi00
-    , features = featuresHybi00
-    }
-

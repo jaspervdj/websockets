@@ -47,13 +47,13 @@ import Network.WebSockets.Demultiplex (DemultiplexState, emptyDemultiplexState)
 import Network.WebSockets.Encode (Encoder)
 import qualified Network.WebSockets.Encode as E
 import Network.WebSockets.Types as T
+import Network.WebSockets.Protocol (Protocol (..), SomeProtocol)
+import Network.WebSockets.Protocol.Hybi00 (hybi00Protocols)
 
 import Network.WebSockets.Handshake
 
 import Network.WebSockets.ShyIterParser
 
-import Network.WebSockets.Feature (Feature)
-import qualified Network.WebSockets.Feature as F
 import Data.List (sort, isPrefixOf)
 
 -- | Options for the WebSocket program
@@ -68,21 +68,21 @@ defaultWebSocketsOptions = WebSocketsOptions
     }
 
 -- | Environment in which the 'WebSockets' monad actually runs
-data WebSocketsEnv = WebSocketsEnv
+data WebSocketsEnv p = WebSocketsEnv
     { options     :: WebSocketsOptions
     , sendBuilder :: Builder -> IO ()
-    , protocol    :: Protocol
+    , protocol    :: p
     }
 
 -- | The monad in which you can write WebSocket-capable applications
-newtype WebSockets a = WebSockets
-    { unWebSockets :: ReaderT WebSocketsEnv
+newtype WebSockets p a = WebSockets
+    { unWebSockets :: ReaderT (WebSocketsEnv p)
         (StateT DemultiplexState (Iteratee ByteString IO)) a
     } deriving (Functor, Monad, MonadIO)
 
 -- | Receives the initial client handshake, then behaves like 'runWebSockets'.
 runWebSocketsHandshake :: 
-        (Request -> WebSockets a)
+        (Request -> WebSockets SomeProtocol a)
      -> Iteratee ByteString IO ()
      -> Iteratee ByteString IO a
 runWebSocketsHandshake = runWebSocketsWithHandshake defaultWebSocketsOptions
@@ -90,9 +90,9 @@ runWebSocketsHandshake = runWebSocketsWithHandshake defaultWebSocketsOptions
 -- | Receives the initial client handshake, then behaves like
 -- 'runWebSocketsWith.
 runWebSocketsWithHandshake :: WebSocketsOptions
-                  -> (Request -> WebSockets a)
-                  -> Iteratee ByteString IO ()
-                  -> Iteratee ByteString IO a
+                           -> (Request -> WebSockets SomeProtocol a)
+                           -> Iteratee ByteString IO ()
+                           -> Iteratee ByteString IO a
 runWebSocketsWithHandshake opts goWs outIter = do
     httpReq <- receiveIteratee request
     runWebSocketsWith opts httpReq goWs outIter
@@ -106,7 +106,7 @@ runWebSocketsWithHandshake opts goWs outIter = do
 -- supplied continuation. If you want to accept the connection, you should send
 -- the included 'requestResponse', and a 'response400' otherwise.
 runWebSockets :: RequestHttpPart
-              -> (Request -> WebSockets a)
+              -> (Request -> WebSockets SomeProtocol a)
               -> Iteratee ByteString IO ()
               -> Iteratee ByteString IO a
 runWebSockets = runWebSocketsWith defaultWebSocketsOptions
@@ -115,22 +115,23 @@ runWebSockets = runWebSocketsWith defaultWebSocketsOptions
 runWebSocketsWith ::
        WebSocketsOptions
     -> RequestHttpPart
-    -> (Request -> WebSockets a)
+    -> (Request -> WebSockets SomeProtocol a)
     -> Iteratee ByteString IO ()
     -> Iteratee ByteString IO a
 runWebSocketsWith opts httpReq goWs outIter = do
-    mreq <- receiveIterateeShy $ tryFinishRequest httpReq
+    mreq <- receiveIterateeShy $ tryFinishRequest hybi00Protocols httpReq
     case mreq of
         (Left err) -> do
-            sendIteratee E.response (responseError err) outIter
+            sendIteratee E.response (responseError hybi00Protocols err) outIter
             E.throwError err
         (Right (r, p)) -> runWebSocketsWith' opts p (goWs r) outIter
 
-runWebSocketsWith' :: WebSocketsOptions
-                  -> Protocol
-                  -> WebSockets a
-                  -> Iteratee ByteString IO ()
-                  -> Iteratee ByteString IO a
+runWebSocketsWith' :: Protocol p
+                   => WebSocketsOptions
+                   -> p
+                   -> WebSockets p a
+                   -> Iteratee ByteString IO ()
+                   -> Iteratee ByteString IO a
 runWebSocketsWith' opts proto ws outIter = do
     sendLock <- liftIO $ newMVar () 
 
@@ -145,8 +146,8 @@ runWebSocketsWith' opts proto ws outIter = do
 
 -- | @spawnPingThread n@ spawns a thread which sends a ping every @n@ seconds
 -- (if the protocol supports it). To be called after having sent the response.
-spawnPingThread :: Int -> WebSockets ()
-spawnPingThread i = hasFeatures F.ping >>= when `flip` do
+spawnPingThread :: Protocol p => Int -> WebSockets p ()
+spawnPingThread i = do
     sender <- getMessageSender
     _ <- liftIO $ forkIO $ forever $ do
         sender $ T.ping ("Hi" :: ByteString)
@@ -154,7 +155,7 @@ spawnPingThread i = hasFeatures F.ping >>= when `flip` do
     return ()
 
 -- | Receive some data from the socket, using a user-supplied parser.
-receive :: Decoder a -> WebSockets a
+receive :: Decoder a -> WebSockets p a
 receive = liftIteratee . receiveIteratee
 
 -- todo: move some stuff to another module. "Decode"?
@@ -184,19 +185,19 @@ sendIteratee enc resp outIter = do
     liftIO $ mkSender (builderSender outIter) enc resp
 
 -- | Low-level sending with an arbitrary 'T.Message'
-sendMessage :: T.Message -> WebSockets ()
+sendMessage :: Protocol p => T.Message -> WebSockets p ()
 sendMessage msg = getMessageSender >>= (liftIO . ($ msg))
 
 -- | In case the user of the library wants to do asynchronous sending to the
 -- socket, he can extract a 'Sender' and pass this value around, for example,
 -- to other threads.
-getMessageSender :: WebSockets (T.Message -> IO ())
+getMessageSender :: Protocol p => WebSockets p (T.Message -> IO ())
 getMessageSender = do
     proto <- getProtocol
     let encodeMsg = E.message (encodeFrame proto)
     getSender encodeMsg
 
-getSender :: Encoder a -> WebSockets (a -> IO ())
+getSender :: Encoder a -> WebSockets p (a -> IO ())
 getSender encoder = WebSockets $ do
     send' <- sendBuilder <$> ask
     return $ mkSender send' encoder
@@ -219,23 +220,19 @@ builderSender outIter x = do
         Right _  -> return ()
 
 -- | Get the current configuration
-getOptions :: WebSockets WebSocketsOptions
+getOptions :: WebSockets p WebSocketsOptions
 getOptions = WebSockets $ ask >>= return . options
 
 -- | Get the underlying protocol
-getProtocol :: WebSockets Protocol
+getProtocol :: WebSockets p p
 getProtocol = WebSockets $ ask >>= return . protocol
 
--- | Check if the given features are supported with the current protocol.
-hasFeatures :: F.Features -> WebSockets Bool
-hasFeatures fs = (fs `F.isSubsetOf`) . features <$> getProtocol
-
 -- | Throw an iteratee error in the WebSockets monad
-throwWsError :: (Exception e) => e -> WebSockets a
+throwWsError :: (Exception e) => e -> WebSockets p a
 throwWsError = liftIteratee . throwError
 
 -- | Catch an iteratee error in the WebSockets monad
-catchWsError :: WebSockets a -> (SomeException -> WebSockets a) -> WebSockets a
+catchWsError :: WebSockets p a -> (SomeException -> WebSockets p a) -> WebSockets p a
 catchWsError act c = WebSockets $ do
     env <- ask
     state <- get
@@ -246,6 +243,6 @@ catchWsError act c = WebSockets $ do
             flip evalStateT state . flip runReaderT env . unWebSockets
 
 -- | Lift an Iteratee computation to WebSockets
-liftIteratee :: Iteratee ByteString IO a -> WebSockets a
+liftIteratee :: Iteratee ByteString IO a -> WebSockets p a
 liftIteratee = WebSockets . lift . lift
 

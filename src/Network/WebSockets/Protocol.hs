@@ -1,21 +1,35 @@
 -- | Wrapper for supporting multiple protocol versions
 {-# LANGUAGE ExistentialQuantification #-}
 module Network.WebSockets.Protocol
-    (
-      protocols
+    ( Protocol (..)
+    , SomeProtocol (..)
     ) where
+
+import qualified Data.ByteString as B
 
 import Network.WebSockets.Decode (Decoder)
 import Network.WebSockets.Encode (Encoder)
-import Network.WebSockets.Types (Frame, RequestHttpPart)
+import Network.WebSockets.Types
 
-import Network.WebSockets.Types (Protocol(..))
+class Protocol p where
+    version       :: p -> String        -- ^ Unique identifier for us.
+    headerVersion :: p -> B.ByteString  -- ^ version as used in the "Sec-WebSocket-Version " header.
+                                        -- this is usually not the same, or derivable from "version",
+                                        -- e.g. for hybi10, it's "8".
+    encodeFrame   :: p -> Encoder Frame
+    decodeFrame   :: p -> Decoder Frame
+    finishRequest :: p -> RequestHttpPart -> Decoder (Either HandshakeError Request)
+    -- ^ Parse and validate the rest of the request. For hybi10, this is just
+    -- validation, but hybi00 also needs to fetch a "security token"
+    --
+    -- Todo: Maybe we should introduce our own simplified error type here. (to be
+    -- amended with the RequestHttpPart for the user)
 
-import Network.WebSockets.Protocol.Hybi10 (hybi10)
-import Network.WebSockets.Protocol.Hybi00 (hybi00)
+data SomeProtocol = forall p. Protocol p => SomeProtocol p
 
-protocols :: [Protocol]
-protocols = [ hybi10
-            , hybi00
-            ]
-
+instance Protocol SomeProtocol where
+    version       (SomeProtocol p) = version p
+    headerVersion (SomeProtocol p) = headerVersion p
+    encodeFrame   (SomeProtocol p) = encodeFrame p
+    decodeFrame   (SomeProtocol p) = decodeFrame p
+    finishRequest (SomeProtocol p) = finishRequest p

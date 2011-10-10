@@ -24,8 +24,8 @@ import Data.Enumerator ( Enumerator, Iteratee (..), Stream (..)
                        )
 
 import Network.WebSockets.Monad
-
 import Network.WebSockets.Types (Request, HandshakeError)
+import Network.WebSockets.Protocol (SomeProtocol)
 
 import Data.IORef
 import Control.Monad
@@ -33,10 +33,10 @@ import Control.Monad
 -- | Provides a simple server. This function blocks forever. Note that this
 -- is merely provided for quick-and-dirty standalone applications, for real
 -- applications, you should use a real server.
-runServer :: String         -- ^ Address to bind to
-          -> Int            -- ^ Port to listen on
-          -> (Request -> WebSockets ())  -- ^ Application to serve
-          -> IO ()          -- ^ Never returns
+runServer :: String                                   -- ^ Address to bind to
+          -> Int                                      -- ^ Port to listen on
+          -> (Request -> WebSockets SomeProtocol ())  -- ^ Application to serve
+          -> IO ()                                    -- ^ Never returns
 runServer host port ws = withSocketsDo $ do
     sock <- socket AF_INET Stream defaultProtocol
     _ <- setSocketOption sock ReuseAddr 1
@@ -53,7 +53,8 @@ runServer host port ws = withSocketsDo $ do
         _ <- forkIO $ runWithSocket' killRef conn ws >> return ()
         return ()
     where
-        runWithSocket' :: IORef Bool -> Socket -> (Request -> WebSockets a) -> IO a
+        runWithSocket' :: IORef Bool -> Socket
+                       -> (Request -> WebSockets SomeProtocol a) -> IO a
         runWithSocket' kill s ws = do
             r <- run $ receiveEnum' kill s $$ runWebSocketsWithHandshake defaultWebSocketsOptions ws (sendIter' kill s)
             sClose s
@@ -89,7 +90,7 @@ runServer host port ws = withSocketsDo $ do
 
 -- | This function wraps 'runWebSockets' in order to provide a simple API for
 -- stand-alone servers.
-runWithSocket :: Socket -> (Request -> WebSockets a) -> IO a
+runWithSocket :: Socket -> (Request -> WebSockets SomeProtocol a) -> IO a
 runWithSocket s ws = do
     r <- run $ receiveEnum s $$ runWebSocketsWithHandshake defaultWebSocketsOptions ws (sendIter s)
     sClose s

@@ -18,15 +18,20 @@ module Network.WebSockets.Types
     , textData
     , binaryData
 
-    , HandshakeError(..)
-    , ConnectionError(..)
-    , WsUserError(..)
-    , Protocol(..)
-    , RequestHttpPart(..)
-    , Encoder, Decoder
-    , criticalMissingFeatures
+    , HandshakeError (..)
+    , ConnectionError (..)
+    , RequestHttpPart (..)
+    , Encoder
+    , Decoder
     ) where
 
+import Control.Exception (Exception(..))
+import Control.Monad.Error (Error(..))
+import Data.Typeable (Typeable)
+import qualified Data.Attoparsec.Enumerator as AE
+
+import Data.Attoparsec (Parser)
+import qualified Blaze.ByteString.Builder as B
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.CaseInsensitive as CI
@@ -34,22 +39,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TL
 
--- for {En,De}coder
-import qualified Blaze.ByteString.Builder as B
-import Data.Attoparsec (Parser)
 import Network.WebSockets.Mask
-
--- just for providing the instance below.
-import Control.Monad.Error (Error(..))
-
-import qualified Data.Attoparsec.Enumerator as AE
-
-import Network.WebSockets.Feature (Feature, Features)
-
-import Data.Function
-
-import Control.Exception (Exception(..), throw)
-import Data.Typeable (Typeable)
 
 -- | Request headers
 type Headers = [(CI.CI B.ByteString, B.ByteString)]
@@ -62,30 +52,6 @@ type Decoder a = Parser a
 -- | The inverse of a parser
 type Encoder a = Mask -> a -> B.Builder
 
-data Protocol = Protocol
-  { version       :: String        -- ^ Unique identifier for us.
-  , headerVersion :: B.ByteString  -- ^ version as used in the "Sec-WebSocket-Version " header.
-                                   -- this is usually not the same, or derivable from "version",
-                                   -- e.g. for hybi10, it's "8".
-  , encodeFrame   :: Encoder Frame
-  , decodeFrame   :: Decoder Frame
-  , finishRequest :: RequestHttpPart -> Decoder (Either HandshakeError Request)
-  -- ^ Parse and validate the rest of the request. For hybi10, this is just
-  -- validation, but hybi00 also needs to fetch a "security token"
-  --
-  -- Todo: Maybe we should introduce our own simplified error type here. (to be
-  -- amended with the RequestHttpPart for the user)
-  , features      :: Features
-  }
-
-instance Eq Protocol where
-    (==) = (==) `on` version  -- yeah, right, a unique identifier!
-instance Ord Protocol where
-    compare = compare `on` version
-    -- /not/ necessarily an ordering by date of publication!
-instance Show Protocol where
-    show = version
-
 -- | Error in case of failed handshake. Will be thrown as an iteratee
 -- exception. ('Error' condition).
 data HandshakeError =
@@ -96,9 +62,6 @@ data HandshakeError =
                                                -- (e.g. "unknown path")
     | OtherHandshakeError String               -- ^ for example "EOF came too early" (which is actually a parse error)
                                                -- or for your own errors. (like "unknown path"?)
-    | MissingFeatures Features                 -- ^ The request was rejected because we require a feature the
-                                               -- requested protocol doesn't support.
-                                               -- todo: version parameter
     deriving (Show, Typeable)
 
 -- | The connection couldn't be established or broke down unexpectedly. thrown
@@ -111,30 +74,11 @@ data ConnectionError =
                                      -- todo: Also want this for sending.
     deriving (Show, Typeable)
 
--- | /You/ did something wrong. E.g. not checking the required features before
--- using them. Thrown as a normal \"imprecise exception\" (and /not/ as an
--- iteratee 'Error')
-data WsUserError =
-      UncheckedMissingFeatures Features String  -- ^ missing features, protocol
-    | OtherWsUserError String
-    deriving (Show, Typeable)
-
 instance Error HandshakeError where
     strMsg = OtherHandshakeError
 
--- todo: required?
-instance Error WsUserError where
-    strMsg = OtherWsUserError
-
 instance Exception HandshakeError
 instance Exception ConnectionError
-instance Exception WsUserError
-
--- | (internal) Throw, as an exception (!), a UncheckedMissingFeatures. Used by
--- e.g. hybi00 when we try to send a control frame.
-criticalMissingFeatures :: Protocol -> Features -> a
-criticalMissingFeatures p fs =
-    throw $ UncheckedMissingFeatures fs (version p)
 
 -- | (internal) HTTP headers and requested path.
 data RequestHttpPart = RequestHttpPart

@@ -19,8 +19,9 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.CaseInsensitive as CI
 
 import Network.WebSockets.Types
-import qualified Network.WebSockets.Feature as F
 import Network.WebSockets.Protocol
+import Network.WebSockets.Protocol.Hybi00 (Hybi00 (..))
+import Network.WebSockets.Protocol.Hybi10 (Hybi10 (..))
 
 import Network.WebSockets.Decode
 
@@ -37,13 +38,18 @@ import Network.WebSockets.Decode
 -- generated a response ready to be sent back.
 
 -- | (try to) receive and validate a complete request. Not used at the moment.
-receiveClientHandshake :: Decoder (Either HandshakeError (Request, Protocol))
-receiveClientHandshake = request >>= tryFinishRequest
+receiveClientHandshake :: Protocol p
+                       => [p]
+                       -> Decoder (Either HandshakeError (Request, p))
+receiveClientHandshake protocols = request >>= tryFinishRequest protocols
 
 -- | Given the HTTP part, try the available protocols one by one.
 -- todo: auto-check if the "Version" header matches? (if any)
-tryFinishRequest :: RequestHttpPart -> Decoder (Either HandshakeError (Request, Protocol))
-tryFinishRequest httpReq = tryInOrder protocols
+tryFinishRequest :: Protocol p
+                 => [p]
+                 -> RequestHttpPart
+                 -> Decoder (Either HandshakeError (Request, p))
+tryFinishRequest protocols httpReq = tryInOrder protocols
     -- NOTE that the protocols are tried in order, the first one first. So that
     -- should be the latest one. (only matters if we have overlaps in specs,
     -- though)
@@ -66,13 +72,11 @@ response400 :: Headers -> Response
 response400 headers = Response 400 "Bad Request" headers ""
 
 -- | Respond to errors encountered during handshake
-responseError :: HandshakeError -> Response
-responseError err = response400 $ case err of
-    NotSupported       -> versionHeader F.empty -- List all available versions ("version negotiation")
-    MissingFeatures fs -> versionHeader fs      -- List available versions with the required features
-    _ -> []
-    where versionHeader fs =
-             let has p = fs `F.isSubsetOf` (features p)
-              in [("Sec-WebSocket-Version", B.intercalate ", " $
-                    map headerVersion . filter has $ protocols)]
-
+responseError :: Protocol p => [p] -> HandshakeError -> Response
+responseError protocols err = response400 $ case err of
+    -- TODO: fix
+    NotSupported -> versionHeader  -- List all available versions ("version negotiation")
+    _            -> []
+  where
+    versionHeader =
+      [("Sec-WebSocket-Version", B.intercalate ", " $ map headerVersion $ protocols)]

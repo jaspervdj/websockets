@@ -27,7 +27,7 @@ import Control.Monad
 import Control.Monad.Reader
 import Control.Monad.State (StateT, evalStateT, get, put)
 import Control.Monad.Trans (MonadIO, lift, liftIO)
-import Control.Exception.Base
+import Control.Exception
 import System.Random (randomRIO)
 
 import Blaze.ByteString.Builder (Builder)
@@ -212,7 +212,11 @@ singleton :: Monad m => a -> Enumerator a m b
 singleton c = checkContinue0 $ \_ f -> f (Chunks [c]) >>== returnI
 
 builderSender :: MonadIO m => Iteratee ByteString m b -> Builder -> m ()
-builderSender outIter x = (run $ singleton x $$ builderToByteString $$ outIter) >> return ()
+builderSender outIter x = do
+    ok <- run $ singleton x $$ builderToByteString $$ outIter
+    case ok of
+        Left err -> throw err
+        Right _  -> return ()
 
 -- | Get the current configuration
 getOptions :: WebSockets WebSocketsOptions

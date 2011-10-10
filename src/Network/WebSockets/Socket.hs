@@ -20,6 +20,7 @@ import Network.Socket.ByteString (recv, sendMany)
 import Data.ByteString (ByteString)
 import Data.Enumerator ( Enumerator, Iteratee (..), Stream (..)
                        , checkContinue0, continue, run, yield, (>>==), ($$)
+                       , tryIO
                        )
 
 import Network.WebSockets.Monad
@@ -80,7 +81,7 @@ runServer host port ws = withSocketsDo $ do
                         return ()
                     else do
                         -- liftIO (putStrLn "send (")
-                        liftIO (sendMany s cs)
+                        tryIO (sendMany s cs)
                         -- liftIO (putStrLn ") send")
                         continue go
             go EOF         = yield () EOF
@@ -105,5 +106,5 @@ sendIter :: Socket -> Iteratee ByteString IO ()
 sendIter s = continue go
   where
     go (Chunks []) = continue go
-    go (Chunks cs) = liftIO (sendMany s cs) >> continue go
+    go (Chunks cs) = tryIO (sendMany s cs) >> continue go
     go EOF         = yield () EOF

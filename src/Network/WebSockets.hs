@@ -82,6 +82,7 @@ module Network.WebSockets
     , I.pong
     , I.textData
     , I.binaryData
+    , I.spawnPingThread
 
       -- * Error Handling
     , I.throwWsError

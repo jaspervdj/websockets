@@ -17,6 +17,7 @@ module Network.WebSockets.Monad
     , getProtocol
     , throwWsError
     , catchWsError
+    , spawnPingThread
     ) where
 
 import Control.Applicative ((<$>))
@@ -26,7 +27,7 @@ import Control.Monad
 import Control.Monad.Reader
 import Control.Monad.State (StateT, evalStateT, get, put)
 import Control.Monad.Trans (MonadIO, lift, liftIO)
-import Control.Exception.Base
+import Control.Exception
 import System.Random (randomRIO)
 
 import Blaze.ByteString.Builder (Builder)
@@ -58,14 +59,12 @@ import Data.List (sort, isPrefixOf)
 -- | Options for the WebSocket program
 data WebSocketsOptions = WebSocketsOptions
     { onPong       :: IO ()
-    , pingInterval :: Maybe Int
     }
 
 -- | Default options
 defaultWebSocketsOptions :: WebSocketsOptions
 defaultWebSocketsOptions = WebSocketsOptions
     { onPong       = return ()
-    , pingInterval = Just 10
     }
 
 -- | Environment in which the 'WebSockets' monad actually runs
@@ -137,29 +136,22 @@ runWebSocketsWith' opts proto ws outIter = do
 
     let sender = makeSend sendLock
         env    = WebSocketsEnv opts sender proto
-        state  = runReaderT (unWebSockets ws') env
+        state  = runReaderT (unWebSockets ws) env
         iter   = evalStateT state emptyDemultiplexState
     iter
   where
     makeSend sendLock x = withMVar sendLock $ \_ ->
         builderSender outIter x
 
-    -- Spawn a ping thread first
-    ws' = spawnPingThread >> ws
-
--- | Spawn a thread which sends a ping every few seconds, according to the
--- options set
-spawnPingThread :: WebSockets ()
-spawnPingThread = hasFeatures F.ping >>= when `flip` do
+-- | @spawnPingThread n@ spawns a thread which sends a ping every @n@ seconds
+-- (if the protocol supports it). To be called after having sent the response.
+spawnPingThread :: Int -> WebSockets ()
+spawnPingThread i = hasFeatures F.ping >>= when `flip` do
     sender <- getMessageSender
-    opts <- getOptions
-    case pingInterval opts of
-        Nothing -> return ()
-        Just i  -> do
-            _ <- liftIO $ forkIO $ forever $ do
-                sender $ T.ping ("Hi" :: ByteString)
-                threadDelay (i * 1000 * 1000)  -- seconds
-            return ()
+    _ <- liftIO $ forkIO $ forever $ do
+        sender $ T.ping ("Hi" :: ByteString)
+        threadDelay (i * 1000 * 1000)  -- seconds
+    return ()
 
 -- | Receive some data from the socket, using a user-supplied parser.
 receive :: Decoder a -> WebSockets a
@@ -220,7 +212,11 @@ singleton :: Monad m => a -> Enumerator a m b
 singleton c = checkContinue0 $ \_ f -> f (Chunks [c]) >>== returnI
 
 builderSender :: MonadIO m => Iteratee ByteString m b -> Builder -> m ()
-builderSender outIter x = (run $ singleton x $$ builderToByteString $$ outIter) >> return ()
+builderSender outIter x = do
+    ok <- run $ singleton x $$ builderToByteString $$ outIter
+    case ok of
+        Left err -> throw err
+        Right _  -> return ()
 
 -- | Get the current configuration
 getOptions :: WebSockets WebSocketsOptions

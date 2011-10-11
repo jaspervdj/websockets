@@ -29,6 +29,7 @@
 -- For a full example, see:
 --
 -- <http://github.com/jaspervdj/websockets/tree/master/example>
+{-# LANGUAGE ScopedTypeVariables #-}
 module Network.WebSockets
     ( 
       -- * WebSocket type
@@ -176,12 +177,14 @@ sendBinaryData = I.sendMessage . I.binaryData
 
 -- | Reject a request, sending a 400 (Bad Request) to the client and throwing a
 -- RequestRejected (HandshakeError)
-rejectRequest :: I.Request -> String -> I.WebSockets I.SomeProtocol a
+rejectRequest :: I.Protocol p
+              => I.Request -> String -> I.WebSockets p a
 rejectRequest req reason = failHandshakeWith $ I.RequestRejected req reason
 
-failHandshakeWith :: I.HandshakeError -> I.WebSockets I.SomeProtocol a
+failHandshakeWith :: forall p a. I.Protocol p
+                  => I.HandshakeError -> I.WebSockets p a
 failHandshakeWith err = do
-    sendResponse  $ I.responseError I.hybi00Protocols err
+    sendResponse  $ I.responseError (I.implementations :: [p]) err
     I.throwWsError err
 
 -- | Accept a request. After this, you can start sending and receiving data.

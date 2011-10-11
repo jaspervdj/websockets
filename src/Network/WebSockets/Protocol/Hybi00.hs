@@ -1,9 +1,9 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ExistentialQuantification, OverloadedStrings #-}
 {-# OPTIONS -Wall #-}
 
 module Network.WebSockets.Protocol.Hybi00
-       ( Hybi00 (..)
-       , hybi00Protocols
+       ( Hybi00_ (..)
+       , Hybi00
        ) where
 
 import Control.Applicative
@@ -27,20 +27,17 @@ import qualified Data.Attoparsec as A
 import Network.WebSockets.Encode (Encoder)
 import Network.WebSockets.Protocol
 import Network.WebSockets.Types
-import Network.WebSockets.Protocol.Hybi10 (Hybi10 (..))
+import Network.WebSockets.Protocol.Hybi10 (Hybi10_ (..))
 
-data Hybi00 = Hybi00
+data Hybi00_ = Hybi00_
 
-instance Protocol Hybi00 where
-    version       Hybi00 = "hybi00"
-    headerVersion Hybi00 = "0"  -- but the client will elide it
-    encodeFrame   Hybi00 = encodeFrameHybi00
-    decodeFrame   Hybi00 = decodeFrameHybi00
-    finishRequest Hybi00 = runErrorT . handshakeHybi00
-
--- | Protocols compatible with hybi-00
-hybi00Protocols :: [SomeProtocol]
-hybi00Protocols = [SomeProtocol Hybi10, SomeProtocol Hybi00]
+instance Protocol Hybi00_ where
+    version         Hybi00_ = "hybi00"
+    headerVersion   Hybi00_ = "0"  -- but the client will elide it
+    encodeFrame     Hybi00_ = encodeFrameHybi00
+    decodeFrame     Hybi00_ = decodeFrameHybi00
+    finishRequest   Hybi00_ = runErrorT . handshakeHybi00
+    implementations         = []
 
 encodeFrameHybi00 :: Encoder Frame
 encodeFrameHybi00 _ (Frame True TextFrame pl) =
@@ -105,3 +102,13 @@ handshakeHybi00 reqHttp@(RequestHttpPart path h) = do
         Just t  -> return t
         Nothing -> throwError $
                    MalformedRequest reqHttp $ "Header missing: " ++ BC.unpack (CI.original k)
+
+data Hybi00 = forall p. Protocol p => Hybi00 p
+
+instance Protocol Hybi00 where
+    version       (Hybi00 p) = version p
+    headerVersion (Hybi00 p) = headerVersion p
+    encodeFrame   (Hybi00 p) = encodeFrame p
+    decodeFrame   (Hybi00 p) = decodeFrame p
+    finishRequest (Hybi00 p) = finishRequest p
+    implementations          = [Hybi00 Hybi00_, Hybi00 Hybi10_]

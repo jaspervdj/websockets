@@ -1,6 +1,6 @@
 -- | Provides a simple, clean monad to write websocket servers in
-{-# LANGUAGE GeneralizedNewtypeDeriving, OverloadedStrings, NoMonomorphismRestriction #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, OverloadedStrings,
+        NoMonomorphismRestriction, ScopedTypeVariables #-}
 module Network.WebSockets.Monad
     ( WebSocketsOptions (..)
     , defaultWebSocketsOptions
@@ -47,8 +47,7 @@ import Network.WebSockets.Demultiplex (DemultiplexState, emptyDemultiplexState)
 import Network.WebSockets.Encode (Encoder)
 import qualified Network.WebSockets.Encode as E
 import Network.WebSockets.Types as T
-import Network.WebSockets.Protocol (Protocol (..), SomeProtocol)
-import Network.WebSockets.Protocol.Hybi00 (hybi00Protocols)
+import Network.WebSockets.Protocol (Protocol (..))
 
 import Network.WebSockets.Handshake
 
@@ -81,16 +80,17 @@ newtype WebSockets p a = WebSockets
     } deriving (Functor, Monad, MonadIO)
 
 -- | Receives the initial client handshake, then behaves like 'runWebSockets'.
-runWebSocketsHandshake :: 
-        (Request -> WebSockets SomeProtocol a)
+runWebSocketsHandshake :: Protocol p
+     => (Request -> WebSockets p a)
      -> Iteratee ByteString IO ()
      -> Iteratee ByteString IO a
 runWebSocketsHandshake = runWebSocketsWithHandshake defaultWebSocketsOptions
 
 -- | Receives the initial client handshake, then behaves like
 -- 'runWebSocketsWith.
-runWebSocketsWithHandshake :: WebSocketsOptions
-                           -> (Request -> WebSockets SomeProtocol a)
+runWebSocketsWithHandshake :: Protocol p
+                           => WebSocketsOptions
+                           -> (Request -> WebSockets p a)
                            -> Iteratee ByteString IO ()
                            -> Iteratee ByteString IO a
 runWebSocketsWithHandshake opts goWs outIter = do
@@ -105,24 +105,27 @@ runWebSocketsWithHandshake opts goWs outIter = do
 -- If the handshake failed, returns HandshakeError. Otherwise, executes the
 -- supplied continuation. If you want to accept the connection, you should send
 -- the included 'requestResponse', and a 'response400' otherwise.
-runWebSockets :: RequestHttpPart
-              -> (Request -> WebSockets SomeProtocol a)
+runWebSockets :: Protocol p
+              => RequestHttpPart
+              -> (Request -> WebSockets p a)
               -> Iteratee ByteString IO ()
               -> Iteratee ByteString IO a
 runWebSockets = runWebSocketsWith defaultWebSocketsOptions
 
 -- | Version of 'runWebSockets' which allows you to specify custom options
-runWebSocketsWith ::
-       WebSocketsOptions
+runWebSocketsWith :: forall p a.
+       Protocol p
+    => WebSocketsOptions
     -> RequestHttpPart
-    -> (Request -> WebSockets SomeProtocol a)
+    -> (Request -> WebSockets p a)
     -> Iteratee ByteString IO ()
     -> Iteratee ByteString IO a
 runWebSocketsWith opts httpReq goWs outIter = do
-    mreq <- receiveIterateeShy $ tryFinishRequest hybi00Protocols httpReq
+    let impls = implementations :: [p]
+    mreq <- receiveIterateeShy $ tryFinishRequest httpReq
     case mreq of
         (Left err) -> do
-            sendIteratee E.response (responseError hybi00Protocols err) outIter
+            sendIteratee E.response (responseError impls err) outIter
             E.throwError err
         (Right (r, p)) -> runWebSocketsWith' opts p (goWs r) outIter
 

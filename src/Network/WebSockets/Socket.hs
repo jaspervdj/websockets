@@ -25,7 +25,7 @@ import Data.Enumerator ( Enumerator, Iteratee (..), Stream (..)
                        )
 
 import Network.WebSockets.Monad
-import Network.WebSockets.Protocol (SomeProtocol (..))
+import Network.WebSockets.Protocol (Protocol (..))
 import Network.WebSockets.Types (Request, HandshakeError, ConnectionError (..))
 
 import Data.IORef
@@ -34,10 +34,11 @@ import Control.Monad
 -- | Provides a simple server. This function blocks forever. Note that this
 -- is merely provided for quick-and-dirty standalone applications, for real
 -- applications, you should use a real server.
-runServer :: String                                   -- ^ Address to bind to
-          -> Int                                      -- ^ Port to listen on
-          -> (Request -> WebSockets SomeProtocol ())  -- ^ Application to serve
-          -> IO ()                                    -- ^ Never returns
+runServer :: Protocol p
+          => String                        -- ^ Address to bind to
+          -> Int                           -- ^ Port to listen on
+          -> (Request -> WebSockets p ())  -- ^ Application to serve
+          -> IO ()                         -- ^ Never returns
 runServer host port ws = withSocketsDo $ do
     sock <- socket AF_INET Stream defaultProtocol
     _ <- setSocketOption sock ReuseAddr 1
@@ -56,7 +57,8 @@ runServer host port ws = withSocketsDo $ do
 
 -- | This function wraps 'runWebSockets' in order to provide a simple API for
 -- stand-alone servers.
-runWithSocket :: Socket -> (Request -> WebSockets SomeProtocol a) -> IO a
+runWithSocket :: Protocol p
+              => Socket -> (Request -> WebSockets p a) -> IO a
 runWithSocket s ws = do
     r <- run $ receiveEnum s $$ runWebSocketsWithHandshake defaultWebSocketsOptions ws (sendIter s)
     sClose s

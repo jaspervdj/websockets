@@ -1,6 +1,7 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ExistentialQuantification, OverloadedStrings #-}
 module Network.WebSockets.Protocol.Hybi10
-    ( Hybi10 (..)
+    ( Hybi10_ (..)
+    , Hybi10
     ) where
 
 import Control.Applicative (pure, (<$>))
@@ -31,14 +32,15 @@ import Network.WebSockets.Types
 
 import Control.Monad
 
-data Hybi10 = Hybi10
+data Hybi10_ = Hybi10_
 
-instance Protocol Hybi10 where
-    version       Hybi10 = "hybi10"
-    headerVersion Hybi10 = "8"
-    encodeFrame   Hybi10 = encodeFrameHybi10
-    decodeFrame   Hybi10 = decodeFrameHybi10
-    finishRequest Hybi10 = handshakeHybi10
+instance Protocol Hybi10_ where
+    version         Hybi10_ = "hybi10"
+    headerVersion   Hybi10_ = "8"
+    encodeFrame     Hybi10_ = encodeFrameHybi10
+    decodeFrame     Hybi10_ = decodeFrameHybi10
+    finishRequest   Hybi10_ = handshakeHybi10
+    implementations         = []
 
 -- | Parse a frame
 decodeFrameHybi10 :: Decoder Frame
@@ -143,3 +145,13 @@ response101 headers = Response 101 "WebSocket Protocol Handshake"
 -- | Bad request
 response400 :: Headers -> Response
 response400 headers = Response 400 "Bad Request" headers ""
+
+data Hybi10 = forall p. Protocol p => Hybi10 p
+
+instance Protocol Hybi10 where
+    version       (Hybi10 p) = version p
+    headerVersion (Hybi10 p) = headerVersion p
+    encodeFrame   (Hybi10 p) = encodeFrame p
+    decodeFrame   (Hybi10 p) = decodeFrame p
+    finishRequest (Hybi10 p) = finishRequest p
+    implementations          = [Hybi10 Hybi10_]

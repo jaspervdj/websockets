@@ -2,7 +2,6 @@
 {-# LANGUAGE ExistentialQuantification #-}
 module Network.WebSockets.Protocol
     ( Protocol (..)
-    , SomeProtocol (..)
     ) where
 
 import qualified Data.ByteString as B
@@ -25,11 +24,5 @@ class Protocol p where
     -- Todo: Maybe we should introduce our own simplified error type here. (to be
     -- amended with the RequestHttpPart for the user)
 
-data SomeProtocol = forall p. Protocol p => SomeProtocol p
-
-instance Protocol SomeProtocol where
-    version       (SomeProtocol p) = version p
-    headerVersion (SomeProtocol p) = headerVersion p
-    encodeFrame   (SomeProtocol p) = encodeFrame p
-    decodeFrame   (SomeProtocol p) = decodeFrame p
-    finishRequest (SomeProtocol p) = finishRequest p
+    -- | Implementations of the specification
+    implementations :: [p]

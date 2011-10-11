@@ -14,18 +14,19 @@ import Network.Socket ( Family (..), SockAddr (..), Socket
                       , SocketOption (ReuseAddr), SocketType (..)
                       , accept, bindSocket, defaultProtocol, inet_addr, listen
                       , sClose, setSocketOption, socket, withSocketsDo
+                      , sIsWritable
                       )
 import Network.Socket.ByteString (recv, sendMany)
 
 import Data.ByteString (ByteString)
 import Data.Enumerator ( Enumerator, Iteratee (..), Stream (..)
                        , checkContinue0, continue, run, yield, (>>==), ($$)
-                       , tryIO
+                       , tryIO, throwError, catchError
                        )
 
 import Network.WebSockets.Monad
-import Network.WebSockets.Types (Request, HandshakeError)
-import Network.WebSockets.Protocol (SomeProtocol)
+import Network.WebSockets.Protocol (SomeProtocol (..))
+import Network.WebSockets.Types (Request, HandshakeError, ConnectionError (..))
 
 import Data.IORef
 import Control.Monad
@@ -49,44 +50,9 @@ runServer host port ws = withSocketsDo $ do
         -- closed. Will prevent sendIter' from even trying to send anything.
         -- Without it, we got many "Couldn't decode text frame as UTF8" errors
         -- in the browser (although the payload is definitely UTF8).
-        killRef <- newIORef False
-        _ <- forkIO $ runWithSocket' killRef conn ws >> return ()
+        -- killRef <- newIORef False
+        _ <- forkIO $ runWithSocket conn ws >> return ()
         return ()
-    where
-        runWithSocket' :: IORef Bool -> Socket
-                       -> (Request -> WebSockets SomeProtocol a) -> IO a
-        runWithSocket' kill s ws = do
-            r <- run $ receiveEnum' kill s $$ runWebSocketsWithHandshake defaultWebSocketsOptions ws (sendIter' kill s)
-            sClose s
-            either (error . show) return r
-
-        receiveEnum' :: IORef Bool -> Socket -> Enumerator ByteString IO a
-        receiveEnum' kill s = checkContinue0 $ \loop f -> do
-            b <- liftIO $ recv s 4096
-            if b == ""
-                then do
-                    -- liftIO (putStrLn "connection closed")
-                    liftIO (writeIORef kill True)
-                    continue f
-                else f (Chunks [b]) >>== loop
-
-        sendIter' :: IORef Bool -> Socket -> Iteratee ByteString IO ()
-        sendIter' kill s = continue go
-          where
-            go (Chunks []) = continue go
-            go (Chunks cs) = do
-                killme <- liftIO $ readIORef kill
-                if killme
-                    then do
-                        -- liftIO $ putStrLn "no send: killed"
-                        return ()
-                    else do
-                        -- liftIO (putStrLn "send (")
-                        tryIO (sendMany s cs)
-                        -- liftIO (putStrLn ") send")
-                        continue go
-            go EOF         = yield () EOF
-
 
 -- | This function wraps 'runWebSockets' in order to provide a simple API for
 -- stand-alone servers.
@@ -107,5 +73,9 @@ sendIter :: Socket -> Iteratee ByteString IO ()
 sendIter s = continue go
   where
     go (Chunks []) = continue go
-    go (Chunks cs) = tryIO (sendMany s cs) >> continue go
+    go (Chunks cs) = do
+      b <- liftIO $ sIsWritable s
+      if b
+        then tryIO (sendMany s cs) >> continue go
+        else throwError ConnectionClosed
     go EOF         = yield () EOF

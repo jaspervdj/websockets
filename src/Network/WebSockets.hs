@@ -54,7 +54,6 @@ module Network.WebSockets
     , I.ControlMessage (..)
     , I.DataMessage (..)
     , I.WebSocketsData (..)
-    -- todo
 
       -- * Handshake
     , acceptRequest

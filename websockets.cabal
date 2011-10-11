@@ -47,6 +47,7 @@ Library
 
   Exposed-modules:
     Network.WebSockets
+    Network.WebSockets.Feature
 
   Other-modules:
     Network.WebSockets.Decode

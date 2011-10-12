@@ -35,6 +35,8 @@ missingFeatures = criticalMissingFeatures hybi00
 encodeFrameHybi00 :: Encoder Frame
 encodeFrameHybi00 _ (Frame True TextFrame pl) =
   BB.fromLazyByteString $ "\0" `BL.append` pl `BL.append` "\255"
+encodeFrameHybi00 _ (Frame _ CloseFrame _) =
+  BB.fromLazyByteString  "\255\0"
 encodeFrameHybi00 _ (Frame False TextFrame pl) =
     missingFeatures F.fragmentation
 encodeFrameHybi00 _ (Frame _ t pl) = missingFeatures $ case t of

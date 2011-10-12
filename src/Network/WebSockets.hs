@@ -60,6 +60,9 @@ module Network.WebSockets
     , acceptRequest
     , rejectRequest
 
+      -- * Various
+    , I.getVersion
+
       -- * Receiving
     -- , receiveRequest
     , receiveFrame

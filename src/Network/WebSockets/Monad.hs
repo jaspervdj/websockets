@@ -15,6 +15,7 @@ module Network.WebSockets.Monad
     , getSender
     , getOptions
     , getProtocol
+    , getVersion
     , throwWsError
     , catchWsError
     , spawnPingThread
@@ -225,6 +226,10 @@ getOptions = WebSockets $ ask >>= return . options
 -- | Get the underlying protocol
 getProtocol :: WebSockets Protocol
 getProtocol = WebSockets $ ask >>= return . protocol
+
+-- | Find out the 'WebSockets' version used at runtime
+getVersion :: WebSockets String
+getVersion = version <$> getProtocol
 
 -- | Check if the given features are supported with the current protocol.
 hasFeatures :: F.Features -> WebSockets Bool

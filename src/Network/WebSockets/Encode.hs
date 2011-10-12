@@ -19,7 +19,7 @@ import qualified Data.CaseInsensitive as CI
 import Network.WebSockets.Types
 
 -- | Encode an HTTP upgrade response
-response :: Encoder Response
+response :: Encoder p Response
 response _ (Response code msg headers body) =
     B.copyByteString "HTTP/1.1 " `mappend` B.fromString (show code) `mappend`
     B.fromChar ' ' `mappend` B.fromByteString msg `mappend`
@@ -32,20 +32,20 @@ response _ (Response code msg headers body) =
         [CI.original k, ": ", v, "\r\n"]
 
 -- | Encode a message
-message :: Encoder Frame -> Encoder Message
+message :: Encoder p Frame -> Encoder p Message
 message frame mask msg = case msg of
     ControlMessage m -> controlMessage frame mask m
     DataMessage m    -> dataMessage frame mask m
 
 -- | Encode a control message
-controlMessage :: Encoder Frame -> Encoder ControlMessage
+controlMessage :: Encoder p Frame -> Encoder p ControlMessage
 controlMessage frame mask msg = frame mask $ case msg of
     Close pl -> Frame True CloseFrame pl
     Ping pl  -> Frame True PingFrame pl
     Pong pl  -> Frame True PongFrame pl
 
 -- | Encode an application message
-dataMessage :: Encoder Frame -> Encoder DataMessage
+dataMessage :: Encoder p Frame -> Encoder p DataMessage
 dataMessage frame mask msg = frame mask $ case msg of
     Text pl   -> Frame True TextFrame pl
     Binary pl -> Frame True BinaryFrame pl

@@ -159,13 +159,13 @@ spawnPingThread i = do
     return ()
 
 -- | Receive some data from the socket, using a user-supplied parser.
-receive :: Decoder a -> WebSockets p a
+receive :: Decoder p a -> WebSockets p a
 receive = liftIteratee . receiveIteratee
 
 -- todo: move some stuff to another module. "Decode"?
 
 -- | Underlying iteratee version of 'receive'.
-receiveIteratee :: Decoder a -> Iteratee ByteString IO a
+receiveIteratee :: Decoder p a -> Iteratee ByteString IO a
 receiveIteratee parser = do
     eof <- isEOF
     if eof
@@ -175,7 +175,7 @@ receiveIteratee parser = do
 -- | Like receiveIteratee, but if the supplied parser is happy with no input,
 -- we don't supply any more. This is very, very important when we have parsers
 -- that don't necessarily read data, like hybi10's completeRequest.
-receiveIterateeShy :: Decoder a -> Iteratee ByteString IO a
+receiveIterateeShy :: Decoder p a -> Iteratee ByteString IO a
 receiveIterateeShy parser = wrappingParseError $ shyIterParser parser
 
 -- | Execute an iteratee, wrapping attoparsec-enumeratee's ParseError into the
@@ -184,7 +184,7 @@ wrappingParseError :: (Monad m) => Iteratee a m b -> Iteratee a m b
 wrappingParseError = flip E.catchError $ \e -> E.throwError $
     maybe e (toException . ParseError) $ fromException e
 
-sendIteratee :: Encoder a -> a -> Iteratee ByteString IO () -> Iteratee ByteString IO ()
+sendIteratee :: Encoder p a -> a -> Iteratee ByteString IO () -> Iteratee ByteString IO ()
 sendIteratee enc resp outIter = do
     liftIO $ mkSender (builderSender outIter) enc resp
 
@@ -201,12 +201,12 @@ getMessageSender = do
     let encodeMsg = E.message (encodeFrame proto)
     getSender encodeMsg
 
-getSender :: Encoder a -> WebSockets p (a -> IO ())
+getSender :: Encoder p a -> WebSockets p (a -> IO ())
 getSender encoder = WebSockets $ do
     send' <- sendBuilder <$> ask
     return $ mkSender send' encoder
 
-mkSender :: (Builder -> IO ()) -> Encoder a -> a -> IO ()
+mkSender :: (Builder -> IO ()) -> Encoder p a -> a -> IO ()
 mkSender send' encoder x = do
     bytes <- replicateM 4 (liftIO randomByte)
     send' (encoder (Just (B.pack bytes)) x)

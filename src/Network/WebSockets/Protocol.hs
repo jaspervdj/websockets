@@ -15,9 +15,9 @@ class Protocol p where
     headerVersion :: p -> B.ByteString  -- ^ version as used in the "Sec-WebSocket-Version " header.
                                         -- this is usually not the same, or derivable from "version",
                                         -- e.g. for hybi10, it's "8".
-    encodeFrame   :: p -> Encoder Frame
-    decodeFrame   :: p -> Decoder Frame
-    finishRequest :: p -> RequestHttpPart -> Decoder (Either HandshakeError Request)
+    encodeFrame   :: p -> Encoder p Frame
+    decodeFrame   :: p -> Decoder p Frame
+    finishRequest :: p -> RequestHttpPart -> Decoder p (Either HandshakeError Request)
     -- ^ Parse and validate the rest of the request. For hybi10, this is just
     -- validation, but hybi00 also needs to fetch a "security token"
     --

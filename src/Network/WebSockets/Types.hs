@@ -45,12 +45,12 @@ import Network.WebSockets.Mask
 type Headers = [(CI.CI B.ByteString, B.ByteString)]
 
 -- | An alias so we don't have to import attoparsec everywhere
-type Decoder a = Parser a
+type Decoder p a = Parser a
 
 -- todo: restructure the module hierarchy
 
 -- | The inverse of a parser
-type Encoder a = Mask -> a -> B.Builder
+type Encoder p a = Mask -> a -> B.Builder
 
 -- | Error in case of failed handshake. Will be thrown as an iteratee
 -- exception. ('Error' condition).

@@ -39,14 +39,14 @@ import Network.WebSockets.Decode
 
 -- | (try to) receive and validate a complete request. Not used at the moment.
 receiveClientHandshake :: Protocol p
-                       => Decoder (Either HandshakeError (Request, p))
+                       => Decoder p (Either HandshakeError (Request, p))
 receiveClientHandshake = request >>= tryFinishRequest
 
 -- | Given the HTTP part, try the available protocols one by one.
 -- todo: auto-check if the "Version" header matches? (if any)
 tryFinishRequest :: Protocol p
                  => RequestHttpPart
-                 -> Decoder (Either HandshakeError (Request, p))
+                 -> Decoder p (Either HandshakeError (Request, p))
 tryFinishRequest httpReq = tryInOrder implementations
     -- NOTE that the protocols are tried in order, the first one first. So that
     -- should be the latest one. (only matters if we have overlaps in specs,

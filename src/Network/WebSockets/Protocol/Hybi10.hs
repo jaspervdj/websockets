@@ -43,7 +43,7 @@ instance Protocol Hybi10_ where
     implementations         = []
 
 -- | Parse a frame
-decodeFrameHybi10 :: Decoder Frame
+decodeFrameHybi10 :: Decoder p Frame
 decodeFrameHybi10 = do
     byte0 <- anyWord8
     let fin = byte0 .&. 0x80 == 0x80
@@ -75,7 +75,7 @@ decodeFrameHybi10 = do
   where
     runGet' g = runGet g . BL.fromChunks . return
 
-    take64 :: Int64 -> Decoder [ByteString]
+    take64 :: Int64 -> Decoder p [ByteString]
     take64 n
         | n <= 0    = return []
         | otherwise = do
@@ -87,7 +87,7 @@ decodeFrameHybi10 = do
         intMax = fromIntegral (maxBound :: Int)
 
 -- | Encode a frame
-encodeFrameHybi10 :: Encoder Frame
+encodeFrameHybi10 :: Encoder p Frame
 encodeFrameHybi10 mask f = B.fromWord8 byte0 `mappend`
     B.fromWord8 byte1 `mappend` len `mappend` maskbytes `mappend`
     B.fromLazyByteString (maskPayload mask (framePayload f))
@@ -114,7 +114,7 @@ encodeFrameHybi10 mask f = B.fromWord8 byte0 `mappend`
         | otherwise      = (127, B.fromWord64be (fromIntegral len'))
 
 
-handshakeHybi10 :: RequestHttpPart -> Decoder (Either HandshakeError Request)
+handshakeHybi10 :: RequestHttpPart -> Decoder p (Either HandshakeError Request)
 handshakeHybi10 reqHttp@(RequestHttpPart path h) = return $ do
     case getHeader "Sec-WebSocket-Version" of
         Right "8" -> return ()

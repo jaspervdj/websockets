@@ -39,7 +39,7 @@ instance Protocol Hybi00_ where
     finishRequest   Hybi00_ = runErrorT . handshakeHybi00
     implementations         = []
 
-encodeFrameHybi00 :: Encoder Frame
+encodeFrameHybi00 :: Encoder p Frame
 encodeFrameHybi00 _ (Frame True TextFrame pl) =
     BB.fromLazyByteString $ "\0" `BL.append` pl `BL.append` "\255"
 encodeFrameHybi00 _ (Frame _ CloseFrame _) =
@@ -47,7 +47,7 @@ encodeFrameHybi00 _ (Frame _ CloseFrame _) =
 -- TODO: prevent the user from doing this using type tags
 encodeFrameHybi00 _ _ = error "Not supported"
 
-decodeFrameHybi00 :: Decoder Frame
+decodeFrameHybi00 :: Decoder p Frame
 decodeFrameHybi00 = decodeTextFrame <|> decodeCloseFrame
   where
     decodeTextFrame = do
@@ -70,7 +70,7 @@ divBySpaces str =
    else Just . fromIntegral $ number `div` spaces
 
 handshakeHybi00 :: RequestHttpPart
-                   -> ErrorT HandshakeError A.Parser Request
+                -> ErrorT HandshakeError A.Parser Request
 handshakeHybi00 reqHttp@(RequestHttpPart path h) = do
   -- _ <- lift . A.word8 $ fromIntegral 0x0d
   -- _ <- lift . A.word8 $ fromIntegral 0x0a

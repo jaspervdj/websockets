@@ -53,7 +53,6 @@ Library
     Network.WebSockets.Decode
     Network.WebSockets.Demultiplex
     Network.WebSockets.Encode
-    Network.WebSockets.Feature
     Network.WebSockets.Handshake
     Network.WebSockets.Mask
     Network.WebSockets.Monad

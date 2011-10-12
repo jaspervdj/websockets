@@ -42,6 +42,8 @@ instance Protocol Hybi00_ where
 encodeFrameHybi00 :: Encoder Frame
 encodeFrameHybi00 _ (Frame True TextFrame pl) =
     BB.fromLazyByteString $ "\0" `BL.append` pl `BL.append` "\255"
+encodeFrameHybi00 _ (Frame _ CloseFrame _) =
+  BB.fromLazyByteString  "\255\0"
 -- TODO: prevent the user from doing this using type tags
 encodeFrameHybi00 _ _ = error "Not supported"
 

@@ -41,6 +41,11 @@ module Network.WebSockets
     , I.runWebSocketsHandshake
     , I.runWebSocketsWithHandshake
 
+      -- * Protocol versions
+    , I.Protocol
+    , I.Hybi00
+    , I.Hybi10
+
       -- * A simple standalone server
     , I.runServer
     , I.runWithSocket
@@ -105,6 +110,7 @@ import qualified Network.WebSockets.Handshake as I
 import qualified Network.WebSockets.Monad as I
 import qualified Network.WebSockets.Protocol as I
 import qualified Network.WebSockets.Protocol.Hybi00 as I
+import qualified Network.WebSockets.Protocol.Hybi10 as I
 import qualified Network.WebSockets.Socket as I
 import qualified Network.WebSockets.Types as I
 

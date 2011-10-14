@@ -5,6 +5,7 @@ implement a simple multi-user chat program.
 > import Data.Char (isPunctuation, isSpace)
 > import Data.Monoid (mappend)
 > import Data.Text (Text)
+> import Control.Exception (fromException)
 > import Control.Monad (forM_)
 > import Control.Concurrent (MVar, newMVar, modifyMVar_, readMVar)
 > import Control.Monad.IO.Class (liftIO)
@@ -128,17 +129,15 @@ The talk function continues to read messages from a single client until he
 disconnects. All messages are broadcasted to the other clients.
 
 > talk :: WS.Protocol p => MVar ServerState -> Client -> WS.WebSockets p ()
-> talk state client@(user, _) = do
+> talk state client@(user, _) = flip WS.catchWsError catchDisconnect $ do
 >     msg <- WS.receiveData
->     {-
->     case msg of
->         Nothing -> liftIO $ modifyMVar_ state $ \s -> do
+>     liftIO $ readMVar state >>= broadcast
+>         (user `mappend` ": " `mappend` msg)
+>     talk state client
+>   where
+>     catchDisconnect e = case fromException e of
+>         Just WS.ConnectionClosed -> liftIO $ modifyMVar_ state $ \s -> do
 >             let s' = removeClient client s
 >             broadcast (user `mappend` " disconnected") s'
 >             return s'
->         Just m -> do
->     -}
->     let m = msg
->     liftIO $ readMVar state >>= broadcast
->         (user `mappend` ": " `mappend` m)
->     talk state client
+>         _ -> return ()

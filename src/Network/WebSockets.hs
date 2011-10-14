@@ -46,6 +46,7 @@ module Network.WebSockets
 
       -- * Types
     , I.Headers
+    , I.RequestHttpPart (..)
     , I.Request (..)
     , I.Response (..)
     , I.FrameType (..)

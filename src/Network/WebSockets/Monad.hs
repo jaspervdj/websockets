@@ -1,6 +1,6 @@
 -- | Provides a simple, clean monad to write websocket servers in
 {-# LANGUAGE GeneralizedNewtypeDeriving, OverloadedStrings,
-        NoMonomorphismRestriction, ScopedTypeVariables #-}
+        NoMonomorphismRestriction, Rank2Types, ScopedTypeVariables #-}
 module Network.WebSockets.Monad
     ( WebSocketsOptions (..)
     , defaultWebSocketsOptions
@@ -10,9 +10,11 @@ module Network.WebSockets.Monad
     , runWebSocketsHandshake
     , runWebSocketsWithHandshake
     , receive
+    , send
     , sendMessage
-    , getMessageSender
-    , getSender
+    , Sink
+    , sendSink
+    , getSink
     , getOptions
     , getProtocol
     , getVersion
@@ -152,9 +154,9 @@ runWebSocketsWith' opts proto ws outIter = do
 -- (if the protocol supports it). To be called after having sent the response.
 spawnPingThread :: Protocol p => Int -> WebSockets p ()
 spawnPingThread i = do
-    sender <- getMessageSender
+    sink <- getSink
     _ <- liftIO $ forkIO $ forever $ do
-        sender $ T.ping ("Hi" :: ByteString)
+        sendSink sink $ T.ping ("Hi" :: ByteString)
         threadDelay (i * 1000 * 1000)  -- seconds
     return ()
 
@@ -186,28 +188,39 @@ wrappingParseError = flip E.catchError $ \e -> E.throwError $
 
 sendIteratee :: Encoder p a -> a -> Iteratee ByteString IO () -> Iteratee ByteString IO ()
 sendIteratee enc resp outIter = do
-    liftIO $ mkSender (builderSender outIter) enc resp
+    liftIO $ mkSend (builderSender outIter) enc resp
+
+-- | Low-leven sending with an arbitrary 'Encoder'
+send :: Encoder p a -> a -> WebSockets p ()
+send encoder x = WebSockets $ do
+    send' <- sendBuilder <$> ask
+    liftIO $ mkSend send' encoder x
 
 -- | Low-level sending with an arbitrary 'T.Message'
-sendMessage :: Protocol p => T.Message -> WebSockets p ()
-sendMessage msg = getMessageSender >>= (liftIO . ($ msg))
+sendMessage :: Protocol p => T.Message p -> WebSockets p ()
+sendMessage msg = getSink >>= \sink -> liftIO $ sendSink sink msg
+
+-- | Used for asynchronous sending.
+newtype Sink p = Sink {unSink :: Message p -> IO ()}
+
+-- | Send a message to a sink. Might generate an exception if the underlying
+-- connection is closed.
+sendSink :: Sink p -> Message p -> IO ()
+sendSink = unSink
 
 -- | In case the user of the library wants to do asynchronous sending to the
--- socket, he can extract a 'Sender' and pass this value around, for example,
+-- socket, he can extract a 'Sink' and pass this value around, for example,
 -- to other threads.
-getMessageSender :: Protocol p => WebSockets p (T.Message -> IO ())
-getMessageSender = do
-    proto <- getProtocol
-    let encodeMsg = E.message (encodeFrame proto)
-    getSender encodeMsg
-
-getSender :: Encoder p a -> WebSockets p (a -> IO ())
-getSender encoder = WebSockets $ do
+getSink :: Protocol p => WebSockets p (Sink p)
+getSink = WebSockets $ do
+    proto <- unWebSockets getProtocol
     send' <- sendBuilder <$> ask
-    return $ mkSender send' encoder
+    let encodeMsg = E.message (encodeFrame proto)
+    return $ Sink $ mkSend send' encodeMsg
 
-mkSender :: (Builder -> IO ()) -> Encoder p a -> a -> IO ()
-mkSender send' encoder x = do
+-- TODO: rename to mkEncodedSender?
+mkSend :: (Builder -> IO ()) -> Encoder p a -> a -> IO ()
+mkSend send' encoder x = do
     bytes <- replicateM 4 (liftIO randomByte)
     send' (encoder (Just (B.pack bytes)) x)
   where

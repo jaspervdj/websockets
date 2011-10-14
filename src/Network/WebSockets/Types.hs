@@ -120,13 +120,13 @@ data FrameType
     deriving (Eq, Show)
 
 -- | The kind of message a server application typically deals with
-data Message
-    = ControlMessage ControlMessage
-    | DataMessage DataMessage
+data Message p
+    = ControlMessage (ControlMessage p)
+    | DataMessage    (DataMessage p)
     deriving (Show)
 
 -- | Different control messages
-data ControlMessage
+data ControlMessage p
     = Close BL.ByteString
     | Ping BL.ByteString
     | Pong BL.ByteString
@@ -135,7 +135,7 @@ data ControlMessage
 -- | For an end-user of this library, dealing with 'Frame's would be a bit
 -- low-level. This is why define another type on top of it, which represents
 -- data for the application layer.
-data DataMessage
+data DataMessage p
     = Text BL.ByteString
     | Binary BL.ByteString
     deriving (Show)
@@ -174,22 +174,21 @@ instance WebSocketsData T.Text where
     toLazyByteString   = toLazyByteString . TL.fromChunks . return
 
 -- | Construct a close message
-close :: WebSocketsData a => a -> Message
+close :: WebSocketsData a => a -> Message p
 close = ControlMessage . Close . toLazyByteString
 
 -- | Construct a ping message
-ping :: WebSocketsData a => a -> Message
+ping :: WebSocketsData a => a -> Message p
 ping = ControlMessage . Ping . toLazyByteString
 
 -- | Construct a pong message
-pong :: WebSocketsData a => a -> Message
+pong :: WebSocketsData a => a -> Message p
 pong = ControlMessage . Pong . toLazyByteString
 
 -- | Construct a text message
-textData :: WebSocketsData a => a -> Message
+textData :: WebSocketsData a => a -> Message p
 textData = DataMessage . Text . toLazyByteString
 
 -- | Construct a binary message
-binaryData :: WebSocketsData a => a -> Message
+binaryData :: WebSocketsData a => a -> Message p
 binaryData = DataMessage . Binary . toLazyByteString
-

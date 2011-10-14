@@ -84,7 +84,9 @@ module Network.WebSockets
     , sendBinaryData
 
       -- * Asynchronous sending
-    , I.getMessageSender
+    , I.Sink
+    , I.sendSink
+    , I.getSink
     , I.close
     , I.ping
     , I.pong
@@ -130,7 +132,7 @@ receiveFrame = do
     I.receive $ I.decodeFrame proto
 
 -- | Receive a message
-receiveMessage :: I.Protocol p => I.WebSockets p I.Message
+receiveMessage :: I.Protocol p => I.WebSockets p (I.Message p)
 receiveMessage = I.WebSockets $ do
     f <- I.unWebSockets receiveFrame
     s <- get
@@ -141,7 +143,7 @@ receiveMessage = I.WebSockets $ do
         Just m  -> return m
 
 -- | Receive an application message. Automatically respond to control messages.
-receiveDataMessage :: I.Protocol p => I.WebSockets p I.DataMessage
+receiveDataMessage :: I.Protocol p => I.WebSockets p (I.DataMessage p)
 receiveDataMessage = do
     m <- receiveMessage
     case m of
@@ -166,16 +168,13 @@ receiveData = do
 
 -- | Send a 'I.Response' to the socket immediately.
 sendResponse :: I.Protocol p => I.Response -> I.WebSockets p ()
-sendResponse response = do
-    sender <- I.getSender E.response
-    liftIO $ sender response
+sendResponse response = I.send E.response response
 
 -- | A low-level function to send an arbitrary frame over the wire.
 sendFrame :: I.Protocol p => I.Frame -> I.WebSockets p ()
 sendFrame frame = do
     proto <- I.getProtocol
-    sender <- I.getSender (I.encodeFrame proto)
-    liftIO $ sender frame
+    I.send (I.encodeFrame proto) frame
 
 -- | Send a text message
 sendTextData :: (I.Protocol p, I.WebSocketsData a) => a -> I.WebSockets p ()

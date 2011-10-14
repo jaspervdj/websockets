@@ -19,7 +19,9 @@ newtype DemultiplexState = DemultiplexState
 emptyDemultiplexState :: DemultiplexState
 emptyDemultiplexState = DemultiplexState Nothing
 
-demultiplex :: DemultiplexState -> Frame -> (Maybe Message, DemultiplexState)
+demultiplex :: DemultiplexState
+            -> Frame
+            -> (Maybe (Message p), DemultiplexState)
 demultiplex state (Frame fin tp pl) = case tp of
     -- Return control messages immediately, they have no influence on the state
     CloseFrame  -> (Just (ControlMessage (Close pl)), state)

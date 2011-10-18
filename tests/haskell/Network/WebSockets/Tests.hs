@@ -8,7 +8,7 @@ import Control.Monad (replicateM)
 import Data.Attoparsec (Result (..), parse)
 import Test.Framework (Test, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
-import Test.QuickCheck (Arbitrary (..), Gen, elements, oneof)
+import Test.QuickCheck (Arbitrary (..), Gen, choose, elements, oneof)
 import qualified Blaze.ByteString.Builder as Builder
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
@@ -18,12 +18,13 @@ import qualified Data.Text.Lazy.Encoding as TL
 import qualified Data.Enumerator as E
 
 import Network.WebSockets.Mask
+import Network.WebSockets.Protocol (Protocol (..))
+import Network.WebSockets.Protocol.Hybi00 (Hybi00_ (..))
+import Network.WebSockets.Protocol.Hybi10 (Hybi10_ (..))
 import Network.WebSockets.Types
 import qualified Network.WebSockets.Decode as D
 import qualified Network.WebSockets.Encode as E
-import Network.WebSockets.Protocol.Hybi10 (Hybi10_ (..))
-import Network.WebSockets.Protocol.Hybi00 (Hybi00_ (..))
-import Network.WebSockets.Protocol (Protocol (..))
+import qualified Network.WebSockets.Protocol.Unsafe as Unsafe
 
 tests :: Test
 tests = testGroup "Network.WebSockets.Test"
@@ -79,10 +80,37 @@ instance Arbitrary Frame where
             _ -> BL.pack <$> arbitrary
         return $ Frame fin t payload
 
-newtype Frames = Frames [Frame]
+data FragmentedMessage p
+    = FragmentedMessage (Message p) [Frame]
+    deriving (Show)
 
-instance Arbitrary Frames where
-    arbitrary = undefined
+instance Arbitrary (FragmentedMessage p) where
+    arbitrary = do
+        ft <- elements [TextFrame, BinaryFrame]
+        payload <- arbitraryUtf8
+        fragments <- arbitraryFragmentation payload
+        let fs = makeFrames $ zip (ft : repeat ContinuationFrame) fragments
+            msg = case ft of
+                TextFrame   -> Unsafe.textData payload
+                BinaryFrame -> Unsafe.binaryData payload
+                _           -> error "Arbitrary FragmentedMessage crashed"
+        return $ FragmentedMessage msg fs
+      where
+        makeFrames []              = []
+        makeFrames [(ft, pl)]      = [Frame True ft pl]
+        makeFrames ((ft, pl) : fr) = Frame False ft pl : makeFrames fr
 
 arbitraryUtf8 :: Gen BL.ByteString
 arbitraryUtf8 = toLazyByteString . TL.encodeUtf8 . TL.pack <$> arbitrary
+
+arbitraryFragmentation :: BL.ByteString -> Gen [BL.ByteString]
+arbitraryFragmentation bs = arbitraryFragmentation' bs
+  where
+    len :: Int
+    len = fromIntegral $ BL.length bs
+    arbitraryFragmentation' bs' = do
+        n <- choose (0, len - 1)
+        let (l, r) = BL.splitAt (fromIntegral n) bs'
+        case r of
+            "" -> return [l]
+            _  -> (l :) <$> arbitraryFragmentation' r

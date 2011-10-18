@@ -9,22 +9,11 @@ module Network.WebSockets.Handshake
     , receiveClientHandshake
     ) where
 
-import Data.Monoid (mappend, mconcat)
-import Control.Monad.Error (Error (..), throwError)
-
-import Data.Digest.Pure.SHA (bytestringDigest, sha1)
 import qualified Data.ByteString as B
-import qualified Data.ByteString.Base64 as B64
-import qualified Data.ByteString.Char8 as BC
-import qualified Data.ByteString.Lazy as BL
-import qualified Data.CaseInsensitive as CI
 
-import Network.WebSockets.Types
 import Network.WebSockets.Http
 import Network.WebSockets.Protocol
-import Network.WebSockets.Protocol.Hybi00 (Hybi00 (..))
-import Network.WebSockets.Protocol.Hybi10 (Hybi10 (..))
-
+import Network.WebSockets.Types
 
 -- | Receives and checks the client handshake.
 -- 
@@ -55,9 +44,9 @@ tryFinishRequest httpReq = tryInOrder implementations
     where
         tryInOrder []     = return . Left $ NotSupported
         tryInOrder (p:ps) = finishRequest p httpReq >>= \res -> case res of
-          e@(Left NotSupported) -> tryInOrder ps
-          (Left e)              -> return (Left e)  -- not "e@(Left _) -> return e" !
-          (Right req)           -> return . Right $ (req, p)
+          (Left NotSupported) -> tryInOrder ps
+          (Left e)            -> return (Left e)  -- not "e@(Left _) -> return e" !
+          (Right req)         -> return . Right $ (req, p)
 
 -- | An upgrade response
 response101 :: Headers -> Response

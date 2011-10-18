@@ -20,7 +20,7 @@
 --
 -- * You need to write a more low-level server in which you have control over
 --   control frames (e.g. ping/pong). In this case, you can use the
---   'receiveMessage' and 'sendMessage' methods.
+--   'receive' and 'send' methods.
 --
 -- In some cases, you want to escape from the 'I.WebSockets' monad and send data
 -- to the websocket from different threads. To this end, the
@@ -72,14 +72,14 @@ module Network.WebSockets
       -- * Receiving
     -- , receiveRequest
     , receiveFrame
-    , receiveMessage
+    , receive
     , receiveDataMessage
     , receiveData
 
       -- * Sending
     , sendResponse
     , sendFrame
-    , I.sendMessage
+    , I.send
     , sendTextData
     , sendBinaryData
 
@@ -130,23 +130,23 @@ import qualified Network.WebSockets.Types as I
 receiveFrame :: I.Protocol p => I.WebSockets p I.Frame
 receiveFrame = do
     proto <- I.getProtocol
-    I.receive $ I.decodeFrame proto
+    I.receiveWith $ I.decodeFrame proto
 
 -- | Receive a message
-receiveMessage :: I.Protocol p => I.WebSockets p (I.Message p)
-receiveMessage = I.WebSockets $ do
+receive :: I.Protocol p => I.WebSockets p (I.Message p)
+receive = I.WebSockets $ do
     f <- I.unWebSockets receiveFrame
     s <- get
     let (msg, s') = I.demultiplex s f
     put s'
     case msg of
-        Nothing -> I.unWebSockets receiveMessage
+        Nothing -> I.unWebSockets receive
         Just m  -> return m
 
 -- | Receive an application message. Automatically respond to control messages.
 receiveDataMessage :: I.Protocol p => I.WebSockets p (I.DataMessage p)
 receiveDataMessage = do
-    m <- receiveMessage
+    m <- receive
     case m of
         (I.DataMessage am) -> return am
         (I.ControlMessage cm) -> case cm of
@@ -160,7 +160,7 @@ receiveDataMessage = do
                 -- underlying protocol cannot encode this pong, our thread will
                 -- crash. We assume, however that the protocol /is/ able to
                 -- encode the pong, since it was able to encode a ping.
-                I.sendMessage $ Unsafe.pong pl
+                I.send $ Unsafe.pong pl
                 receiveDataMessage
 
 -- | Receive a message, treating it as data transparently
@@ -173,22 +173,22 @@ receiveData = do
 
 -- | Send a 'I.Response' to the socket immediately.
 sendResponse :: I.Protocol p => I.Response -> I.WebSockets p ()
-sendResponse response = I.send E.response response
+sendResponse response = I.sendWith E.response response
 
 -- | A low-level function to send an arbitrary frame over the wire.
 sendFrame :: I.Protocol p => I.Frame -> I.WebSockets p ()
 sendFrame frame = do
     proto <- I.getProtocol
-    I.send (I.encodeFrame proto) frame
+    I.sendWith (I.encodeFrame proto) frame
 
 -- | Send a text message
 sendTextData :: (I.TextProtocol p, I.WebSocketsData a) => a -> I.WebSockets p ()
-sendTextData = I.sendMessage . I.textData
+sendTextData = I.send . I.textData
 
 -- | Send some binary data
 sendBinaryData :: (I.BinaryProtocol p, I.WebSocketsData a)
                => a -> I.WebSockets p ()
-sendBinaryData = I.sendMessage . I.binaryData
+sendBinaryData = I.send . I.binaryData
 
 -- | Reject a request, sending a 400 (Bad Request) to the client and throwing a
 -- RequestRejected (HandshakeError)

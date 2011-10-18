@@ -9,9 +9,9 @@ module Network.WebSockets.Monad
     , runWebSocketsWith
     , runWebSocketsHandshake
     , runWebSocketsWithHandshake
-    , receive
+    , receiveWith
+    , sendWith
     , send
-    , sendMessage
     , Sink
     , sendSink
     , getSink
@@ -158,12 +158,12 @@ spawnPingThread i = do
     return ()
 
 -- | Receive some data from the socket, using a user-supplied parser.
-receive :: Decoder p a -> WebSockets p a
-receive = liftIteratee . receiveIteratee
+receiveWith :: Decoder p a -> WebSockets p a
+receiveWith = liftIteratee . receiveIteratee
 
 -- todo: move some stuff to another module. "Decode"?
 
--- | Underlying iteratee version of 'receive'.
+-- | Underlying iteratee version of 'receiveWith'.
 receiveIteratee :: Decoder p a -> Iteratee ByteString IO a
 receiveIteratee parser = do
     eof <- isEOF
@@ -188,14 +188,14 @@ sendIteratee enc resp outIter = do
     liftIO $ mkSend (builderSender outIter) enc resp
 
 -- | Low-leven sending with an arbitrary 'Encoder'
-send :: Encoder p a -> a -> WebSockets p ()
-send encoder x = WebSockets $ do
+sendWith :: Encoder p a -> a -> WebSockets p ()
+sendWith encoder x = WebSockets $ do
     send' <- sendBuilder <$> ask
     liftIO $ mkSend send' encoder x
 
 -- | Low-level sending with an arbitrary 'T.Message'
-sendMessage :: Protocol p => T.Message p -> WebSockets p ()
-sendMessage msg = getSink >>= \sink -> liftIO $ sendSink sink msg
+send :: Protocol p => T.Message p -> WebSockets p ()
+send msg = getSink >>= \sink -> liftIO $ sendSink sink msg
 
 -- | Used for asynchronous sending.
 newtype Sink p = Sink {unSink :: Message p -> IO ()}

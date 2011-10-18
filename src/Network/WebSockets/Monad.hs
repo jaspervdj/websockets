@@ -27,25 +27,18 @@ module Network.WebSockets.Monad
 import Control.Applicative ((<$>))
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.MVar (newMVar, withMVar)
-import Control.Exception
-import Control.Monad
-import Control.Monad.Reader
-import Control.Monad.State (StateT, evalStateT, get, put)
+import Control.Exception (Exception (..), SomeException, throw)
+import Control.Monad (forever)
+import Control.Monad.Reader (ReaderT, ask, runReaderT)
+import Control.Monad.State (StateT, evalStateT, get)
 import Control.Monad.Trans (MonadIO, lift, liftIO)
-import Data.List (sort, isPrefixOf)
-import System.Random (randomRIO)
 
 import Blaze.ByteString.Builder (Builder)
 import Blaze.ByteString.Builder.Enumerator (builderToByteString)
-import Data.Attoparsec.Enumerator (iterParser)
-import qualified Data.Attoparsec.Enumerator as AE
-import Data.Attoparsec (parse, Parser(..), Result(..))
 import Data.ByteString (ByteString)
-import Data.Enumerator ( Enumerator, Iteratee, Stream (..), checkContinue0, isEOF, returnI
-                       , run, ($$), (>>==), throwError
-                       )
+import Data.Enumerator (Enumerator, Iteratee, ($$), (>>==))
+import qualified Data.Attoparsec.Enumerator as AE
 import qualified Data.Enumerator as E
-import qualified Data.ByteString as B
 
 import Network.WebSockets.Demultiplex (DemultiplexState, emptyDemultiplexState)
 import Network.WebSockets.Handshake
@@ -167,10 +160,10 @@ receiveWith = liftIteratee . receiveIteratee
 -- | Underlying iteratee version of 'receiveWith'.
 receiveIteratee :: Decoder p a -> Iteratee ByteString IO a
 receiveIteratee parser = do
-    eof <- isEOF
+    eof <- E.isEOF
     if eof
         then E.throwError ConnectionClosed
-        else wrappingParseError . iterParser $ parser
+        else wrappingParseError . AE.iterParser $ parser
 
 -- | Like receiveIteratee, but if the supplied parser is happy with no input,
 -- we don't supply any more. This is very, very important when we have parsers
@@ -223,11 +216,11 @@ mkSend send' encoder x = do
     send' $ encoder mask x
 
 singleton :: Monad m => a -> Enumerator a m b
-singleton c = checkContinue0 $ \_ f -> f (Chunks [c]) >>== returnI
+singleton c = E.checkContinue0 $ \_ f -> f (E.Chunks [c]) >>== E.returnI
 
 builderSender :: MonadIO m => Iteratee ByteString m b -> Builder -> m ()
 builderSender outIter x = do
-    ok <- run $ singleton x $$ builderToByteString $$ outIter
+    ok <- E.run $ singleton x $$ builderToByteString $$ outIter
     case ok of
         Left err -> throw err
         Right _  -> return ()
@@ -246,7 +239,7 @@ getVersion = version <$> getProtocol
 
 -- | Throw an iteratee error in the WebSockets monad
 throwWsError :: (Exception e) => e -> WebSockets p a
-throwWsError = liftIteratee . throwError
+throwWsError = liftIteratee . E.throwError
 
 -- | Catch an iteratee error in the WebSockets monad
 catchWsError :: WebSockets p a -> (SomeException -> WebSockets p a) -> WebSockets p a

@@ -10,27 +10,17 @@ import Control.Concurrent (forkIO)
 import Control.Monad (forever)
 import Control.Monad.Trans (liftIO)
 
-import Network.Socket ( Family (..), SockAddr (..), Socket
-                      , SocketOption (ReuseAddr), SocketType (..)
-                      , accept, bindSocket, defaultProtocol, inet_addr, listen
-                      , sClose, setSocketOption, socket, withSocketsDo
-                      , sIsWritable
-                      )
-import Network.Socket.ByteString (recv, sendMany)
-
 import Data.ByteString (ByteString)
-import Data.Enumerator ( Enumerator, Iteratee (..), Stream (..)
-                       , checkContinue0, continue, run, yield, (>>==), ($$)
-                       , tryIO, throwError, catchError
-                       )
+import Data.Enumerator (Enumerator, Iteratee, (>>==), ($$))
+import Network.Socket (Socket)
+import qualified Data.Enumerator as E
+import qualified Network.Socket as S
+import qualified Network.Socket.ByteString as SB
 
 import Network.WebSockets.Http
 import Network.WebSockets.Monad
 import Network.WebSockets.Protocol
 import Network.WebSockets.Types
-
-import Data.IORef
-import Control.Monad
 
 -- | Provides a simple server. This function blocks forever. Note that this
 -- is merely provided for quick-and-dirty standalone applications, for real
@@ -40,14 +30,14 @@ runServer :: Protocol p
           -> Int                           -- ^ Port to listen on
           -> (Request -> WebSockets p ())  -- ^ Application to serve
           -> IO ()                         -- ^ Never returns
-runServer host port ws = withSocketsDo $ do
-    sock <- socket AF_INET Stream defaultProtocol
-    _ <- setSocketOption sock ReuseAddr 1
-    host' <- inet_addr host
-    bindSocket sock (SockAddrInet (fromIntegral port) host')
-    listen sock 5
+runServer host port ws = S.withSocketsDo $ do
+    sock <- S.socket S.AF_INET S.Stream S.defaultProtocol
+    _ <- S.setSocketOption sock S.ReuseAddr 1
+    host' <- S.inet_addr host
+    S.bindSocket sock (S.SockAddrInet (fromIntegral port) host')
+    S.listen sock 5
     forever $ do
-        (conn, _) <- accept sock
+        (conn, _) <- S.accept sock
         -- Voodoo fix: set this to True as soon as we notice the connection was
         -- closed. Will prevent sendIter' from even trying to send anything.
         -- Without it, we got many "Couldn't decode text frame as UTF8" errors
@@ -61,24 +51,24 @@ runServer host port ws = withSocketsDo $ do
 runWithSocket :: Protocol p
               => Socket -> (Request -> WebSockets p a) -> IO a
 runWithSocket s ws = do
-    r <- run $ receiveEnum s $$ runWebSocketsWithHandshake defaultWebSocketsOptions ws (sendIter s)
-    sClose s
+    r <- E.run $ receiveEnum s $$ runWebSocketsWithHandshake defaultWebSocketsOptions ws (sendIter s)
+    S.sClose s
     either (error . show) return r
 
 receiveEnum :: Socket -> Enumerator ByteString IO a
-receiveEnum s = checkContinue0 $ \loop f -> do
-    b <- liftIO $ recv s 4096
+receiveEnum s = E.checkContinue0 $ \loop f -> do
+    b <- liftIO $ SB.recv s 4096
     if b == ""
-        then continue f
-        else f (Chunks [b]) >>== loop
+        then E.continue f
+        else f (E.Chunks [b]) >>== loop
 
 sendIter :: Socket -> Iteratee ByteString IO ()
-sendIter s = continue go
+sendIter s = E.continue go
   where
-    go (Chunks []) = continue go
-    go (Chunks cs) = do
-      b <- liftIO $ sIsWritable s
+    go (E.Chunks []) = E.continue go
+    go (E.Chunks cs) = do
+      b <- liftIO $ S.sIsWritable s
       if b
-        then tryIO (sendMany s cs) >> continue go
-        else throwError ConnectionClosed
-    go EOF         = yield () EOF
+        then E.tryIO (SB.sendMany s cs) >> E.continue go
+        else E.throwError ConnectionClosed
+    go E.EOF         = E.yield () E.EOF

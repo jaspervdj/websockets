@@ -13,26 +13,27 @@ import qualified Blaze.ByteString.Builder as Builder
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TL
+import qualified Data.Enumerator as E
+
 import Network.WebSockets.Mask
 import Network.WebSockets.Types
 import qualified Network.WebSockets.Decode as D
 import qualified Network.WebSockets.Encode as E
-
-import Network.WebSockets.Protocol.Hybi10 (hybi10)
-import Network.WebSockets.Protocol.Hybi00 (hybi00)
-
-import qualified Data.Text.Lazy as TL
-import qualified Data.Text.Lazy.Encoding as TL
+import Network.WebSockets.Protocol.Hybi10 (Hybi10_ (..))
+import Network.WebSockets.Protocol.Hybi00 (Hybi00_ (..))
+import Network.WebSockets.Protocol (Protocol (..))
 
 tests :: Test
 tests = testGroup "Network.WebSockets.Test"
-    [ testProperty "encodeFrameDecodeFrame-hybi10" (encodeFrameDecodeFrame hybi10)
-    , testProperty "encodeFrameDecodeFrame-hybi00" (encodeFrameDecodeFrameFor00 hybi00)
+    [ testProperty "encodeFrameDecodeFrame-hybi10" (encodeFrameDecodeFrame Hybi10_)
+    , testProperty "encodeFrameDecodeFrame-hybi00" (encodeFrameDecodeFrameFor00 Hybi00_)
     ]
 
 -- | Encode a frame, then decode it again. We should obviously get our original
 -- frame back
-encodeFrameDecodeFrame :: Protocol -> ArbitraryMask -> Frame -> Bool
+encodeFrameDecodeFrame :: Protocol p => p -> ArbitraryMask -> Frame -> Bool
 encodeFrameDecodeFrame proto (ArbitraryMask m) f =
     let lbs = Builder.toLazyByteString $ (encodeFrame proto) m f
         bs = B.concat $ BL.toChunks lbs
@@ -40,7 +41,7 @@ encodeFrameDecodeFrame proto (ArbitraryMask m) f =
         Done "" r -> f == r
         err       -> error ("encodeFrameDecodeFrame: " ++ show err)
 
-encodeFrameDecodeFrameFor00 :: Protocol -> ArbitraryMask -> ArbitraryFrameFor00 -> Bool
+encodeFrameDecodeFrameFor00 :: Protocol p => p -> ArbitraryMask -> ArbitraryFrameFor00 -> Bool
 encodeFrameDecodeFrameFor00 proto am (ArbitraryFrameFor00 f) = encodeFrameDecodeFrame proto am f
 
 newtype ArbitraryFrameFor00 = ArbitraryFrameFor00 Frame
@@ -78,6 +79,10 @@ instance Arbitrary Frame where
             _ -> BL.pack <$> arbitrary
         return $ Frame fin t payload
 
+newtype Frames = Frames [Frame]
+
+instance Arbitrary Frames where
+    arbitrary = undefined
+
 arbitraryUtf8 :: Gen BL.ByteString
 arbitraryUtf8 = toLazyByteString . TL.encodeUtf8 . TL.pack <$> arbitrary
-

@@ -13,8 +13,7 @@ module Network.WebSockets.Protocol
 
 import qualified Data.ByteString as B
 
-import Network.WebSockets.Decode (Decoder)
-import Network.WebSockets.Encode (Encoder)
+import Network.WebSockets.Http
 import Network.WebSockets.Types
 import qualified Network.WebSockets.Protocol.Unsafe as Unsafe
 

@@ -24,9 +24,10 @@ import Data.Enumerator ( Enumerator, Iteratee (..), Stream (..)
                        , tryIO, throwError, catchError
                        )
 
+import Network.WebSockets.Http
 import Network.WebSockets.Monad
-import Network.WebSockets.Protocol (Protocol (..))
-import Network.WebSockets.Types (Request, HandshakeError, ConnectionError (..))
+import Network.WebSockets.Protocol
+import Network.WebSockets.Types
 
 import Data.IORef
 import Control.Monad

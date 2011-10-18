@@ -6,7 +6,7 @@ module Network.WebSockets.Protocol.Hybi10
 
 import Control.Applicative (pure, (<$>))
 import Data.Bits ((.&.), (.|.))
-import Data.Monoid (mappend, mempty)
+import Data.Monoid (mempty)
 
 import Data.Attoparsec (anyWord8)
 import Data.Binary.Get (runGet, getWord16be, getWord64be)
@@ -19,18 +19,14 @@ import qualified Data.ByteString.Lazy as BL
 import Data.Digest.Pure.SHA (bytestringDigest, sha1)
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as BC
-import qualified Data.ByteString.Lazy as BL
 import qualified Data.CaseInsensitive as CI
-import Control.Monad.Error (Error (..), throwError)
+import Control.Monad.Error (throwError)
 import Data.Monoid (mappend, mconcat)
 
-import Network.WebSockets.Decode (Decoder)
-import Network.WebSockets.Encode (Encoder)
+import Network.WebSockets.Http
 import Network.WebSockets.Mask
 import Network.WebSockets.Protocol
 import Network.WebSockets.Types
-
-import Control.Monad
 
 data Hybi10_ = Hybi10_
 
@@ -143,6 +139,8 @@ response101 headers = Response 101 "WebSocket Protocol Handshake"
     ""
 
 -- | Bad request
+--
+-- TODO: What is this doing here?
 response400 :: Headers -> Response
 response400 headers = Response 400 "Bad Request" headers ""
 

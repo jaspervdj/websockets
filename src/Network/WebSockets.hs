@@ -105,11 +105,9 @@ import Control.Monad.State (put, get)
 import Control.Monad.Trans (liftIO)
 import Control.Monad
 
-import qualified Network.WebSockets.Decode as D
 import qualified Network.WebSockets.Demultiplex as I
-import qualified Network.WebSockets.Encode as E
-
 import qualified Network.WebSockets.Handshake as I
+import qualified Network.WebSockets.Http as I
 import qualified Network.WebSockets.Monad as I
 import qualified Network.WebSockets.Protocol as I
 import qualified Network.WebSockets.Protocol.Hybi00 as I
@@ -173,7 +171,7 @@ receiveData = do
 
 -- | Send a 'I.Response' to the socket immediately.
 sendResponse :: I.Protocol p => I.Response -> I.WebSockets p ()
-sendResponse response = I.sendWith E.response response
+sendResponse response = I.sendWith I.encodeResponse response
 
 -- | A low-level function to send an arbitrary frame over the wire.
 sendFrame :: I.Protocol p => I.Frame -> I.WebSockets p ()

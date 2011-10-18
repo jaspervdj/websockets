@@ -1,35 +1,13 @@
 -- | Encoding of types to the WebSocket protocol. We always encode to
 -- 'B.Builder' values.
-{-# LANGUAGE OverloadedStrings #-}
-module Network.WebSockets.Encode
+module Network.WebSockets.Encode {-# DEPRECATED "Encoder" #-}
     ( Encoder
-    , response
     , message
     , controlMessage
     , dataMessage
     ) where
 
-import Data.Monoid (mappend, mconcat)
-
-import Data.ByteString.Char8 ()
-import qualified Blaze.ByteString.Builder as B
-import qualified Blaze.ByteString.Builder.Char.Utf8 as B
-import qualified Data.CaseInsensitive as CI
-
 import Network.WebSockets.Types
-
--- | Encode an HTTP upgrade response
-response :: Encoder p Response
-response _ (Response code msg headers body) =
-    B.copyByteString "HTTP/1.1 " `mappend` B.fromString (show code) `mappend`
-    B.fromChar ' ' `mappend` B.fromByteString msg `mappend`
-    B.fromByteString "\r\n" `mappend`
-    mconcat (map header headers) `mappend` B.copyByteString "\r\n" `mappend`
-    -- (body is empty except for version -00)
-    B.copyByteString body
-  where
-    header (k, v) = mconcat $ map B.copyByteString
-        [CI.original k, ": ", v, "\r\n"]
 
 -- | Encode a message
 message :: Encoder p Frame -> Encoder p (Message p)

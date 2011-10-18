@@ -1,7 +1,8 @@
 -- | Implementation of the WebSocket handshake
 {-# LANGUAGE OverloadedStrings #-}
 module Network.WebSockets.Handshake
-    ( response101
+    ( HandshakeError (..)
+    , response101
     , response400
     , responseError
     , tryFinishRequest
@@ -19,11 +20,11 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.CaseInsensitive as CI
 
 import Network.WebSockets.Types
+import Network.WebSockets.Http
 import Network.WebSockets.Protocol
 import Network.WebSockets.Protocol.Hybi00 (Hybi00 (..))
 import Network.WebSockets.Protocol.Hybi10 (Hybi10 (..))
 
-import Network.WebSockets.Decode
 
 -- | Receives and checks the client handshake.
 -- 
@@ -40,7 +41,7 @@ import Network.WebSockets.Decode
 -- | (try to) receive and validate a complete request. Not used at the moment.
 receiveClientHandshake :: Protocol p
                        => Decoder p (Either HandshakeError (Request, p))
-receiveClientHandshake = request >>= tryFinishRequest
+receiveClientHandshake = decodeRequest >>= tryFinishRequest
 
 -- | Given the HTTP part, try the available protocols one by one.
 -- todo: auto-check if the "Version" header matches? (if any)

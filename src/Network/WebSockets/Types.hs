@@ -3,9 +3,9 @@
 
 -- | Primary types
 module Network.WebSockets.Types
-    ( Headers
-    , Request (..)
-    , Response (..)
+    ( Decoder
+    , Encoder
+
     , FrameType (..)
     , Frame (..)
     , Message (..)
@@ -13,51 +13,28 @@ module Network.WebSockets.Types
     , DataMessage (..)
     , WebSocketsData (..)
 
-    , HandshakeError (..)
     , ConnectionError (..)
-    , RequestHttpPart (..)
-    , Encoder
-    , Decoder
     ) where
 
 import Control.Exception (Exception(..))
-import Control.Monad.Error (Error(..))
 import Data.Typeable (Typeable)
-import qualified Data.Attoparsec.Enumerator as AE
 
 import Data.Attoparsec (Parser)
 import qualified Blaze.ByteString.Builder as B
+import qualified Data.Attoparsec.Enumerator as AE
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
-import qualified Data.CaseInsensitive as CI
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TL
 
 import Network.WebSockets.Mask
 
--- | Request headers
-type Headers = [(CI.CI B.ByteString, B.ByteString)]
-
 -- | An alias so we don't have to import attoparsec everywhere
 type Decoder p a = Parser a
 
--- todo: restructure the module hierarchy
-
 -- | The inverse of a parser
 type Encoder p a = Mask -> a -> B.Builder
-
--- | Error in case of failed handshake. Will be thrown as an iteratee
--- exception. ('Error' condition).
-data HandshakeError =
-      NotSupported                             -- ^ We don't have a match for the protocol requested by the client.
-                                               -- todo: version parameter
-    | MalformedRequest RequestHttpPart String  -- ^ The request was somehow invalid (missing headers or wrong security token)
-    | RequestRejected  Request String          -- ^ The request was well-formed, but the library user rejected it.
-                                               -- (e.g. "unknown path")
-    | OtherHandshakeError String               -- ^ for example "EOF came too early" (which is actually a parse error)
-                                               -- or for your own errors. (like "unknown path"?)
-    deriving (Show, Typeable)
 
 -- | The connection couldn't be established or broke down unexpectedly. thrown
 -- as an iteratee exception.
@@ -69,33 +46,7 @@ data ConnectionError =
                                      -- todo: Also want this for sending.
     deriving (Show, Typeable)
 
-instance Error HandshakeError where
-    strMsg = OtherHandshakeError
-
-instance Exception HandshakeError
 instance Exception ConnectionError
-
--- | (internal) HTTP headers and requested path.
-data RequestHttpPart = RequestHttpPart
-    { requestHttpPath    :: !B.ByteString
-    , requestHttpHeaders :: Headers
-    } deriving (Eq, Show)
-
--- | Simple request type
-data Request = Request
-    { requestPath     :: !B.ByteString
-    , requestHeaders  :: Headers
-    , requestResponse :: Response
-    }
-    deriving (Show)
-
--- | Response to a 'Request'
-data Response = Response
-    { responseCode    :: !Int
-    , responseMessage :: !B.ByteString
-    , responseHeaders :: Headers
-    , responseBody    :: B.ByteString
-    } deriving (Show)
 
 -- | A frame
 data Frame = Frame

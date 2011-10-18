@@ -47,10 +47,9 @@ import Data.Enumerator ( Enumerator, Iteratee, Stream (..), checkContinue0, isEO
 import qualified Data.Enumerator as E
 import qualified Data.ByteString as B
 
-import Network.WebSockets.Decode (Decoder, request)
 import Network.WebSockets.Demultiplex (DemultiplexState, emptyDemultiplexState)
-import Network.WebSockets.Encode (Encoder)
 import Network.WebSockets.Handshake
+import Network.WebSockets.Http
 import Network.WebSockets.Mask
 import Network.WebSockets.Protocol
 import Network.WebSockets.ShyIterParser
@@ -96,7 +95,7 @@ runWebSocketsWithHandshake :: Protocol p
                            -> Iteratee ByteString IO ()
                            -> Iteratee ByteString IO a
 runWebSocketsWithHandshake opts goWs outIter = do
-    httpReq <- receiveIteratee request
+    httpReq <- receiveIteratee decodeRequest
     runWebSocketsWith opts httpReq goWs outIter
 
 -- | Run a 'WebSockets' application on an 'Enumerator'/'Iteratee' pair, given
@@ -127,7 +126,7 @@ runWebSocketsWith opts httpReq goWs outIter = do
     mreq <- receiveIterateeShy $ tryFinishRequest httpReq
     case mreq of
         (Left err) -> do
-            sendIteratee E.response (responseError impls err) outIter
+            sendIteratee encodeResponse (responseError impls err) outIter
             E.throwError err
         (Right (r, p)) -> runWebSocketsWith' opts p (goWs r) outIter
 

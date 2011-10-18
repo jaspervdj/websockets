@@ -6,25 +6,22 @@ module Network.WebSockets.Protocol.Hybi00
        , Hybi00
        ) where
 
-import Control.Applicative
+import Control.Applicative ((<|>))
 import Control.Monad.Error (throwError, ErrorT (..))
 import Control.Monad.Trans (lift)
+import Data.Char (isDigit)
 
-import Data.Char (isDigit, chr, ord)
-
-import Data.Digest.Pure.MD5 (md5)
-import Data.Bits (shift)
-import Data.Word (Word8)
 import Data.Binary (encode)
+import Data.Digest.Pure.MD5 (md5)
 import Data.Int (Int32)
 import qualified Blaze.ByteString.Builder as BB
-import qualified Data.CaseInsensitive as CI
-import qualified Data.ByteString.Lazy as BL
+import qualified Data.Attoparsec as A
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
-import qualified Data.Attoparsec as A
+import qualified Data.ByteString.Lazy as BL
+import qualified Data.CaseInsensitive as CI
 
-import Network.WebSockets.Encode (Encoder)
+import Network.WebSockets.Http
 import Network.WebSockets.Protocol
 import Network.WebSockets.Types
 import Network.WebSockets.Protocol.Hybi10 (Hybi10_ (..))
@@ -51,13 +48,13 @@ decodeFrameHybi00 :: Decoder p Frame
 decodeFrameHybi00 = decodeTextFrame <|> decodeCloseFrame
   where
     decodeTextFrame = do
-        _ <- A.word8 $ fromIntegral 0
-        utf8string <- A.manyTill A.anyWord8 (A.try . A.word8 . fromIntegral $ 255)
+        _ <- A.word8 0x00
+        utf8string <- A.manyTill A.anyWord8 (A.try $ A.word8 0xff)
         return $ Frame True TextFrame $ BL.pack utf8string
 
     decodeCloseFrame = do
-        _ <- A.word8 $ fromIntegral 255
-        _ <- A.word8 $ fromIntegral 0
+        _ <- A.word8 0xff
+        _ <- A.word8 0x00
         return $ Frame True CloseFrame ""
 
 divBySpaces :: String -> Maybe Int32

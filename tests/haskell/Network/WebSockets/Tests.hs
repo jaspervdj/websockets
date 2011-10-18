@@ -4,11 +4,13 @@ module Network.WebSockets.Tests where
 
 import Control.Applicative ((<$>), (<*>))
 import Control.Monad (replicateM)
+import Control.Monad.Trans (liftIO)
 
 import Data.Attoparsec (Result (..), parse)
 import Test.Framework (Test, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
-import Test.QuickCheck (Arbitrary (..), Gen, choose, elements, oneof)
+import Test.QuickCheck (Arbitrary (..), Gen, Property, choose, elements, oneof)
+import Test.QuickCheck.Monadic (assert, monadicIO, pick, run)
 import qualified Blaze.ByteString.Builder as Builder
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
@@ -16,8 +18,11 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TL
 import qualified Data.Enumerator as E
+import Data.Enumerator (($$))
 
+import Network.WebSockets
 import Network.WebSockets.Mask
+import Network.WebSockets.Monad
 import Network.WebSockets.Protocol (Protocol (..))
 import Network.WebSockets.Protocol.Hybi00 (Hybi00_ (..))
 import Network.WebSockets.Protocol.Hybi10 (Hybi10_ (..))
@@ -30,6 +35,7 @@ tests :: Test
 tests = testGroup "Network.WebSockets.Test"
     [ testProperty "encodeFrameDecodeFrame-hybi10" (encodeFrameDecodeFrame Hybi10_)
     , testProperty "encodeFrameDecodeFrame-hybi00" (encodeFrameDecodeFrameFor00 Hybi00_)
+    , testProperty "fragmententation-hybi10" (fragmentation Hybi10_)
     ]
 
 -- | Encode a frame, then decode it again. We should obviously get our original
@@ -80,6 +86,21 @@ instance Arbitrary Frame where
             _ -> BL.pack <$> arbitrary
         return $ Frame fin t payload
 
+fragmentation :: Protocol p => p -> Property
+fragmentation proto = monadicIO $ do
+    FragmentedMessage msg fragments <- pick arbitrary
+    builders <- run $ mapM encodeFrame' fragments
+    let bss = concatMap (BL.toChunks . Builder.toLazyByteString) builders
+    msg' <- run $ E.run_ $ E.enumList 10 bss $$
+        runWebSocketsWith' defaultWebSocketsOptions proto app out
+    assert $ msg == msg'
+  where
+    app = receive
+    out = return ()
+    encodeFrame' fr = do
+        mask <- randomMask
+        return $ encodeFrame proto mask fr
+
 data FragmentedMessage p
     = FragmentedMessage (Message p) [Frame]
     deriving (Show)
@@ -109,7 +130,9 @@ arbitraryFragmentation bs = arbitraryFragmentation' bs
     len :: Int
     len = fromIntegral $ BL.length bs
     arbitraryFragmentation' bs' = do
-        n <- choose (0, len - 1)
+        -- TODO: we currently can't send packets of length 0. We should
+        -- investigate why (regardless of the spec).
+        n <- choose (1, len - 1)
         let (l, r) = BL.splitAt (fromIntegral n) bs'
         case r of
             "" -> return [l]

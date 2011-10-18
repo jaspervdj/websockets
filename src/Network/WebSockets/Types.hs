@@ -118,14 +118,14 @@ data FrameType
 data Message p
     = ControlMessage (ControlMessage p)
     | DataMessage    (DataMessage p)
-    deriving (Show)
+    deriving (Eq, Show)
 
 -- | Different control messages
 data ControlMessage p
     = Close BL.ByteString
     | Ping BL.ByteString
     | Pong BL.ByteString
-    deriving (Show)
+    deriving (Eq, Show)
 
 -- | For an end-user of this library, dealing with 'Frame's would be a bit
 -- low-level. This is why define another type on top of it, which represents
@@ -133,7 +133,7 @@ data ControlMessage p
 data DataMessage p
     = Text BL.ByteString
     | Binary BL.ByteString
-    deriving (Show)
+    deriving (Eq, Show)
 
 -- | In order to have an even more high-level API, we define a typeclass for
 -- values the user can receive from and send to the socket. A few warnings

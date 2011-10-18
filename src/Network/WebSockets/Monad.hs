@@ -9,6 +9,7 @@ module Network.WebSockets.Monad
     , runWebSocketsWith
     , runWebSocketsHandshake
     , runWebSocketsWithHandshake
+    , runWebSocketsWith'
     , receiveWith
     , sendWith
     , send
@@ -50,6 +51,7 @@ import Network.WebSockets.Decode (Decoder, request)
 import Network.WebSockets.Demultiplex (DemultiplexState, emptyDemultiplexState)
 import Network.WebSockets.Encode (Encoder)
 import Network.WebSockets.Handshake
+import Network.WebSockets.Mask
 import Network.WebSockets.Protocol
 import Network.WebSockets.ShyIterParser
 import Network.WebSockets.Types as T
@@ -218,10 +220,8 @@ getSink = WebSockets $ do
 -- TODO: rename to mkEncodedSender?
 mkSend :: (Builder -> IO ()) -> Encoder p a -> a -> IO ()
 mkSend send' encoder x = do
-    bytes <- replicateM 4 (liftIO randomByte)
-    send' (encoder (Just (B.pack bytes)) x)
-  where
-    randomByte = fromIntegral <$> randomRIO (0x00 :: Int, 0xff)
+    mask <- randomMask
+    send' $ encoder mask x
 
 singleton :: Monad m => a -> Enumerator a m b
 singleton c = checkContinue0 $ \_ f -> f (Chunks [c]) >>== returnI

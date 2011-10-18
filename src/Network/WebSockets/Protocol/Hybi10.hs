@@ -27,7 +27,7 @@ import Data.Monoid (mappend, mconcat)
 import Network.WebSockets.Decode (Decoder)
 import Network.WebSockets.Encode (Encoder)
 import Network.WebSockets.Mask
-import Network.WebSockets.Protocol (Protocol (..))
+import Network.WebSockets.Protocol
 import Network.WebSockets.Types
 
 import Control.Monad
@@ -155,3 +155,6 @@ instance Protocol Hybi10 where
     decodeFrame   (Hybi10 p) = decodeFrame p
     finishRequest (Hybi10 p) = finishRequest p
     implementations          = [Hybi10 Hybi10_]
+
+instance TextProtocol Hybi10
+instance BinaryProtocol Hybi10

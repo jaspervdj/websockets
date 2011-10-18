@@ -24,13 +24,14 @@ module Network.WebSockets.Monad
     ) where
 
 import Control.Applicative ((<$>))
-import Control.Concurrent.MVar (newMVar, withMVar)
 import Control.Concurrent (forkIO, threadDelay)
+import Control.Concurrent.MVar (newMVar, withMVar)
+import Control.Exception
 import Control.Monad
 import Control.Monad.Reader
 import Control.Monad.State (StateT, evalStateT, get, put)
 import Control.Monad.Trans (MonadIO, lift, liftIO)
-import Control.Exception
+import Data.List (sort, isPrefixOf)
 import System.Random (randomRIO)
 
 import Blaze.ByteString.Builder (Builder)
@@ -48,15 +49,11 @@ import qualified Data.ByteString as B
 import Network.WebSockets.Decode (Decoder, request)
 import Network.WebSockets.Demultiplex (DemultiplexState, emptyDemultiplexState)
 import Network.WebSockets.Encode (Encoder)
-import qualified Network.WebSockets.Encode as E
-import Network.WebSockets.Types as T
-import Network.WebSockets.Protocol (Protocol (..))
-
 import Network.WebSockets.Handshake
-
+import Network.WebSockets.Protocol
 import Network.WebSockets.ShyIterParser
-
-import Data.List (sort, isPrefixOf)
+import Network.WebSockets.Types as T
+import qualified Network.WebSockets.Encode as E
 
 -- | Options for the WebSocket program
 data WebSocketsOptions = WebSocketsOptions
@@ -152,11 +149,11 @@ runWebSocketsWith' opts proto ws outIter = do
 
 -- | @spawnPingThread n@ spawns a thread which sends a ping every @n@ seconds
 -- (if the protocol supports it). To be called after having sent the response.
-spawnPingThread :: Protocol p => Int -> WebSockets p ()
+spawnPingThread :: BinaryProtocol p => Int -> WebSockets p ()
 spawnPingThread i = do
     sink <- getSink
     _ <- liftIO $ forkIO $ forever $ do
-        sendSink sink $ T.ping ("Hi" :: ByteString)
+        sendSink sink $ ping ("Hi" :: ByteString)
         threadDelay (i * 1000 * 1000)  -- seconds
     return ()
 
@@ -266,4 +263,3 @@ catchWsError act c = WebSockets $ do
 -- | Lift an Iteratee computation to WebSockets
 liftIteratee :: Iteratee ByteString IO a -> WebSockets p a
 liftIteratee = WebSockets . lift . lift
-

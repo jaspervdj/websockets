@@ -12,11 +12,6 @@ module Network.WebSockets.Types
     , ControlMessage (..)
     , DataMessage (..)
     , WebSocketsData (..)
-    , close
-    , ping
-    , pong
-    , textData
-    , binaryData
 
     , HandshakeError (..)
     , ConnectionError (..)
@@ -172,23 +167,3 @@ instance WebSocketsData TL.Text where
 instance WebSocketsData T.Text where
     fromLazyByteString = T.concat . TL.toChunks . fromLazyByteString
     toLazyByteString   = toLazyByteString . TL.fromChunks . return
-
--- | Construct a close message
-close :: WebSocketsData a => a -> Message p
-close = ControlMessage . Close . toLazyByteString
-
--- | Construct a ping message
-ping :: WebSocketsData a => a -> Message p
-ping = ControlMessage . Ping . toLazyByteString
-
--- | Construct a pong message
-pong :: WebSocketsData a => a -> Message p
-pong = ControlMessage . Pong . toLazyByteString
-
--- | Construct a text message
-textData :: WebSocketsData a => a -> Message p
-textData = DataMessage . Text . toLazyByteString
-
--- | Construct a binary message
-binaryData :: WebSocketsData a => a -> Message p
-binaryData = DataMessage . Binary . toLazyByteString

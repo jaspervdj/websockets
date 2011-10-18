@@ -114,3 +114,5 @@ instance Protocol Hybi00 where
     decodeFrame   (Hybi00 p) = decodeFrame p
     finishRequest (Hybi00 p) = finishRequest p
     implementations          = [Hybi00 Hybi00_, Hybi00 Hybi10_]
+
+instance TextProtocol Hybi00

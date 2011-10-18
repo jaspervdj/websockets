@@ -2,6 +2,13 @@
 {-# LANGUAGE ExistentialQuantification #-}
 module Network.WebSockets.Protocol
     ( Protocol (..)
+    , TextProtocol
+    , BinaryProtocol
+    , close
+    , ping
+    , pong
+    , textData
+    , binaryData
     ) where
 
 import qualified Data.ByteString as B
@@ -9,6 +16,7 @@ import qualified Data.ByteString as B
 import Network.WebSockets.Decode (Decoder)
 import Network.WebSockets.Encode (Encoder)
 import Network.WebSockets.Types
+import qualified Network.WebSockets.Protocol.Unsafe as Unsafe
 
 class Protocol p where
     version       :: p -> String        -- ^ Unique identifier for us.
@@ -26,3 +34,26 @@ class Protocol p where
 
     -- | Implementations of the specification
     implementations :: [p]
+
+class Protocol p => TextProtocol p
+class TextProtocol p => BinaryProtocol p
+
+-- | Construct a close message
+close :: (TextProtocol p, WebSocketsData a) => a -> Message p
+close = Unsafe.close
+
+-- | Construct a ping message
+ping :: (BinaryProtocol p, WebSocketsData a) => a -> Message p
+ping = Unsafe.ping
+
+-- | Construct a pong message
+pong :: (BinaryProtocol p, WebSocketsData a) => a -> Message p
+pong = Unsafe.pong
+
+-- | Construct a text message
+textData :: (TextProtocol p, WebSocketsData a) => a -> Message p
+textData = Unsafe.textData
+
+-- | Construct a binary message
+binaryData :: (BinaryProtocol p, WebSocketsData a) => a -> Message p
+binaryData = Unsafe.binaryData

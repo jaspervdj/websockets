@@ -114,6 +114,7 @@ import qualified Network.WebSockets.Monad as I
 import qualified Network.WebSockets.Protocol as I
 import qualified Network.WebSockets.Protocol.Hybi00 as I
 import qualified Network.WebSockets.Protocol.Hybi10 as I
+import qualified Network.WebSockets.Protocol.Unsafe as Unsafe
 import qualified Network.WebSockets.Socket as I
 import qualified Network.WebSockets.Types as I
 
@@ -155,7 +156,11 @@ receiveDataMessage = do
                 liftIO $ I.onPong options
                 receiveDataMessage
             I.Ping pl -> do
-                I.sendMessage $ I.pong pl
+                -- Note that we are using an /unsafe/ pong here. If the 
+                -- underlying protocol cannot encode this pong, our thread will
+                -- crash. We assume, however that the protocol /is/ able to
+                -- encode the pong, since it was able to encode a ping.
+                I.sendMessage $ Unsafe.pong pl
                 receiveDataMessage
 
 -- | Receive a message, treating it as data transparently
@@ -177,11 +182,12 @@ sendFrame frame = do
     I.send (I.encodeFrame proto) frame
 
 -- | Send a text message
-sendTextData :: (I.Protocol p, I.WebSocketsData a) => a -> I.WebSockets p ()
+sendTextData :: (I.TextProtocol p, I.WebSocketsData a) => a -> I.WebSockets p ()
 sendTextData = I.sendMessage . I.textData
 
 -- | Send some binary data
-sendBinaryData :: (I.Protocol p, I.WebSocketsData a) => a -> I.WebSockets p ()
+sendBinaryData :: (I.BinaryProtocol p, I.WebSocketsData a)
+               => a -> I.WebSockets p ()
 sendBinaryData = I.sendMessage . I.binaryData
 
 -- | Reject a request, sending a 400 (Bad Request) to the client and throwing a

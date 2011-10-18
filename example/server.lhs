@@ -75,6 +75,11 @@ to the client.
 > application state rq = do
 >     WS.sendResponse $ WS.requestResponse rq
 
+We log some information here: in particular, we are interested in the protocol
+version our client is using (for debugging purposes).
+
+>     WS.getVersion >>= liftIO . putStrLn . ("Client version: " ++)
+
 If we want to be able to send data to this client later, from another thread, we
 obtain a sink. We will add this to the server state later.
 

@@ -12,55 +12,64 @@ import qualified Data.Text.Lazy as TL
 
 import qualified Network.WebSockets as WS
 
-echo :: WS.Protocol p => WS.WebSockets p ()
+--------------------------------------------------------------------------------
+-- Hybi00-compatible tests                                                    --
+--------------------------------------------------------------------------------
+
+echo :: WS.TextProtocol p => WS.WebSockets p ()
 echo = forever $ do
     msg <- WS.receiveData
     liftIO $ putStrLn $ show (msg :: TL.Text)
     WS.sendTextData msg
 
-ping :: WS.Protocol p => WS.WebSockets p ()
-ping = do
-    forM_ ["Hai", "Come again?", "Right!"] $ \msg -> do
-        WS.sendMessage $ WS.ping msg
-        fr <- WS.receiveMessage
-        case fr of
-            WS.ControlMessage (WS.Pong msg')
-                | msg' == msg -> return ()
-                | otherwise   -> error "wrong message from client"
-            _ -> error "ping: client closed socket too soon"
-
-    WS.sendMessage $ WS.textData ("OK" :: Text)
-
-closeMe :: WS.Protocol p => WS.WebSockets p ()
+closeMe :: WS.TextProtocol p => WS.WebSockets p ()
 closeMe = do
     msg <- WS.receiveData
     case (msg :: TL.Text) of
         "Close me!" -> return ()
         _           -> error "closeme: unexpected input"
 
-concurrentSend :: WS.Protocol p => WS.WebSockets p ()
+concurrentSend :: WS.TextProtocol p => WS.WebSockets p ()
 concurrentSend = do
-    sender <- WS.getMessageSender
+    sink <- WS.getSink
     liftIO $ do
         mvars <- mapM newMVar [1 :: Int .. 100]
         forM_ mvars $ \mvar -> forkIO $ do
             i <- readMVar mvar
-            sender $ WS.textData $ "Herp-a-derp " `mappend` TL.pack (show i)
+            WS.sendSink sink $ WS.textData $
+                "Herp-a-derp " `mappend` TL.pack (show i)
             _ <- takeMVar mvar
             return ()
         forM_ mvars $ flip putMVar 0
 
+--------------------------------------------------------------------------------
+-- Hybi10-compatible tests                                                    --
+--------------------------------------------------------------------------------
+
+ping :: WS.BinaryProtocol p => WS.WebSockets p ()
+ping = do
+    forM_ ["Hai", "Come again?", "Right!"] $ \msg -> do
+        WS.send $ WS.ping msg
+        fr <- WS.receive
+        case fr of
+            WS.ControlMessage (WS.Pong msg')
+                | msg' == msg -> return ()
+                | otherwise   -> error "wrong message from client"
+            _ -> error "ping: client closed socket too soon"
+
+    WS.send $ WS.textData ("OK" :: Text)
+
 -- | All tests
-tests :: WS.Protocol p => [(ByteString, WS.WebSockets p ())]
+tests :: WS.BinaryProtocol p => [(ByteString, WS.WebSockets p ())]
 tests =
-    [ ("/echo", echo)
-    , ("/ping", ping)
-    , ("/close-me", closeMe)
+    [ ("/echo",            echo)
+    , ("/close-me",        closeMe)
     , ("/concurrent-send", concurrentSend)
+    , ("/ping",            ping)
     ]
 
 -- | Application
-application :: WS.Protocol p => WS.Request -> WS.WebSockets p ()
+application :: WS.BinaryProtocol p => WS.Request -> WS.WebSockets p ()
 application rq = do
     -- When a client succesfully connects, lookup the requested test and
     -- run it
@@ -75,4 +84,4 @@ application rq = do
 -- | Accepts clients, spawns a single handler for each one.
 main :: IO ()
 main = WS.runServer "0.0.0.0" 8000
-    (application :: WS.Request -> WS.WebSockets WS.Hybi00 ())
+    (application :: WS.Request -> WS.WebSockets WS.Hybi10 ())

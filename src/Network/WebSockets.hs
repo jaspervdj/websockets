@@ -43,6 +43,8 @@ module Network.WebSockets
 
       -- * Protocol versions
     , I.Protocol
+    , I.TextProtocol
+    , I.BinaryProtocol
     , I.Hybi00
     , I.Hybi10
 

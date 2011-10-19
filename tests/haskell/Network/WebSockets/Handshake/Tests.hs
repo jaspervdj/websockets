@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
 module Network.WebSockets.Handshake.Tests
     ( tests
     ) where
@@ -21,7 +21,21 @@ import Network.WebSockets.Tests.Util.IterAccum
 tests :: Test
 tests = testGroup "Network.WebSockets.Test"
     [ testCase "handshakeHybi00" handshakeHybi00
+    , testCase "handshakeHybi10" handshakeHybi10
     ]
+
+testHandshake :: forall p. Protocol p => p -> B.ByteString -> IO Response
+testHandshake _ rq = do
+    ia <- newIterAccum
+    E.run_ $ E.enumList 1 [rq] $$ runWebSocketsHandshake app (getIter ia)
+    Right rsp <- A.parseOnly parseResponse . B.concat <$> getAccum ia
+    return rsp
+  where
+    app :: Request -> WebSockets p ()
+    app = sendResponse . requestResponse
+
+(!) :: Eq a => [(a, b)] -> a -> b
+assoc ! key = fromJust (lookup key assoc)
 
 -- The sample from the -00 spec.
 rq00 :: B.ByteString
@@ -37,18 +51,30 @@ rq00 =
     \^n:ds[4U"
 
 handshakeHybi00 :: Assertion
-handshakeHybi00 = do
-    ia <- newIterAccum
-    E.run_ $ E.enumList 1 [rq00] $$ runWebSocketsHandshake app (getIter ia)
-    Right rsp <- A.parseOnly parseResponse . B.concat <$> getAccum ia
-    let Response code message headers body = rsp
-    assert $
+handshakeHybi00 = testHandshake (undefined :: Hybi00) rq00 >>=
+    \(Response code message headers body) -> assert $
         code == 101 &&
         message == "WebSocket Protocol Handshake" &&
         headers ! "Sec-WebSocket-Location" == "ws://example.com/demo" &&
         headers ! "Sec-WebSocket-Origin" == "http://example.com" &&
         body == "8jKS'y:G*Co,Wxa-"
-  where
-    app :: Request -> WebSockets Hybi00 ()
-    app = sendResponse . requestResponse
-    assoc ! key = fromJust (lookup key assoc)
+
+-- The sample from the -10 spec.
+rq10 :: B.ByteString
+rq10 =
+    "GET /chat HTTP/1.1\r\n\
+    \Host: server.example.com\r\n\
+    \Upgrade: websocket\r\n\
+    \Connection: Upgrade\r\n\
+    \Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\
+    \Sec-WebSocket-Origin: http://example.com\r\n\
+    \Sec-WebSocket-Protocol: chat, superchat\r\n\
+    \Sec-WebSocket-Version: 8\r\n\r\n"
+
+handshakeHybi10 :: Assertion
+handshakeHybi10 = testHandshake (undefined :: Hybi10) rq10 >>=
+    \(Response code message headers body) -> assert $
+        code == 101 &&
+        message == "WebSocket Protocol Handshake" &&
+        headers ! "Sec-WebSocket-Accept" == "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=" &&
+        body == ""

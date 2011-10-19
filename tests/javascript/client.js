@@ -16,11 +16,11 @@ function createWebSocket(path) {
 * Actual tests                                                                 *
 *******************************************************************************/
 
-module('websockets');
-
 test('demo', function () {
     ok(true, 'Demo test');
 });
+
+module('Hybi00');
 
 asyncTest('echo', function() {
     var ws = createWebSocket('/echo');
@@ -73,6 +73,8 @@ asyncTest('concurrent send', function () {
         }
     }
 });
+
+module('Hybi10');
 
 asyncTest('ping', function() {
     var ws = createWebSocket('/ping');

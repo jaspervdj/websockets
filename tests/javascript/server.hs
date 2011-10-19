@@ -1,5 +1,5 @@
 -- | The server part of the tests
-{-# LANGUAGE OverloadedStrings, PatternGuards #-}
+{-# LANGUAGE ExistentialQuantification, OverloadedStrings, PatternGuards #-}
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar (newMVar, putMVar, readMVar, takeMVar)
 import Control.Monad (forever, forM_)
@@ -10,7 +10,10 @@ import Data.Monoid (mappend)
 import Data.Text (Text)
 import qualified Data.Text.Lazy as TL
 
+import Network.WebSockets.Protocol (Protocol (..))
 import qualified Network.WebSockets as WS
+import qualified Network.WebSockets.Protocol.Hybi00 as WS
+import qualified Network.WebSockets.Protocol.Hybi10 as WS
 
 --------------------------------------------------------------------------------
 -- Hybi00-compatible tests                                                    --
@@ -59,6 +62,10 @@ ping = do
 
     WS.send $ WS.textData ("OK" :: Text)
 
+--------------------------------------------------------------------------------
+-- Running...                                                                 --
+--------------------------------------------------------------------------------
+
 -- | All tests
 tests :: WS.BinaryProtocol p => [(ByteString, WS.WebSockets p ())]
 tests =
@@ -68,14 +75,28 @@ tests =
     , ("/ping",            ping)
     ]
 
+data UnsafeProtocol = forall p. WS.Protocol p => UnsafeProtocol p
+
+instance WS.Protocol UnsafeProtocol where
+    version       (UnsafeProtocol p) = version p
+    headerVersion (UnsafeProtocol p) = headerVersion p
+    encodeFrame   (UnsafeProtocol p) = encodeFrame p
+    decodeFrame   (UnsafeProtocol p) = decodeFrame p
+    finishRequest (UnsafeProtocol p) = finishRequest p
+    implementations               =
+        [UnsafeProtocol WS.Hybi00_, UnsafeProtocol WS.Hybi10_]
+
+instance WS.TextProtocol UnsafeProtocol
+instance WS.BinaryProtocol UnsafeProtocol
+
 -- | Application
-application :: WS.BinaryProtocol p => WS.Request -> WS.WebSockets p ()
+application :: WS.Request -> WS.WebSockets UnsafeProtocol ()
 application rq = do
     -- When a client succesfully connects, lookup the requested test and
     -- run it
     WS.sendResponse $ WS.requestResponse rq
-    version <- WS.getVersion
-    liftIO $ putStrLn $ "Selected version: " ++ version
+    version' <- WS.getVersion
+    liftIO $ putStrLn $ "Selected version: " ++ version'
     let name = WS.requestPath rq
     liftIO $ putStrLn $ "Starting test " ++ show name
     let Just test = lookup name tests in test
@@ -83,5 +104,4 @@ application rq = do
 
 -- | Accepts clients, spawns a single handler for each one.
 main :: IO ()
-main = WS.runServer "0.0.0.0" 8000
-    (application :: WS.Request -> WS.WebSockets WS.Hybi10 ())
+main = WS.runServer "0.0.0.0" 8000 application

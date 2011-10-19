@@ -105,7 +105,6 @@ module Network.WebSockets
 
 import Control.Monad.State (put, get)
 import Control.Monad.Trans (liftIO)
-import Control.Monad
 
 import qualified Network.WebSockets.Demultiplex as I
 import qualified Network.WebSockets.Handshake as I

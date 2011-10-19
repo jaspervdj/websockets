@@ -118,8 +118,7 @@ handshakeHybi10 reqHttp@(RequestHttpPart path h) = return $ do
     key <- getHeader "Sec-WebSocket-Key"
     let hash = unlazy $ bytestringDigest $ sha1 $ lazy $ key `mappend` guid
     let encoded = B64.encode hash
-    return $ Request path h
-      $ response101 [("Sec-WebSocket-Accept", encoded)]
+    return $ Request path h $ response101 [("Sec-WebSocket-Accept", encoded)] ""
   where
     guid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
     lazy = BL.fromChunks . return
@@ -129,20 +128,6 @@ handshakeHybi10 reqHttp@(RequestHttpPart path h) = return $ do
         Nothing -> throwError $
                    MalformedRequest reqHttp $ 
                    "Header missing: " ++ BC.unpack (CI.original k)
-
--- | An upgrade response
-response101 :: Headers -> Response
-response101 headers = Response 101 "WebSocket Protocol Handshake" 
-    (("Upgrade", "WebSocket") :
-    ("Connection", "Upgrade") :
-    headers)
-    ""
-
--- | Bad request
---
--- TODO: What is this doing here?
-response400 :: Headers -> Response
-response400 headers = Response 400 "Bad Request" headers ""
 
 data Hybi10 = forall p. Protocol p => Hybi10 p
 

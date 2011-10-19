@@ -2,8 +2,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.WebSockets.Handshake
     ( HandshakeError (..)
-    , response101
-    , response400
     , responseError
     , tryFinishRequest
     , receiveClientHandshake
@@ -47,17 +45,6 @@ tryFinishRequest httpReq = tryInOrder implementations
           (Left NotSupported) -> tryInOrder ps
           (Left e)            -> return (Left e)  -- not "e@(Left _) -> return e" !
           (Right req)         -> return . Right $ (req, p)
-
--- | An upgrade response
-response101 :: Headers -> Response
-response101 headers = Response 101 "WebSocket Protocol Handshake" `flip` "" $
-    ("Upgrade", "WebSocket") :
-    ("Connection", "Upgrade") :
-    headers
-
--- | Bad request
-response400 :: Headers -> Response
-response400 headers = Response 400 "Bad Request" headers ""
 
 -- | Respond to errors encountered during handshake
 responseError :: Protocol p => [p] -> HandshakeError -> Response

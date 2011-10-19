@@ -8,6 +8,8 @@ module Network.WebSockets.Http
     , HandshakeError (..)
     , decodeRequest
     , encodeResponse
+    , response101
+    , response400
     ) where
 
 import Data.Dynamic (Typeable)
@@ -105,3 +107,14 @@ encodeResponse _ (Response code msg headers body) =
   where
     header (k, v) = mconcat $ map Builder.copyByteString
         [CI.original k, ": ", v, "\r\n"]
+
+-- | An upgrade response
+response101 :: Headers -> B.ByteString -> Response
+response101 headers body = Response 101 "WebSocket Protocol Handshake"
+    (("Upgrade", "WebSocket") : ("Connection", "Upgrade") : headers)
+    body
+
+-- | Bad request
+--
+response400 :: Headers -> Response
+response400 headers = Response 400 "Bad Request" headers ""

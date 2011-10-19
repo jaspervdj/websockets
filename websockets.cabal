@@ -46,7 +46,6 @@ Library
     Network.WebSockets
 
   Other-modules:
-    Network.WebSockets.Decode
     Network.WebSockets.Demultiplex
     Network.WebSockets.Encode
     Network.WebSockets.Handshake

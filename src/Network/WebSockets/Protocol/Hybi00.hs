@@ -88,10 +88,8 @@ handshakeHybi00 reqHttp@(RequestHttpPart path h) = do
   host <- getHeader "Host"
   -- todo: origin right? (also applies to hybi10)
   origin <- getHeader "Origin"
-  let response = Response 101 "WebSocket Protocol Handshake"
-                 (("Upgrade", "WebSocket") :
-                  ("Connection", "Upgrade") :
-                  ("Sec-WebSocket-Location",
+  let response = response101
+                 (("Sec-WebSocket-Location",
                    "ws://" `B.append` host `B.append` path) :
                   ("Sec-WebSocket-Origin", origin) : []) $
                   key

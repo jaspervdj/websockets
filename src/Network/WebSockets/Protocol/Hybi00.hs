@@ -1,13 +1,11 @@
 {-# LANGUAGE ExistentialQuantification, OverloadedStrings #-}
-{-# OPTIONS -Wall #-}
-
 module Network.WebSockets.Protocol.Hybi00
        ( Hybi00_ (..)
        , Hybi00
        ) where
 
 import Control.Applicative ((<|>))
-import Control.Monad.Error (throwError, ErrorT (..))
+import Control.Monad.Error (ErrorT (..), MonadError, throwError)
 import Control.Monad.Trans (lift)
 import Data.Char (isDigit)
 
@@ -40,8 +38,8 @@ encodeFrameHybi00 :: Encoder p Frame
 encodeFrameHybi00 _ (Frame True TextFrame pl) =
     BB.fromLazyByteString $ "\0" `BL.append` pl `BL.append` "\255"
 encodeFrameHybi00 _ (Frame _ CloseFrame _) =
-  BB.fromLazyByteString  "\255\0"
--- TODO: prevent the user from doing this using type tags
+    BB.fromLazyByteString  "\255\0"
+    -- TODO: prevent the user from doing this using type tags
 encodeFrameHybi00 _ _ = error "Not supported"
 
 decodeFrameHybi00 :: Decoder p Frame
@@ -58,47 +56,51 @@ decodeFrameHybi00 = decodeTextFrame <|> decodeCloseFrame
         return $ Frame True CloseFrame ""
 
 divBySpaces :: String -> Maybe Int32
-divBySpaces str =
-  let number = read $ filter isDigit str :: Integer
-      spaces = fromIntegral . length $ filter (==' ') str
-  in
-   if spaces == 0
-   then Nothing
-   else Just . fromIntegral $ number `div` spaces
+divBySpaces str
+    | spaces == 0 = Nothing
+    | otherwise   = Just . fromIntegral $ number `div` spaces
+  where
+    number = read $ filter isDigit str :: Integer
+    spaces = fromIntegral . length $ filter (== ' ') str
 
 handshakeHybi00 :: RequestHttpPart
                 -> ErrorT HandshakeError A.Parser Request
 handshakeHybi00 reqHttp@(RequestHttpPart path h) = do
-  -- _ <- lift . A.word8 $ fromIntegral 0x0d
-  -- _ <- lift . A.word8 $ fromIntegral 0x0a
-  case getHeader "Sec-WebSocket-Version" of
-    Left _    -> return ()
-    Right "0" -> return ()
-    Right _   -> throwError NotSupported
-  keyPart3 <- lift $ A.take 8
-  let numberFromToken =
-        maybe (throwError $ MalformedRequest reqHttp
-               "Security token does not contain enough spaces")
-        (return . encode) .
-        divBySpaces . BC.unpack
-  keyPart1 <- numberFromToken =<< getHeader "Sec-WebSocket-Key1"
-  keyPart2 <- numberFromToken =<< getHeader "Sec-WebSocket-Key2"
-  let key = B.concat . BL.toChunks . encode . md5 $
-            BL.concat [keyPart1, keyPart2, BL.fromChunks [keyPart3]]
-  host <- getHeader "Host"
-  -- todo: origin right? (also applies to hybi10)
-  origin <- getHeader "Origin"
-  let response = response101
-                 (("Sec-WebSocket-Location",
-                   "ws://" `B.append` host `B.append` path) :
-                  ("Sec-WebSocket-Origin", origin) : []) $
-                  key
-  return $ Request path h response
-    where
-      getHeader k = case lookup k h of
+    -- _ <- lift . A.word8 $ fromIntegral 0x0d
+    -- _ <- lift . A.word8 $ fromIntegral 0x0a
+
+    case getHeader "Sec-WebSocket-Version" of
+        Left _    -> return ()
+        Right "0" -> return ()
+        Right _   -> throwError NotSupported
+
+    keyPart3 <- lift $ A.take 8
+    keyPart1 <- numberFromToken =<< getHeader "Sec-WebSocket-Key1"
+    keyPart2 <- numberFromToken =<< getHeader "Sec-WebSocket-Key2"
+
+    let key = B.concat . BL.toChunks . encode . md5 $ BL.concat
+                [keyPart1, keyPart2, BL.fromChunks [keyPart3]]
+
+    host <- getHeader "Host"
+    -- todo: origin right? (also applies to hybi10)
+    origin <- getHeader "Origin"
+    let response = response101
+            [ ("Sec-WebSocket-Location", B.concat ["ws://", host, path])
+            , ("Sec-WebSocket-Origin", origin)
+            ]
+            key
+
+    return $ Request path h response
+  where
+    getHeader k = case lookup k h of
         Just t  -> return t
-        Nothing -> throwError $
-                   MalformedRequest reqHttp $ "Header missing: " ++ BC.unpack (CI.original k)
+        Nothing -> throwError $ MalformedRequest reqHttp $
+            "Header missing: " ++ BC.unpack (CI.original k)
+
+    numberFromToken token = case divBySpaces (BC.unpack token) of
+        Just n  -> return $ encode n
+        Nothing -> throwError $ MalformedRequest reqHttp
+            "Security token does not contain enough spaces"
 
 data Hybi00 = forall p. Protocol p => Hybi00 p
 

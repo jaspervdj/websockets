@@ -48,13 +48,15 @@ Library
   Other-modules:
     Network.WebSockets.Demultiplex
     Network.WebSockets.Handshake
+    Network.WebSockets.Http
     Network.WebSockets.Mask
     Network.WebSockets.Monad
     Network.WebSockets.Protocol
     Network.WebSockets.Protocol.Hybi00
     Network.WebSockets.Protocol.Hybi10
-    Network.WebSockets.Socket
+    Network.WebSockets.Protocol.Unsafe
     Network.WebSockets.ShyIterParser
+    Network.WebSockets.Socket
     Network.WebSockets.Types
 
   Build-depends:

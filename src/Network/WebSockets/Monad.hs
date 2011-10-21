@@ -176,7 +176,9 @@ wrappingParseError :: (Monad m) => Iteratee a m b -> Iteratee a m b
 wrappingParseError = flip E.catchError $ \e -> E.throwError $
     maybe e (toException . ParseError) $ fromException e
 
-sendIteratee :: Encoder p a -> a -> Iteratee ByteString IO () -> Iteratee ByteString IO ()
+sendIteratee :: Encoder p a -> a
+             -> Iteratee ByteString IO ()
+             -> Iteratee ByteString IO ()
 sendIteratee enc resp outIter = do
     liftIO $ mkSend (builderSender outIter) enc resp
 
@@ -255,8 +257,9 @@ catchWsError act c = WebSockets $ do
     let it  = peelWebSockets state env $ act
         cit = peelWebSockets state env . c
     lift . lift $ it `E.catchError` cit
-    where peelWebSockets state env =
-            flip evalStateT state . flip runReaderT env . unWebSockets
+  where
+    peelWebSockets state env =
+        flip evalStateT state . flip runReaderT env . unWebSockets
 
 -- | Lift an Iteratee computation to WebSockets
 liftIteratee :: Iteratee ByteString IO a -> WebSockets p a

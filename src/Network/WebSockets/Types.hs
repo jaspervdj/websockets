@@ -38,12 +38,14 @@ type Encoder p a = Mask -> a -> B.Builder
 
 -- | The connection couldn't be established or broke down unexpectedly. thrown
 -- as an iteratee exception.
-data ConnectionError =
-      ParseError AE.ParseError       -- ^ The client sent malformed data.
-    | ConnectionClosed               -- ^ the client closed the connection while
-                                     -- we were trying to receive some data.
-                                     --
-                                     -- todo: Also want this for sending.
+data ConnectionError
+    -- | The client sent malformed data.
+    = ParseError AE.ParseError
+    -- | the client closed the connection while
+    -- we were trying to receive some data.
+    --
+    -- todo: Also want this for sending.
+    | ConnectionClosed              
     deriving (Show, Typeable)
 
 instance Exception ConnectionError

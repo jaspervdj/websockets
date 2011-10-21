@@ -51,7 +51,8 @@ runServer host port ws = S.withSocketsDo $ do
 runWithSocket :: Protocol p
               => Socket -> (Request -> WebSockets p a) -> IO a
 runWithSocket s ws = do
-    r <- E.run $ receiveEnum s $$ runWebSocketsWithHandshake defaultWebSocketsOptions ws (sendIter s)
+    r <- E.run $ receiveEnum s $$
+        runWebSocketsWithHandshake defaultWebSocketsOptions ws (sendIter s)
     S.sClose s
     either (error . show) return r
 

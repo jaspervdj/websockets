@@ -39,19 +39,19 @@ tryFinishRequest httpReq = tryInOrder implementations
     -- NOTE that the protocols are tried in order, the first one first. So that
     -- should be the latest one. (only matters if we have overlaps in specs,
     -- though)
-    where
-        tryInOrder []     = return . Left $ NotSupported
-        tryInOrder (p:ps) = finishRequest p httpReq >>= \res -> case res of
-          (Left NotSupported) -> tryInOrder ps
-          (Left e)            -> return (Left e)  -- not "e@(Left _) -> return e" !
-          (Right req)         -> return . Right $ (req, p)
+  where
+    tryInOrder []       = return . Left $ NotSupported
+    tryInOrder (p : ps) = finishRequest p httpReq >>= \res -> case res of
+        (Left NotSupported) -> tryInOrder ps
+        (Left e)            -> return (Left e)
+        (Right req)         -> return . Right $ (req, p)
 
 -- | Respond to errors encountered during handshake
 responseError :: Protocol p => [p] -> HandshakeError -> Response
 responseError protocols err = response400 $ case err of
     -- TODO: fix
-    NotSupported -> versionHeader  -- List all available versions ("version negotiation")
+    NotSupported -> versionHeader  -- Version negotiation
     _            -> []
   where
-    versionHeader =
-      [("Sec-WebSocket-Version", B.intercalate ", " $ map headerVersion $ protocols)]
+    versionHeader = [("Sec-WebSocket-Version",
+        B.intercalate ", " $ map headerVersion $ protocols)]

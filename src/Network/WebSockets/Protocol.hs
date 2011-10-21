@@ -18,18 +18,23 @@ import Network.WebSockets.Types
 import qualified Network.WebSockets.Protocol.Unsafe as Unsafe
 
 class Protocol p where
-    version       :: p -> String        -- ^ Unique identifier for us.
-    headerVersion :: p -> B.ByteString  -- ^ version as used in the "Sec-WebSocket-Version " header.
-                                        -- this is usually not the same, or derivable from "version",
-                                        -- e.g. for hybi10, it's "8".
+    -- | Unique identifier for us.
+    version       :: p -> String
+
+    -- | Version as used in the "Sec-WebSocket-Version " header. This is usually
+    -- not the same, or derivable from "version", e.g. for hybi10, it's "8".
+    headerVersion :: p -> B.ByteString
+
     encodeFrame   :: p -> Encoder p Frame
     decodeFrame   :: p -> Decoder p Frame
-    finishRequest :: p -> RequestHttpPart -> Decoder p (Either HandshakeError Request)
-    -- ^ Parse and validate the rest of the request. For hybi10, this is just
+
+    -- | Parse and validate the rest of the request. For hybi10, this is just
     -- validation, but hybi00 also needs to fetch a "security token"
     --
-    -- Todo: Maybe we should introduce our own simplified error type here. (to be
-    -- amended with the RequestHttpPart for the user)
+    -- Todo: Maybe we should introduce our own simplified error type here. (to
+    -- be amended with the RequestHttpPart for the user)
+    finishRequest :: p -> RequestHttpPart
+                  -> Decoder p (Either HandshakeError Request)
 
     -- | Implementations of the specification
     implementations :: [p]

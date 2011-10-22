@@ -114,13 +114,15 @@ runWebSocketsWith :: forall p a.
     -> Iteratee ByteString IO ()
     -> Iteratee ByteString IO a
 runWebSocketsWith opts httpReq goWs outIter = do
-    let impls = implementations :: [p]
     mreq <- receiveIterateeShy $ tryFinishRequest httpReq
     case mreq of
         (Left err) -> do
-            sendIteratee encodeResponse (responseError impls err) outIter
+            sendIteratee encodeResponse (responseError proto err) outIter
             E.throwError err
         (Right (r, p)) -> runWebSocketsWith' opts p (goWs r) outIter
+  where
+    proto :: p
+    proto = undefined
 
 runWebSocketsWith' :: Protocol p
                    => WebSocketsOptions

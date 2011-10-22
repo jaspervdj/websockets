@@ -1,5 +1,5 @@
 -- | Implementation of the WebSocket handshake
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
 module Network.WebSockets.Handshake
     ( HandshakeError (..)
     , responseError
@@ -46,12 +46,13 @@ tryFinishRequest httpReq = tryInOrder implementations
         (Left e)            -> return (Left e)
         (Right req)         -> return . Right $ (req, p)
 
--- | Respond to errors encountered during handshake
-responseError :: Protocol p => [p] -> HandshakeError -> Response
-responseError protocols err = response400 $ case err of
+-- | Respond to errors encountered during handshake. First argument may be
+-- bottom.
+responseError :: forall p. Protocol p => p -> HandshakeError -> Response
+responseError _ err = response400 $ case err of
     -- TODO: fix
     NotSupported -> versionHeader  -- Version negotiation
     _            -> []
   where
     versionHeader = [("Sec-WebSocket-Version",
-        B.intercalate ", " $ map headerVersion $ protocols)]
+        B.intercalate ", " $ map headerVersion (implementations :: [p]))]

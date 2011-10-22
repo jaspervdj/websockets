@@ -198,7 +198,7 @@ rejectRequest req reason = failHandshakeWith $ I.RequestRejected req reason
 failHandshakeWith :: forall p a. I.Protocol p
                   => I.HandshakeError -> I.WebSockets p a
 failHandshakeWith err = do
-    sendResponse  $ I.responseError (I.implementations :: [p]) err
+    sendResponse $ I.responseError (undefined :: p) err
     I.throwWsError err
 
 -- | Accept a request. After this, you can start sending and receiving data.

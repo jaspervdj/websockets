@@ -5,7 +5,9 @@ module Network.WebSockets.Tests
     ) where
 
 import Control.Applicative (pure, (<$>))
+import Control.Exception (fromException)
 import Control.Monad (replicateM)
+import Data.List (intercalate)
 
 import Data.Attoparsec (Result (..), parse)
 import Data.Enumerator (($$))
@@ -33,9 +35,13 @@ tests :: Test
 tests = testGroup "Network.WebSockets.Test"
     [ testProperty "encodeDecodeFrame-hybi10" (encodeDecodeFrame Hybi10_)
     , testProperty "encodeDecodeFrame-hybi00" (encodeDecodeFrameHybi00 Hybi00_)
-    , testProperty "fragmententation-hybi10"  (fragmentation Hybi10_)
-    , testProperty "pipeSendReceive-hybi10"   (pipeSendReceive Hybi10_)
-    , testProperty "pipeSendReceive-hybi00"   (pipeSendReceiveHybi00 Hybi00_)
+
+    , testProperty "sendReceive-hybi10"       (sendReceive Hybi10_)
+    , testProperty "sendReceive-hybi00"       (sendReceiveHybi00 Hybi00_)
+    , testProperty "sendReceiveFragmented-hybi10"
+        (sendReceiveFragmented Hybi10_)
+    , testProperty "sendReceiveClose-hybi10"  (sendReceiveClose Hybi10_)
+    , testProperty "sendReceiveClose-hybi00"  (sendReceiveClose Hybi00_)
     ]
 
 -- | Encode a frame, then decode it again. We should obviously get our original
@@ -53,23 +59,8 @@ encodeDecodeFrameHybi00 :: Protocol p
 encodeDecodeFrameHybi00 proto am (ArbitraryFrameHybi00 f) =
     encodeDecodeFrame proto am f
 
-fragmentation :: Protocol p => p -> Property
-fragmentation proto = monadicIO $ do
-    FragmentedMessage msg fragments <- pick arbitrary
-    builders <- run $ mapM encodeFrame' fragments
-    let bss = concatMap (BL.toChunks . Builder.toLazyByteString) builders
-    msg' <- run $ E.run_ $ E.enumList 10 bss $$
-        runWebSocketsWith' defaultWebSocketsOptions proto app out
-    assert $ msg == msg'
-  where
-    app = receive
-    out = return ()
-    encodeFrame' fr = do
-        mask <- randomMask
-        return $ encodeFrame proto mask fr
-
-pipeSendReceive :: Protocol p => p -> [Message p] -> Property
-pipeSendReceive proto msgs = monadicIO $ do
+sendReceive :: Protocol p => p -> [Message p] -> Property
+sendReceive proto msgs = monadicIO $ do
     msgs' <- run $ pipe proto (mapM_ send msgs) (receiver [])
     assert $ msgs == msgs'
   where
@@ -77,11 +68,32 @@ pipeSendReceive proto msgs = monadicIO $ do
         msg <- receive 
         receiver (msg : msgs')
 
-pipeSendReceiveHybi00 :: Protocol p
-                      => p -> [ArbitraryMessageHybi00 p] -> Property
-pipeSendReceiveHybi00 proto = pipeSendReceive proto . map unpack
+sendReceiveHybi00 :: Protocol p
+                  => p -> [ArbitraryMessageHybi00 p] -> Property
+sendReceiveHybi00 proto = sendReceive proto . map unpack
   where
     unpack (ArbitraryMessageHybi00 msg) = msg
+
+sendReceiveFragmented :: Protocol p => p -> FragmentedMessage p -> Property
+sendReceiveFragmented proto (FragmentedMessage msg frames) = monadicIO $ do
+    -- Put some other frames in between
+    let frames' = concatMap addCrap frames
+    msg' <- run $ pipe proto (mapM_ sendFrame frames') receiveDataMessage
+    assert $ msg == DataMessage msg'
+  where
+    addCrap x = [Frame True PingFrame "Herp", Frame True PongFrame "Derp", x]
+
+sendReceiveClose :: Protocol p => p -> Property
+sendReceiveClose proto = monadicIO $ do
+    -- Put some other frames in between
+    let frames = [Frame True CloseFrame "", Frame True TextFrame "Herp"]
+    closed <- run $ pipe proto (mapM_ sendFrame frames) receiver
+    assert closed
+  where
+    receiver = catchWsError (receiveDataMessage >> return False) $ \e ->
+        case fromException e of
+            Just ConnectionClosed -> return True
+            _                     -> return False
 
 newtype ArbitraryMask = ArbitraryMask Mask
                       deriving (Show)

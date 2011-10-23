@@ -6,8 +6,12 @@ module Network.WebSockets.Tests
 
 import Control.Applicative (pure, (<$>))
 import Control.Exception (fromException)
-import Control.Monad (replicateM)
+import Control.Monad (forM_, replicateM)
+import Control.Monad.Trans (liftIO)
+import Control.Concurrent (forkIO)
+import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 import Data.List (intercalate)
+import qualified Data.Set as S
 
 import Data.Attoparsec (Result (..), parse)
 import Data.Enumerator (($$))
@@ -42,6 +46,10 @@ tests = testGroup "Network.WebSockets.Test"
         (sendReceiveFragmented Hybi10_)
     , testProperty "sendReceiveClose-hybi10"  (sendReceiveClose Hybi10_)
     , testProperty "sendReceiveClose-hybi00"  (sendReceiveClose Hybi00_)
+    , testProperty "sendReceiveConcurrent-hybi10"
+        (sendReceiveConcurrent Hybi10_)
+    , testProperty "sendReceiveConcurrent-hybi00"
+        (sendReceiveConcurrent Hybi00_)
     ]
 
 -- | Encode a frame, then decode it again. We should obviously get our original
@@ -94,6 +102,31 @@ sendReceiveClose proto = monadicIO $ do
         case fromException e of
             Just ConnectionClosed -> return True
             _                     -> return False
+
+sendReceiveConcurrent :: TextProtocol p => p -> Property
+sendReceiveConcurrent proto = monadicIO $ do
+    -- Pick some text messages
+    msgs <- pick arbitrary
+    msgs' <- run $ pipe proto (sender msgs) (receiver [])
+    run $ print msgs >> print msgs'
+    return $ S.fromList msgs == S.fromList msgs'
+  where
+    sender msgs = do
+        sink <- getSink
+        locks <- liftIO $ mapM (const newEmptyMVar) msgs
+        forM_ (zip msgs locks) $ \(ArbitraryUtf8 msg, lock) -> liftIO $ do
+            _ <- forkIO $ do
+                sendSink sink $ textData msg
+                putMVar lock ()
+            return ()
+        liftIO $ forM_ locks takeMVar
+
+    receiver msgs' = flip catchWsError (\_ -> return (reverse msgs')) $ do
+        msg <- receiveData
+        receiver (ArbitraryUtf8 msg : msgs')
+
+instance TextProtocol Hybi00_
+instance TextProtocol Hybi10_
 
 newtype ArbitraryMask = ArbitraryMask Mask
                       deriving (Show)
@@ -173,6 +206,12 @@ instance Arbitrary (FragmentedMessage p) where
         makeFrames []              = []
         makeFrames [(ft, pl)]      = [Frame True ft pl]
         makeFrames ((ft, pl) : fr) = Frame False ft pl : makeFrames fr
+
+newtype ArbitraryUtf8 = ArbitraryUtf8 BL.ByteString
+    deriving (Eq, Ord, Show)
+
+instance Arbitrary ArbitraryUtf8 where
+    arbitrary = ArbitraryUtf8 <$> arbitraryUtf8
 
 arbitraryUtf8 :: Gen BL.ByteString
 arbitraryUtf8 = toLazyByteString . TL.encodeUtf8 . TL.pack <$> arbitrary

@@ -32,7 +32,7 @@ instance Protocol Hybi00_ where
     encodeFrame     Hybi00_ = encodeFrameHybi00
     decodeFrame     Hybi00_ = decodeFrameHybi00
     finishRequest   Hybi00_ = runErrorT . handshakeHybi00
-    implementations         = []
+    implementations         = [Hybi00_]
 
 instance TextProtocol Hybi00_
 

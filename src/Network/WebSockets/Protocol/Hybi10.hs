@@ -36,7 +36,7 @@ instance Protocol Hybi10_ where
     encodeFrame     Hybi10_ = encodeFrameHybi10
     decodeFrame     Hybi10_ = decodeFrameHybi10
     finishRequest   Hybi10_ = handshakeHybi10
-    implementations         = []
+    implementations         = [Hybi10_]
 
 instance TextProtocol Hybi10_
 instance BinaryProtocol Hybi10_

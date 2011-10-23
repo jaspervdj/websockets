@@ -27,6 +27,7 @@ import Network.WebSockets.Protocol
 import Network.WebSockets.Protocol.Hybi00
 import Network.WebSockets.Protocol.Hybi10
 import Network.WebSockets.Tests.Util
+import Network.WebSockets.Tests.Util.Http
 
 tests :: Test
 tests = testGroup "Network.WebSockets.Socket.Tests"
@@ -48,7 +49,7 @@ webSocketsClient :: Protocol p => Int -> p -> WebSockets p a -> IO a
 webSocketsClient port proto ws =
     client port $ runWebSocketsWith' defaultWebSocketsOptions proto ws
 
-sendReceive :: forall p. TextProtocol p => p -> Property
+sendReceive :: forall p. (ExampleRequest p, TextProtocol p) => p -> Property
 sendReceive proto = monadicIO $ do
     run $ threadDelay (5 * 1000 * 1000)
     serverThread <- run $ forkIO $ runServer "0.0.0.0" 8000 server
@@ -64,6 +65,7 @@ sendReceive proto = monadicIO $ do
 
     client' :: [BL.ByteString] -> WebSockets p [BL.ByteString]
     client' texts = do
+        sendWith encodeRequestBody $ exampleRequest proto
         forM_ texts sendTextData
         replicateM (length texts) $ do
             receiveData

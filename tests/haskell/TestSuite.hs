@@ -8,5 +8,5 @@ main :: IO ()
 main = defaultMain
     [ Network.WebSockets.Tests.tests
     , Network.WebSockets.Handshake.Tests.tests
-    -- , Network.WebSockets.Socket.Tests.tests
+    , Network.WebSockets.Socket.Tests.tests
     ]

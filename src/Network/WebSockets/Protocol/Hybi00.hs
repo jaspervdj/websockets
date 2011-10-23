@@ -34,6 +34,8 @@ instance Protocol Hybi00_ where
     finishRequest   Hybi00_ = runErrorT . handshakeHybi00
     implementations         = []
 
+instance TextProtocol Hybi00_
+
 encodeFrameHybi00 :: Encoder p Frame
 encodeFrameHybi00 _ (Frame True TextFrame pl) =
     BB.fromLazyByteString $ "\0" `BL.append` pl `BL.append` "\255"

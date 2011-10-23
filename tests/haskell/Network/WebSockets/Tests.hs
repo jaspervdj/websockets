@@ -2,6 +2,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Network.WebSockets.Tests
     ( tests
+    , ArbitraryUtf8 (..)
     ) where
 
 import Control.Applicative (pure, (<$>))
@@ -32,6 +33,7 @@ import Network.WebSockets.Monad
 import Network.WebSockets.Protocol
 import Network.WebSockets.Protocol.Hybi00
 import Network.WebSockets.Protocol.Hybi10
+import Network.WebSockets.Tests.Util
 import Network.WebSockets.Tests.Util.IterAccum
 import qualified Network.WebSockets.Protocol.Unsafe as Unsafe
 
@@ -108,7 +110,6 @@ sendReceiveConcurrent proto = monadicIO $ do
     -- Pick some text messages
     msgs <- pick arbitrary
     msgs' <- run $ pipe proto (sender msgs) (receiver [])
-    run $ print msgs >> print msgs'
     return $ S.fromList msgs == S.fromList msgs'
   where
     sender msgs = do
@@ -124,9 +125,6 @@ sendReceiveConcurrent proto = monadicIO $ do
     receiver msgs' = flip catchWsError (\_ -> return (reverse msgs')) $ do
         msg <- receiveData
         receiver (ArbitraryUtf8 msg : msgs')
-
-instance TextProtocol Hybi00_
-instance TextProtocol Hybi10_
 
 newtype ArbitraryMask = ArbitraryMask Mask
                       deriving (Show)
@@ -206,15 +204,6 @@ instance Arbitrary (FragmentedMessage p) where
         makeFrames []              = []
         makeFrames [(ft, pl)]      = [Frame True ft pl]
         makeFrames ((ft, pl) : fr) = Frame False ft pl : makeFrames fr
-
-newtype ArbitraryUtf8 = ArbitraryUtf8 BL.ByteString
-    deriving (Eq, Ord, Show)
-
-instance Arbitrary ArbitraryUtf8 where
-    arbitrary = ArbitraryUtf8 <$> arbitraryUtf8
-
-arbitraryUtf8 :: Gen BL.ByteString
-arbitraryUtf8 = toLazyByteString . TL.encodeUtf8 . TL.pack <$> arbitrary
 
 arbitraryFragmentation :: BL.ByteString -> Gen [BL.ByteString]
 arbitraryFragmentation bs = arbitraryFragmentation' bs

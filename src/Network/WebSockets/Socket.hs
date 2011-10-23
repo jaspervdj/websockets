@@ -4,9 +4,14 @@
 module Network.WebSockets.Socket
     ( runServer
     , runWithSocket
+    , receiveEnum
+    , sendIter
     ) where
 
+import Prelude hiding (catch)
+
 import Control.Concurrent (forkIO)
+import Control.Exception (SomeException, catch)
 import Control.Monad (forever)
 import Control.Monad.Trans (liftIO)
 
@@ -36,7 +41,7 @@ runServer host port ws = S.withSocketsDo $ do
     host' <- S.inet_addr host
     S.bindSocket sock (S.SockAddrInet (fromIntegral port) host')
     S.listen sock 5
-    forever $ do
+    flip catch (closeSock sock) $ forever $ do
         (conn, _) <- S.accept sock
         -- Voodoo fix: set this to True as soon as we notice the connection was
         -- closed. Will prevent sendIter' from even trying to send anything.
@@ -45,6 +50,9 @@ runServer host port ws = S.withSocketsDo $ do
         -- killRef <- newIORef False
         _ <- forkIO $ runWithSocket conn ws >> return ()
         return ()
+  where
+    closeSock :: Socket -> SomeException -> IO ()
+    closeSock sock _ = S.sClose sock
 
 -- | This function wraps 'runWebSockets' in order to provide a simple API for
 -- stand-alone servers.

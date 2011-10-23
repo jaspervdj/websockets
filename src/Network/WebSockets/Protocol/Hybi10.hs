@@ -38,6 +38,9 @@ instance Protocol Hybi10_ where
     finishRequest   Hybi10_ = handshakeHybi10
     implementations         = []
 
+instance TextProtocol Hybi10_
+instance BinaryProtocol Hybi10_
+
 -- | Parse a frame
 decodeFrameHybi10 :: Decoder p Frame
 decodeFrameHybi10 = do

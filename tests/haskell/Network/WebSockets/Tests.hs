@@ -161,19 +161,15 @@ instance Arbitrary ArbitraryFrameHybi00 where
     arbitrary = ArbitraryFrameHybi00 <$>
         Frame True TextFrame <$> arbitraryUtf8
 
-instance Arbitrary (Message p) where
+instance (TextProtocol p, BinaryProtocol p) => Arbitrary (Message p) where
     arbitrary = do
         payload <- BL.pack <$> arbitrary
-        oneof
-            [ ControlMessage <$> elements
-                [ Close payload
-                , Ping  payload
-                , Pong  payload
-                ]
-            , DataMessage <$> elements
-                [ Binary payload
-                , Text   payload
-                ]
+        elements
+            [ close      payload
+            , ping       payload
+            , pong       payload
+            , textData   payload
+            , binaryData payload
             ]
 
 newtype ArbitraryMessageHybi00 p = ArbitraryMessageHybi00 (Message p)

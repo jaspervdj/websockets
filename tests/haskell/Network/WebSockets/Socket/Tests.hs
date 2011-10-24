@@ -7,6 +7,7 @@ import Control.Applicative ((<$>))
 import Control.Concurrent (forkIO, killThread, threadDelay)
 import Control.Monad (forever, forM_, replicateM)
 import Control.Monad.Trans (liftIO)
+import System.Random (randomRIO)
 
 import Data.ByteString (ByteString)
 import Data.Enumerator (Iteratee, ($$))
@@ -51,10 +52,11 @@ webSocketsClient port proto ws =
 
 sendReceive :: forall p. (ExampleRequest p, TextProtocol p) => p -> Property
 sendReceive proto = monadicIO $ do
-    run $ threadDelay (5 * 1000 * 1000)
-    serverThread <- run $ forkIO $ runServer "0.0.0.0" 8000 server
+    port <- run $ randomRIO (40000, 50000)
+    serverThread <- run $ forkIO $ runServer "0.0.0.0" port server
+    run $ threadDelay (50 * 1000)
     texts <- map unArbitraryUtf8 <$> pick arbitrary
-    texts' <- run $ webSocketsClient 8000 proto $ client' texts
+    texts' <- run $ webSocketsClient port proto $ client' texts
     run $ killThread serverThread
     assert $ texts == texts'
   where

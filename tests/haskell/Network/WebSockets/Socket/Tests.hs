@@ -4,14 +4,11 @@ module Network.WebSockets.Socket.Tests
     ) where
 
 import Control.Applicative ((<$>))
-import Control.Concurrent (forkIO, killThread, threadDelay)
+import Control.Concurrent (forkIO, killThread, yield)
 import Control.Monad (forever, forM_, replicateM)
-import Control.Monad.Trans (liftIO)
-import System.Random (randomRIO)
 
 import Data.ByteString (ByteString)
 import Data.Enumerator (Iteratee, ($$))
-import Data.Text (Text)
 import Test.Framework (Test, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
 import Test.QuickCheck (Property, arbitrary)
@@ -19,12 +16,10 @@ import Test.QuickCheck.Monadic (assert, monadicIO, pick, run)
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Enumerator as E
 import qualified Network.Socket as S
-import qualified Network.Socket.ByteString as SB
 
 import Network.WebSockets
 import Network.WebSockets.Monad
 import Network.WebSockets.Socket
-import Network.WebSockets.Protocol
 import Network.WebSockets.Protocol.Hybi00
 import Network.WebSockets.Protocol.Hybi10
 import Network.WebSockets.Tests.Util
@@ -52,16 +47,15 @@ webSocketsClient port proto ws =
 
 sendReceive :: forall p. (ExampleRequest p, TextProtocol p) => p -> Property
 sendReceive proto = monadicIO $ do
-    port <- run $ randomRIO (40000, 50000)
-    serverThread <- run $ forkIO $ runServer "0.0.0.0" port server
-    run $ threadDelay (50 * 1000)
+    serverThread <- run $ forkIO $ retry $ runServer "0.0.0.0" 42940 server
+    run yield  -- Give the server some time
     texts <- map unArbitraryUtf8 <$> pick arbitrary
-    texts' <- run $ webSocketsClient port proto $ client' texts
+    texts' <- run $ retry $ webSocketsClient 42940 proto $ client' texts
     run $ killThread serverThread
     assert $ texts == texts'
   where
     server :: Request -> WebSockets p ()
-    server _ = forever $ do
+    server _ = flip catchWsError (\_ -> return ()) $ forever $ do
         text <- receiveData
         sendTextData (text :: BL.ByteString)
 
@@ -71,3 +65,14 @@ sendReceive proto = monadicIO $ do
         forM_ texts sendTextData
         replicateM (length texts) $ do
             receiveData
+
+    -- HOLY SHIT WHAT SORT OF ATROCITY IS THIS?!?!?!
+    --
+    -- The problem is that sometimes, the server hasn't been brought down yet
+    -- before the next test, which will cause it not to be able to bind to the
+    -- same port again. In this case, we just retry.
+    --
+    -- The same is true for our client: possibly, the server is not up yet
+    -- before we run the client. We also want to retry in that case.
+    retry :: IO a -> IO a
+    retry action = action `catch` \_ -> action

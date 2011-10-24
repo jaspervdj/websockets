@@ -69,7 +69,7 @@ Library
     blaze-builder-enumerator >= 0.2    && < 0.3,
     bytestring               >= 0.9    && < 0.10,
     case-insensitive         >= 0.3    && < 0.4,
-    containers               >= 0.4    && < 0.5,
+    containers               >= 0.3    && < 0.5,
     enumerator               >= 0.4.13 && < 0.5,
     mtl                      >= 2.0    && < 2.2,
     network                  >= 2.3    && < 2.4,

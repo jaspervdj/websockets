@@ -32,7 +32,7 @@ import Network.WebSockets.Types
 -- | Request headers
 type Headers = [(CI.CI B.ByteString, B.ByteString)]
 
--- | (internal) HTTP headers and requested path.
+-- | (Internally used) HTTP headers and requested path.
 data RequestHttpPart = RequestHttpPart
     { requestHttpPath    :: !B.ByteString
     , requestHttpHeaders :: Headers
@@ -59,14 +59,19 @@ data Response = Response
 --
 -- TODO: This should probably be in the Handshake module, and is solely here to
 -- prevent a cyclic dependency.
-data HandshakeError =
-      NotSupported                             -- ^ We don't have a match for the protocol requested by the client.
-                                               -- todo: version parameter
-    | MalformedRequest RequestHttpPart String  -- ^ The request was somehow invalid (missing headers or wrong security token)
-    | RequestRejected  Request String          -- ^ The request was well-formed, but the library user rejected it.
-                                               -- (e.g. "unknown path")
-    | OtherHandshakeError String               -- ^ for example "EOF came too early" (which is actually a parse error)
-                                               -- or for your own errors. (like "unknown path"?)
+data HandshakeError
+    -- | We don't have a match for the protocol requested by the client.
+    -- todo: version parameter
+    = NotSupported
+    -- | The request was somehow invalid (missing headers or wrong security
+    -- token)
+    | MalformedRequest RequestHttpPart String
+    -- | The request was well-formed, but the library user rejected it.
+    -- (e.g. "unknown path")
+    | RequestRejected Request String
+    -- | for example "EOF came too early" (which is actually a parse error)
+    -- or for your own errors. (like "unknown path"?)
+    | OtherHandshakeError String
     deriving (Show, Typeable)
 
 instance Error HandshakeError where

@@ -13,7 +13,8 @@ import qualified Data.Enumerator as E
 -- only ask for more data if the underlying parser needs it. That's important
 -- because e.g. network connection will block and wait for more data on a
 -- 'Continue'. For messages or frames the problem will not occur as we know the
--- length of the payload and therefore can determine EOF (= end of the frame here).
+-- length of the payload and therefore can determine EOF (= end of the frame
+-- here).
 --
 -- We use parsers that don't take data for validation in Protocols.Hybi10
 shyIterParser :: (Monad m) => A.Parser a -> E.Iteratee B.ByteString m a

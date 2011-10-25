@@ -1,30 +1,78 @@
 -- | How do you use this library? Here's how:
 --
--- * Get an enumerator/iteratee pair from your favorite web server, or use
---   'I.runServer' to set up a simple standalone server.
+-- Get an enumerator/iteratee pair from your favorite web server (or use a
+-- library which provides integration). Alternatively, use 'I.runServer' to
+-- set up a simple standalone server.
 --
--- * Read the 'I.Request' using 'receiveRequest'. Inspect its path and the
---   perform the initial 'H.handshake'. This yields a 'I.Response' which you can
---   send back using 'sendResponse'. The WebSocket is now ready.
+-- An application typically has the form of @I.Request -> I.WebSockets p ()@.
+-- The first thing to do is accept or reject the request, usually based upon
+-- the path in the 'I.Request'. An example:
 --
--- There are (informally) three ways in which you can use the library:
+-- > {-# LANGUAGE OverloadedStrings #-}
+-- > import Network.WebSockets
+-- >
+-- > app :: Protocol p => Request -> WebSockets p ()
+-- > app rq = case requestPath rq of
+-- >    "/forbidden" -> rejectRequest rq "Forbidden!"
+-- >    _            -> do
+-- >        acceptRequest rq
+-- >        ... actual application ...
 --
--- * The most simple case: You don't care about the internal representation of
---   the messages. In this case, use the 'I.WebSocketsData' typeclass:
---   'receiveData', 'sendTextData' and 'sendBinaryData' will be useful.
+-- You can now start using the socket for sending and receiving data. But what's
+-- with the @p@ in @WebSockets p ()@?
 --
--- * You have some protocol, and it is well-specified in which cases the client
---   should send text messages, and in which cases the client should send binary
---   messages. In this case, you can use the 'receiveDataMessage' and
---   'sendDataMessage' methods.
+-- Well, the answer is that this library aims to support many versions of the
+-- WebSockets protocol. Unfortunately, not all versions of the protocol have the
+-- same capabilities: for example, older versions are not able to send binary
+-- data.
 --
--- * You need to write a more low-level server in which you have control over
---   control frames (e.g. ping/pong). In this case, you can use the
---   'receive' and 'send' methods.
+-- The library user (you!) choose which capabilities you need. Then, the browser
+-- and library will negotiate at runtime which version will be actually used.
 --
+-- As an example, here are two applications which need different capabilities:
+--
+-- > import Network.WebSockets
+-- > import qualified Data.ByteString as B
+-- > import qualified Data.Text as T
+-- > 
+-- > app1 :: TextProtocol p => WebSockets p ()
+-- > app1 = sendTextData (T.pack "Hello world!")
+-- > 
+-- > app2 :: BinaryProtocol p => WebSockets p ()
+-- > app2 = sendBinaryData (B.pack [0 .. 100])
+--
+-- When you "tie the knot", you will need to decide what protocol to use, to
+-- prevent ambiguousness. A good rule of thumb is to select the lowest protocol
+-- possible, since higher versions are generally compatible. For example, the
+-- following application uses only /features from Hybi00/, and is therefore
+-- /compatible with Hybi10/ and later protocols.
+-- 
+-- > app :: Request -> WebSockets Hybi00 ()
+-- > app _ = app1
+-- > 
+-- > main :: IO ()
+-- > main = runServer "0.0.0.0" 8000 app
+-- 
 -- In some cases, you want to escape from the 'I.WebSockets' monad and send data
--- to the websocket from different threads. To this end, the
--- 'I.getMessageSender' method is provided.
+-- to the websocket from different threads. To this end, the 'I.getSink' method
+-- is provided. The next example spawns a thread which continuously spams the
+-- client in another thread:
+--
+-- > import Control.Concurrent (forkIO)
+-- > import Control.Monad (forever)
+-- > import Control.Monad.Trans (liftIO)
+-- > import Network.WebSockets
+-- > import qualified Data.Text as T
+-- > 
+-- > spam :: TextProtocol p => WebSockets p ()
+-- > spam = do
+-- >     sink <- getSink
+-- >     _ <- liftIO $ forkIO $ forever $
+-- >         sendSink sink $ textData (T.pack "SPAM SPAM SPAM!")
+-- >     sendTextData (T.pack "Hello world!")
+--
+-- For safety reasons, you can only read from the socket in the 'I.WebSockets'
+-- monad.
 --
 -- For a full example, see:
 --
@@ -163,7 +211,7 @@ receiveDataMessage = do
                 receiveDataMessage
 
 -- | Receive a message, treating it as data transparently
-receiveData :: I.Protocol p => I.WebSocketsData a => I.WebSockets p a
+receiveData :: (I.Protocol p, I.WebSocketsData a) => I.WebSockets p a
 receiveData = do
     dm <- receiveDataMessage
     case dm of

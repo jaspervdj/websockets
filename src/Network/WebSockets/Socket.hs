@@ -64,6 +64,7 @@ runWithSocket s ws = do
     S.sClose s
     either (error . show) return r
 
+-- | Create an enumerator which reads from a socket and yields the chunks
 receiveEnum :: Socket -> Enumerator ByteString IO a
 receiveEnum s = E.checkContinue0 $ \loop f -> do
     b <- liftIO $ SB.recv s 4096
@@ -71,6 +72,7 @@ receiveEnum s = E.checkContinue0 $ \loop f -> do
         then E.continue f
         else f (E.Chunks [b]) >>== loop
 
+-- | Create an iterator which writes to a socket
 sendIter :: Socket -> Iteratee ByteString IO ()
 sendIter s = E.continue go
   where

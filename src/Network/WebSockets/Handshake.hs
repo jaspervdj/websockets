@@ -4,7 +4,6 @@ module Network.WebSockets.Handshake
     ( HandshakeError (..)
     , responseError
     , tryFinishRequest
-    , receiveClientHandshake
     ) where
 
 import qualified Data.ByteString as B
@@ -24,14 +23,7 @@ import Network.WebSockets.Types
 --
 -- * Otherwise, we are guaranteed that the client handshake is valid and have
 -- generated a response ready to be sent back.
-
--- | (try to) receive and validate a complete request. Not used at the moment.
-receiveClientHandshake :: Protocol p
-                       => Decoder p (Either HandshakeError (Request, p))
-receiveClientHandshake = decodeRequest >>= tryFinishRequest
-
--- | Given the HTTP part, try the available protocols one by one.
--- todo: auto-check if the "Version" header matches? (if any)
+--
 tryFinishRequest :: Protocol p
                  => RequestHttpPart
                  -> Decoder p (Either HandshakeError (Request, p))

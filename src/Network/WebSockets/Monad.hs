@@ -42,10 +42,10 @@ import qualified Data.Enumerator as E
 
 import Network.WebSockets.Demultiplex (DemultiplexState, emptyDemultiplexState)
 import Network.WebSockets.Handshake
-import Network.WebSockets.Http
+import Network.WebSockets.Handshake.Http
+import Network.WebSockets.Handshake.ShyIterParser
 import Network.WebSockets.Mask
 import Network.WebSockets.Protocol
-import Network.WebSockets.ShyIterParser
 import Network.WebSockets.Types as T
 
 -- | Options for the WebSocket program

@@ -19,7 +19,7 @@ import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.CaseInsensitive as CI
 
-import Network.WebSockets.Http
+import Network.WebSockets.Handshake.Http
 import Network.WebSockets.Protocol
 import Network.WebSockets.Types
 import Network.WebSockets.Protocol.Hybi10 (Hybi10_ (..))

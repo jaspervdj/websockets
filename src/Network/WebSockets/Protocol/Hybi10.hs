@@ -23,7 +23,7 @@ import qualified Data.CaseInsensitive as CI
 import Control.Monad.Error (throwError)
 import Data.Monoid (mappend, mconcat)
 
-import Network.WebSockets.Http
+import Network.WebSockets.Handshake.Http
 import Network.WebSockets.Mask
 import Network.WebSockets.Protocol
 import Network.WebSockets.Types

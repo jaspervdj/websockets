@@ -1,6 +1,6 @@
 -- | Module dealing with HTTP: request data types, encoding and decoding...
 {-# LANGUAGE DeriveDataTypeable, OverloadedStrings #-}
-module Network.WebSockets.Http
+module Network.WebSockets.Handshake.Http
     ( Headers
     , RequestHttpPart (..)
     , Request (..)

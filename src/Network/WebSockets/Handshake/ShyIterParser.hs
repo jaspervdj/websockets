@@ -1,4 +1,4 @@
-module Network.WebSockets.ShyIterParser
+module Network.WebSockets.Handshake.ShyIterParser
     ( shyIterParser
     ) where
 

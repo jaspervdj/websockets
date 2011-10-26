@@ -154,7 +154,7 @@ import Control.Monad.Trans (liftIO)
 
 import qualified Network.WebSockets.Demultiplex as I
 import qualified Network.WebSockets.Handshake as I
-import qualified Network.WebSockets.Http as I
+import qualified Network.WebSockets.Handshake.Http as I
 import qualified Network.WebSockets.Monad as I
 import qualified Network.WebSockets.Protocol as I
 import qualified Network.WebSockets.Protocol.Hybi00 as I

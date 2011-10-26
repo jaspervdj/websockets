@@ -8,7 +8,7 @@ module Network.WebSockets.Handshake
 
 import qualified Data.ByteString as B
 
-import Network.WebSockets.Http
+import Network.WebSockets.Handshake.Http
 import Network.WebSockets.Protocol
 import Network.WebSockets.Types
 

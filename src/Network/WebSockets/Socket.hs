@@ -22,7 +22,7 @@ import qualified Data.Enumerator as E
 import qualified Network.Socket as S
 import qualified Network.Socket.ByteString as SB
 
-import Network.WebSockets.Http
+import Network.WebSockets.Handshake.Http
 import Network.WebSockets.Monad
 import Network.WebSockets.Protocol
 import Network.WebSockets.Types

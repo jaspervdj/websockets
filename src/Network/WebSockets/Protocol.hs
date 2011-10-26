@@ -13,8 +13,8 @@ module Network.WebSockets.Protocol
 
 import qualified Data.ByteString as B
 
-import Network.WebSockets.Http
 import Network.WebSockets.Types
+import Network.WebSockets.Handshake.Http
 import qualified Network.WebSockets.Protocol.Unsafe as Unsafe
 
 class Protocol p where

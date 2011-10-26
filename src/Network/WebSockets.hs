@@ -120,14 +120,12 @@ module Network.WebSockets
     , I.getVersion
 
       -- * Receiving
-    -- , receiveRequest
     , receiveFrame
     , receive
     , receiveDataMessage
     , receiveData
 
       -- * Sending
-    , sendResponse
     , sendFrame
     , I.send
     , sendTextData

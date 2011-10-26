@@ -11,11 +11,9 @@ import Control.Monad (forM_, replicateM)
 import Control.Monad.Trans (liftIO)
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
-import Data.List (intercalate)
 import qualified Data.Set as S
 
 import Data.Attoparsec (Result (..), parse)
-import Data.Enumerator (($$))
 import Test.Framework (Test, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
 import Test.QuickCheck (Arbitrary (..), Gen, Property, choose, elements, oneof)
@@ -23,13 +21,9 @@ import Test.QuickCheck.Monadic (assert, monadicIO, pick, run)
 import qualified Blaze.ByteString.Builder as Builder
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
-import qualified Data.Enumerator as E
-import qualified Data.Text.Lazy as TL
-import qualified Data.Text.Lazy.Encoding as TL
 
 import Network.WebSockets
 import Network.WebSockets.Mask
-import Network.WebSockets.Monad
 import Network.WebSockets.Protocol
 import Network.WebSockets.Protocol.Hybi00
 import Network.WebSockets.Protocol.Hybi10

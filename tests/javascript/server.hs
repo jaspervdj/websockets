@@ -94,7 +94,7 @@ application :: WS.Request -> WS.WebSockets UnsafeProtocol ()
 application rq = do
     -- When a client succesfully connects, lookup the requested test and
     -- run it
-    WS.sendResponse $ WS.requestResponse rq
+    WS.acceptRequest rq
     version' <- WS.getVersion
     liftIO $ putStrLn $ "Selected version: " ++ version'
     let name = WS.requestPath rq

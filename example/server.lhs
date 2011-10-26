@@ -67,13 +67,11 @@ actual server. For this purpose, we use the simple server provided by
 >     state <- newMVar newServerState
 >     WS.runServer "0.0.0.0" 9160 $ application state
 
-When a client connects, we first obtain the request. Once we have that, we use
-the 'WS.requestResponse' function to generate a response, which we finally send
-to the client.
+When a client connects, we accept the connection, regardless of the path.
 
 > application :: MVar ServerState -> WS.Request -> WS.WebSockets WS.Hybi00 ()
 > application state rq = do
->     WS.sendResponse $ WS.requestResponse rq
+>     WS.acceptRequest rq
 
 We log some information here: in particular, we are interested in the protocol
 version our client is using (for debugging purposes).

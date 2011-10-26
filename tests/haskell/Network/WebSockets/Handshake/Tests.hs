@@ -42,7 +42,7 @@ testHandshake _ rq = do
     return rsp
   where
     app :: Request -> WebSockets p ()
-    app = sendResponse . requestResponse
+    app = acceptRequest
 
 (!) :: Eq a => [(a, b)] -> a -> b
 assoc ! key = fromJust (lookup key assoc)

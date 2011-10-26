@@ -9,18 +9,21 @@ import Control.Applicative (pure, (<$>))
 import Control.Exception (fromException)
 import Control.Monad (forM_, replicateM)
 import Control.Monad.Trans (liftIO)
-import Control.Concurrent (forkIO)
+import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 import qualified Data.Set as S
 
 import Data.Attoparsec (Result (..), parse)
 import Test.Framework (Test, testGroup)
+import Test.Framework.Providers.HUnit (testCase)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
-import Test.QuickCheck (Arbitrary (..), Gen, Property, choose, elements, oneof)
-import Test.QuickCheck.Monadic (assert, monadicIO, pick, run)
+import Test.QuickCheck (Arbitrary (..), Gen, Property)
 import qualified Blaze.ByteString.Builder as Builder
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
+import qualified Test.HUnit as HU
+import qualified Test.QuickCheck as QC
+import qualified Test.QuickCheck.Monadic as QC
 
 import Network.WebSockets
 import Network.WebSockets.Mask
@@ -46,6 +49,7 @@ tests = testGroup "Network.WebSockets.Test"
         (sendReceiveConcurrent Hybi10_)
     , testProperty "sendReceiveConcurrent-hybi00"
         (sendReceiveConcurrent Hybi00_)
+    , testCase     "pingThread-hybi10"        (pingThread Hybi10_)
     ]
 
 -- | Encode a frame, then decode it again. We should obviously get our original
@@ -64,9 +68,9 @@ encodeDecodeFrameHybi00 proto am (ArbitraryFrameHybi00 f) =
     encodeDecodeFrame proto am f
 
 sendReceive :: Protocol p => p -> [Message p] -> Property
-sendReceive proto msgs = monadicIO $ do
-    msgs' <- run $ pipe proto (mapM_ send msgs) (receiver [])
-    assert $ msgs == msgs'
+sendReceive proto msgs = QC.monadicIO $ do
+    msgs' <- QC.run $ pipe proto (mapM_ send msgs) (receiver [])
+    QC.assert $ msgs == msgs'
   where
     receiver msgs' = flip catchWsError (\_ -> return (reverse msgs')) $ do
         msg <- receive 
@@ -79,20 +83,20 @@ sendReceiveHybi00 proto = sendReceive proto . map unpack
     unpack (ArbitraryMessageHybi00 msg) = msg
 
 sendReceiveFragmented :: Protocol p => p -> FragmentedMessage p -> Property
-sendReceiveFragmented proto (FragmentedMessage msg frames) = monadicIO $ do
+sendReceiveFragmented proto (FragmentedMessage msg frames) = QC.monadicIO $ do
     -- Put some other frames in between
     let frames' = concatMap addCrap frames
-    msg' <- run $ pipe proto (mapM_ sendFrame frames') receiveDataMessage
-    assert $ msg == DataMessage msg'
+    msg' <- QC.run $ pipe proto (mapM_ sendFrame frames') receiveDataMessage
+    QC.assert $ msg == DataMessage msg'
   where
     addCrap x = [Frame True PingFrame "Herp", Frame True PongFrame "Derp", x]
 
 sendReceiveClose :: Protocol p => p -> Property
-sendReceiveClose proto = monadicIO $ do
+sendReceiveClose proto = QC.monadicIO $ do
     -- Put some other frames in between
     let frames = [Frame True CloseFrame "", Frame True TextFrame "Herp"]
-    closed <- run $ pipe proto (mapM_ sendFrame frames) receiver
-    assert closed
+    closed <- QC.run $ pipe proto (mapM_ sendFrame frames) receiver
+    QC.assert closed
   where
     receiver = catchWsError (receiveDataMessage >> return False) $ \e ->
         case fromException e of
@@ -100,10 +104,10 @@ sendReceiveClose proto = monadicIO $ do
             _                     -> return False
 
 sendReceiveConcurrent :: TextProtocol p => p -> Property
-sendReceiveConcurrent proto = monadicIO $ do
+sendReceiveConcurrent proto = QC.monadicIO $ do
     -- Pick some text messages
-    msgs <- pick arbitrary
-    msgs' <- run $ pipe proto (sender msgs) (receiver [])
+    msgs <- QC.pick arbitrary
+    msgs' <- QC.run $ pipe proto (sender msgs) (receiver [])
     return $ S.fromList msgs == S.fromList msgs'
   where
     sender msgs = do
@@ -120,17 +124,26 @@ sendReceiveConcurrent proto = monadicIO $ do
         msg <- receiveData
         receiver (ArbitraryUtf8 msg : msgs')
 
+pingThread :: BinaryProtocol p => p -> HU.Assertion
+pingThread proto = HU.assert $ pipe proto server $ client 0
+  where
+    server   = spawnPingThread 1 >> liftIO (threadDelay $ 3 * 1000 * 1000)
+    client 3 = return True
+    client n = receive >>= \msg -> case msg of
+        ControlMessage (Ping _) -> client (n + 1 :: Int)
+        _                       -> return False
+
 newtype ArbitraryMask = ArbitraryMask Mask
                       deriving (Show)
 
 instance Arbitrary ArbitraryMask where
-    arbitrary = ArbitraryMask <$> oneof
+    arbitrary = ArbitraryMask <$> QC.oneof
         [ return Nothing
         , Just . B.pack <$> replicateM 4 arbitrary
         ]
 
 instance Arbitrary FrameType where
-    arbitrary = elements
+    arbitrary = QC.elements
         [ ContinuationFrame
         , TextFrame
         , BinaryFrame
@@ -158,7 +171,7 @@ instance Arbitrary ArbitraryFrameHybi00 where
 instance (TextProtocol p, BinaryProtocol p) => Arbitrary (Message p) where
     arbitrary = do
         payload <- BL.pack <$> arbitrary
-        elements
+        QC.elements
             [ close      payload
             , ping       payload
             , pong       payload
@@ -170,7 +183,7 @@ newtype ArbitraryMessageHybi00 p = ArbitraryMessageHybi00 (Message p)
     deriving (Show)
 
 instance Arbitrary (ArbitraryMessageHybi00 p) where
-    arbitrary = ArbitraryMessageHybi00 <$> oneof
+    arbitrary = ArbitraryMessageHybi00 <$> QC.oneof
         [ ControlMessage . Close <$> pure ""
         , DataMessage    . Text  <$> arbitraryUtf8
         ]
@@ -181,7 +194,7 @@ data FragmentedMessage p
 
 instance Arbitrary (FragmentedMessage p) where
     arbitrary = do
-        ft <- elements [TextFrame, BinaryFrame]
+        ft <- QC.elements [TextFrame, BinaryFrame]
         payload <- arbitraryUtf8
         fragments <- arbitraryFragmentation payload
         let fs = makeFrames $ zip (ft : repeat ContinuationFrame) fragments
@@ -203,7 +216,7 @@ arbitraryFragmentation bs = arbitraryFragmentation' bs
     arbitraryFragmentation' bs' = do
         -- TODO: we currently can't send packets of length 0. We should
         -- investigate why (regardless of the spec).
-        n <- choose (1, len - 1)
+        n <- QC.choose (1, len - 1)
         let (l, r) = BL.splitAt (fromIntegral n) bs'
         case r of
             "" -> return [l]

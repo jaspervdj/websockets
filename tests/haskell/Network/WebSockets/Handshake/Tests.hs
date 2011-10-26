@@ -28,10 +28,12 @@ tests = testGroup "Network.WebSockets.Test"
     [ testCase "handshakeHybi00"   handshakeHybi00
     , testCase "handshakeHybi10"   handshakeHybi10
     , testCase "handshakeHybi9000" handshakeHybi9000
+    , testCase "handshakeReject"   handshakeReject
     ]
 
-testHandshake :: forall p. Protocol p => p -> RequestBody -> IO Response
-testHandshake _ rq = do
+testHandshake :: forall p. Protocol p
+              => (Request -> WebSockets p ()) -> p -> RequestBody -> IO Response
+testHandshake app _ rq = do
     ia <- newIterAccum
     -- Encode request
     let bs = B.concat $ BL.toChunks $ Builder.toLazyByteString $
@@ -40,9 +42,9 @@ testHandshake _ rq = do
     _ <- E.run $ E.enumList 1 [bs] $$ runWebSocketsHandshake app (getIter ia)
     Right rsp <- A.parseOnly parseResponse . B.concat <$> getAccum ia
     return rsp
-  where
-    app :: Request -> WebSockets p ()
-    app = acceptRequest
+
+testHandshakeAccept :: Protocol p => p -> RequestBody -> IO Response
+testHandshakeAccept = testHandshake acceptRequest
 
 (!) :: Eq a => [(a, b)] -> a -> b
 assoc ! key = fromJust (lookup key assoc)
@@ -52,7 +54,7 @@ rq00 :: RequestBody
 rq00 = exampleRequest Hybi00_
 
 handshakeHybi00 :: Assertion
-handshakeHybi00 = testHandshake (undefined :: Hybi00) rq00 >>=
+handshakeHybi00 = testHandshakeAccept (undefined :: Hybi00) rq00 >>=
     \(Response code message headers body) -> assert $
         code == 101 &&
         message == "WebSocket Protocol Handshake" &&
@@ -65,7 +67,7 @@ rq10 :: RequestBody
 rq10 = exampleRequest Hybi10_
 
 handshakeHybi10 :: Assertion
-handshakeHybi10 = testHandshake (undefined :: Hybi10) rq10 >>=
+handshakeHybi10 = testHandshakeAccept (undefined :: Hybi10) rq10 >>=
     \(Response code message headers body) -> assert $
         code == 101 &&
         message == "WebSocket Protocol Handshake" &&
@@ -88,8 +90,14 @@ rq9000 = RequestBody
     ""
 
 handshakeHybi9000 :: Assertion
-handshakeHybi9000 = testHandshake (undefined :: Hybi00) rq9000 >>=
+handshakeHybi9000 = testHandshakeAccept (undefined :: Hybi00) rq9000 >>=
     \(Response code _ headers body) -> assert $
-            code == 400 &&
-            headers ! "Sec-WebSocket-Version" == "0, 8" &&
-            body == ""
+        code == 400 &&
+        headers ! "Sec-WebSocket-Version" == "0, 8" &&
+        body == ""
+
+handshakeReject :: Assertion
+handshakeReject = testHandshake (flip rejectRequest "YOU SHALL NOT PASS")
+    (undefined :: Hybi00) rq9000 >>=
+        \(Response code _ _ body) -> assert $
+            code == 400 && body == ""

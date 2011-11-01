@@ -21,6 +21,8 @@ import Test.QuickCheck (Arbitrary (..), Gen, Property)
 import qualified Blaze.ByteString.Builder as Builder
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
+import qualified Data.Text as T
+import qualified Data.Text.Lazy as TL
 import qualified Test.HUnit as HU
 import qualified Test.QuickCheck as QC
 import qualified Test.QuickCheck.Monadic as QC
@@ -41,6 +43,10 @@ tests = testGroup "Network.WebSockets.Test"
 
     , testProperty "sendReceive-hybi10"       (sendReceive Hybi10_)
     , testProperty "sendReceive-hybi00"       (sendReceiveHybi00 Hybi00_)
+    , testProperty "sendReceiveTextData-hybi10"
+        (sendReceiveTextData Hybi10_)
+    , testProperty "sendReceiveTextData-hybi00"
+        (sendReceiveTextData Hybi00_)
     , testProperty "sendReceiveFragmented-hybi10"
         (sendReceiveFragmented Hybi10_)
     , testProperty "sendReceiveClose-hybi10"  (sendReceiveClose Hybi10_)
@@ -81,6 +87,15 @@ sendReceiveHybi00 :: Protocol p
 sendReceiveHybi00 proto = sendReceive proto . map unpack
   where
     unpack (ArbitraryMessageHybi00 msg) = msg
+
+sendReceiveTextData :: TextProtocol p => p -> Property
+sendReceiveTextData proto = QC.monadicIO $ do
+    t <- T.pack <$> QC.pick arbitrary
+    t' <- QC.run $ pipe proto (sendTextData t) receiveData
+    QC.assert $ t == t'
+    tl <- TL.pack <$> QC.pick arbitrary
+    tl' <- QC.run $ pipe proto (sendTextData tl) receiveData
+    QC.assert $ tl == tl'
 
 sendReceiveFragmented :: Protocol p => p -> FragmentedMessage p -> Property
 sendReceiveFragmented proto (FragmentedMessage msg frames) = QC.monadicIO $ do

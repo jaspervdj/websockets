@@ -1,8 +1,6 @@
 {-# LANGUAGE Arrows, OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 import Control.Arrow ((>>>))
-import Control.Monad (unless)
-import Data.IORef (newIORef, readIORef, writeIORef)
 import System.Posix.Directory (changeWorkingDirectory)
 import System.Posix.Files (createSymbolicLink)
 import System.Process (rawSystem)
@@ -31,12 +29,6 @@ makeHaddock = do
     -- Ignore exit code
     sh c as = rawSystem c as >>= \_ -> return ()
 
--- | Execute a program only once
-once :: IO () -> IO (IO ())
-once f = do
-    ioref <- newIORef False
-    return $ readIORef ioref >>= \e -> unless e $ writeIORef ioref True >> f
-
 pageCompiler' :: Compiler Resource (Page String)
 pageCompiler' =
     pageCompiler >>>
@@ -45,7 +37,6 @@ pageCompiler' =
 
 main :: IO ()
 main = do
-    makeHaddockOnce <- once makeHaddock
     makeLinks
     hakyllWith config $ do
         match "README.markdown" $ do
@@ -61,7 +52,7 @@ main = do
                 copyFileCompiler -< x
 
         -- | A virtual target which generates the documentation
-        create "haddock" $ unsafeCompiler $ const makeHaddockOnce
+        create "haddock" $ unsafeCompiler $ const makeHaddock
 
         match "templates/*" $ compile templateCompiler
         match "css/*" $ do

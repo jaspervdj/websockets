@@ -18,6 +18,14 @@ Installation is provided using cabal:
 
     cabal install websockets
 
+Compatibility
+-------------
+
+Protocol  Firefox  Chrome  Opera  Safari
+--------- -------- ------- ------ ---------
+`Hybi00`  >= 4     >= 6    >= 11  >= 5.0.1
+`Hybi10`  >= 7     >= 14
+
 Authors
 -------
 
@@ -30,6 +38,8 @@ Contributors:
 
 Development
 -----------
+
+Pull requests are always welcome!
 
 This library is production-quality. Therefore we have very high standards in
 terms of code style, API quality and testing.

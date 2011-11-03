@@ -1,5 +1,9 @@
+websockets example
+==================
+
 This is the Haskell implementation of the example for the WebSockets library. We
-implement a simple multi-user chat program.
+implement a simple multi-user chat program. A live demo of the example is
+available [here](http://jaspervdj.be/websockets-example).
 
 > {-# LANGUAGE OverloadedStrings #-}
 > import Data.Char (isPunctuation, isSpace)

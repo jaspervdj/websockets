@@ -21,6 +21,8 @@ Installation is provided using cabal:
 Compatibility
 -------------
 
+Both the `Hybi00` and `Hybi10` protocols are supported by the library.
+
 Protocol  Firefox  Chrome  Opera  Safari
 --------- -------- ------- ------ ---------
 `Hybi00`  >= 4     >= 6    >= 11  >= 5.0.1
@@ -29,7 +31,9 @@ Protocol  Firefox  Chrome  Opera  Safari
 Authors
 -------
 
-The library is written and maintained Jasper Van der Jeugt.
+An initial WebSockets library was written in 2010 by Siniša Biđin. In 2011, it
+was rewritten from scratch, and extended to it's current state by Jasper Van der
+Jeugt, who is also the current maintainer.
 
 Contributors:
 

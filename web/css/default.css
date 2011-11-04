@@ -3,7 +3,7 @@ html {
     font-family: monospace;
     font-size: 14px;
     text-align: left;
-    background-color: #ddd;
+    background-color: #eee;
 }
 
 body {
@@ -60,7 +60,7 @@ a {
 }
 
 pre code {
-    background-color: #ddd;
+    background-color: #eee;
     border: 1px solid #888;
     display: block;
     margin: 10px;

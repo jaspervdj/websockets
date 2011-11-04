@@ -10,12 +10,10 @@ Synopsis:
 Description:
  This library allows you to write WebSocket-capable servers.
  .
- See an example: <http://github.com/jaspervdj/websockets/tree/master/example>.
+ See an example: <http://jaspervdj/.be/websockets/example.html>.
  .
  The API of the 'Network.WebSockets' module should also contain enough
  information to get you started.
- .
- This library currently works with Chromium @>= 14@, and Firefox @>= 6@.
  .
  See also:
  .
@@ -29,14 +27,16 @@ License:      BSD3
 License-file: LICENCE
 Copyright:    (c) 2010-2011 Siniša Biđin
               (c) 2011 Jasper Van der Jeugt
-
-Author:      Siniša Biđin <sinisa@bidin.cc>
-             Jasper Van der Jeugt <m@jaspervdj.be>
-Maintainer:  Jasper Van der Jeugt <m@jaspervdj.be>
-
-Stability:      experimental
-Category:       Network
-Build-type:     Simple
+              (c) 2011 Steffen Schuldenzucker
+              (c) 2011 Alex Lang
+Author:       Siniša Biđin <sinisa@bidin.cc>
+              Jasper Van der Jeugt <m@jaspervdj.be>
+              Steffen Schuldenzucker <steffen.schuldenzucker@googlemail.com>
+              Alex Lang <lang@tsurucapital.com>
+Maintainer:   Jasper Van der Jeugt <m@jaspervdj.be>
+Stability:    experimental
+Category:     Network
+Build-type:   Simple
 
 Library
   Hs-source-dirs: src

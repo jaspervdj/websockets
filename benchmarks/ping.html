@@ -9,12 +9,16 @@
                 if(host == '') host = 'localhost';
                 var uri = 'ws://' + host + ':8088';
 
-                /* Previous time check */
-                var previous = new Date().getTime();
-                var interval = 10000;
+                /* Number of pings in the last second */
+                var pings = 0;
 
+                $('#stats').text('Opening WebSocket...');
                 var ws = new WebSocket(uri);
                 ws.onopen = function() {
+                    window.setInterval(function () {
+                        $('#stats').text(pings + ' ping/s');
+                        pings = 0;
+                    }, 1000);
                 };
 
                 ws.onmessage = function (event) {
@@ -22,20 +26,8 @@
                     if(msg.substr(0, 5) == 'Ping ') {
                         var n = parseInt(msg.substr(5));
                         ws.send('Pong ' + n);
-
-                        /* Check time */
-                        if(n % interval == 0) {
-                            var ms = new Date().getTime();
-                            var delta = (ms - previous);
-                            previous = ms;
-                            $('#stats').text(interval + ' pings in ' +
-                                delta + 'ms: ' + (interval / delta * 1000) +
-                                'ping/s');
-                        }
+                        pings++;
                     }
-                };
-
-                onclose = function() {
                 };
             });
         </script>

@@ -1,60 +1,50 @@
 -- | Implementation of the WebSocket handshake
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
 module Network.WebSockets.Handshake
     ( HandshakeError (..)
-    , handshake
-    , response101
-    , response400
+    , responseError
+    , tryFinishRequest
     ) where
 
-import Data.Monoid (mappend, mconcat)
-import Control.Monad.Error (Error (..), throwError)
+import qualified Data.ByteString as B
 
-import Data.Digest.Pure.SHA (bytestringDigest, sha1)
-import qualified Data.ByteString.Base64 as B64
-import qualified Data.ByteString.Char8 as BC
-import qualified Data.ByteString.Lazy as BL
-import qualified Data.CaseInsensitive as CI
-
+import Network.WebSockets.Handshake.Http
+import Network.WebSockets.Protocol
 import Network.WebSockets.Types
 
--- | Error in case of failed handshake.
-data HandshakeError = HandshakeError String
-                    deriving (Show)
-
-instance Error HandshakeError where
-    noMsg  = HandshakeError "Handshake error"
-    strMsg = HandshakeError
-
--- | Provides the logic for the initial handshake defined in the WebSocket
--- protocol. This function will provide you with a 'Response' which accepts and
--- upgrades the received 'Request'. Once this 'Response' is sent, you can start
--- sending and receiving actual application data.
+-- | Receives and checks the client handshake.
+-- 
+-- * If this fails, we encountered a syntax error while processing the client's
+-- request. That is very bad.
+-- 
+-- * If it returns @Left@, we either don't support the protocol requested by
+-- the client ('NotSupported') or the data the client sent doesn't match the
+-- protocol ('MalformedRequest')
 --
--- In the case of a malformed request, a 'HandshakeError' is returned.
-handshake :: Request -> Either HandshakeError Response
-handshake (Request _ headers) = do
-    key <- getHeader "Sec-WebSocket-Key"
-    let hash = unlazy $ bytestringDigest $ sha1 $ lazy $ key `mappend` guid
-    let encoded = B64.encode hash
-
-    return $ response101 [("Sec-WebSocket-Accept", encoded)]
+-- * Otherwise, we are guaranteed that the client handshake is valid and have
+-- generated a response ready to be sent back.
+--
+tryFinishRequest :: Protocol p
+                 => RequestHttpPart
+                 -> Decoder p (Either HandshakeError (Request, p))
+tryFinishRequest httpReq = tryInOrder implementations
+    -- NOTE that the protocols are tried in order, the first one first. So that
+    -- should be the latest one. (only matters if we have overlaps in specs,
+    -- though)
   where
-    guid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
-    lazy = BL.fromChunks . return
-    unlazy = mconcat . BL.toChunks
-    getHeader k = case lookup k headers of
-        Just t  -> return t
-        Nothing -> throwError $
-            HandshakeError $ "Header missing: " ++ BC.unpack (CI.original k)
+    tryInOrder []       = return . Left $ NotSupported
+    tryInOrder (p : ps) = finishRequest p httpReq >>= \res -> case res of
+        (Left NotSupported) -> tryInOrder ps
+        (Left e)            -> return (Left e)
+        (Right req)         -> return . Right $ (req, p)
 
--- | An upgrade response
-response101 :: Headers -> Response
-response101 headers = Response 101 "WebSocket Protocol Handshake" $
-    ("Upgrade", "WebSocket") :
-    ("Connection", "Upgrade") :
-    headers
-
--- | Bad request
-response400 :: Headers -> Response
-response400 headers = Response 400 "Bad Request" headers
+-- | Respond to errors encountered during handshake. First argument may be
+-- bottom.
+responseError :: forall p. Protocol p => p -> HandshakeError -> Response
+responseError _ err = response400 $ case err of
+    -- TODO: fix
+    NotSupported -> versionHeader  -- Version negotiation
+    _            -> []
+  where
+    versionHeader = [("Sec-WebSocket-Version",
+        B.intercalate ", " $ map headerVersion (implementations :: [p]))]

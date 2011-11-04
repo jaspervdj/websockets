@@ -16,11 +16,11 @@ function createWebSocket(path) {
 * Actual tests                                                                 *
 *******************************************************************************/
 
-module('websockets');
-
 test('demo', function () {
     ok(true, 'Demo test');
 });
+
+module('Hybi00');
 
 asyncTest('echo', function() {
     var ws = createWebSocket('/echo');
@@ -37,17 +37,6 @@ asyncTest('echo', function() {
         if(messages.length > 0) {
             ws.send(messages[0]);
         } else {
-            ws.close();
-            start();
-        }
-    };
-});
-
-asyncTest('ping', function() {
-    var ws = createWebSocket('/ping');
-
-    ws.onmessage = function (event) {
-        if(event.data == 'OK') {
             ws.close();
             start();
         }
@@ -83,4 +72,17 @@ asyncTest('concurrent send', function () {
             ok(true, 'all received');
         }
     }
+});
+
+module('Hybi10');
+
+asyncTest('ping', function() {
+    var ws = createWebSocket('/ping');
+
+    ws.onmessage = function (event) {
+        if(event.data == 'OK') {
+            ws.close();
+            start();
+        }
+    };
 });

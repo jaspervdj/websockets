@@ -24,7 +24,7 @@ module Network.WebSockets.Monad
     , spawnPingThread
     ) where
 
-import Control.Applicative ((<$>))
+import Control.Applicative (Applicative, (<$>))
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.MVar (newMVar, withMVar)
 import Control.Exception (Exception (..), SomeException, throw)
@@ -70,17 +70,17 @@ data WebSocketsEnv p = WebSocketsEnv
 newtype WebSockets p a = WebSockets
     { unWebSockets :: ReaderT (WebSocketsEnv p)
         (StateT DemultiplexState (Iteratee ByteString IO)) a
-    } deriving (Functor, Monad, MonadIO)
+    } deriving (Applicative, Functor, Monad, MonadIO)
 
 -- | Receives the initial client handshake, then behaves like 'runWebSockets'.
 runWebSocketsHandshake :: Protocol p
-     => (Request -> WebSockets p a)
-     -> Iteratee ByteString IO ()
-     -> Iteratee ByteString IO a
+                       => (Request -> WebSockets p a)
+                       -> Iteratee ByteString IO ()
+                       -> Iteratee ByteString IO a
 runWebSocketsHandshake = runWebSocketsWithHandshake defaultWebSocketsOptions
 
 -- | Receives the initial client handshake, then behaves like
--- 'runWebSocketsWith.
+-- 'runWebSocketsWith'.
 runWebSocketsWithHandshake :: Protocol p
                            => WebSocketsOptions
                            -> (Request -> WebSockets p a)
@@ -95,9 +95,9 @@ runWebSocketsWithHandshake opts goWs outIter = do
 -- initial request. If not, you might want to use 'runWebSocketsWithHandshake'
 -- instead.
 --
--- If the handshake failed, returns HandshakeError. Otherwise, executes the
--- supplied continuation. If you want to accept the connection, you should send
--- the included 'requestResponse', and a 'response400' otherwise.
+-- If the handshake failed, throws a 'HandshakeError'. Otherwise, executes the
+-- supplied continuation. You should still send a response to the client
+-- yourself.
 runWebSockets :: Protocol p
               => RequestHttpPart
               -> (Request -> WebSockets p a)
@@ -106,13 +106,12 @@ runWebSockets :: Protocol p
 runWebSockets = runWebSocketsWith defaultWebSocketsOptions
 
 -- | Version of 'runWebSockets' which allows you to specify custom options
-runWebSocketsWith :: forall p a.
-       Protocol p
-    => WebSocketsOptions
-    -> RequestHttpPart
-    -> (Request -> WebSockets p a)
-    -> Iteratee ByteString IO ()
-    -> Iteratee ByteString IO a
+runWebSocketsWith :: forall p a. Protocol p
+                  => WebSocketsOptions
+                  -> RequestHttpPart
+                  -> (Request -> WebSockets p a)
+                  -> Iteratee ByteString IO ()
+                  -> Iteratee ByteString IO a
 runWebSocketsWith opts httpReq goWs outIter = do
     mreq <- receiveIterateeShy $ tryFinishRequest httpReq
     case mreq of
@@ -252,7 +251,9 @@ throwWsError :: (Exception e) => e -> WebSockets p a
 throwWsError = liftIteratee . E.throwError
 
 -- | Catch an iteratee error in the WebSockets monad
-catchWsError :: WebSockets p a -> (SomeException -> WebSockets p a) -> WebSockets p a
+catchWsError :: WebSockets p a
+             -> (SomeException -> WebSockets p a)
+             -> WebSockets p a
 catchWsError act c = WebSockets $ do
     env <- ask
     state <- get

@@ -1,8 +1,6 @@
 Name:    websockets
 Version: 0.3.1.0
 
-Cabal-version:  >= 1.6
-
 Synopsis:
   Provides a sensible, clean and simple way to write WebSocket-capable servers
   in Haskell.
@@ -23,20 +21,24 @@ Description:
  * The JavaScript API for dealing with WebSockets:
  <http://www.w3.org/TR/websockets/>
 
-License:      BSD3
-License-file: LICENCE
-Copyright:    (c) 2010-2011 Siniša Biđin
-              (c) 2011 Jasper Van der Jeugt
-              (c) 2011 Steffen Schuldenzucker
-              (c) 2011 Alex Lang
-Author:       Siniša Biđin <sinisa@bidin.cc>
-              Jasper Van der Jeugt <m@jaspervdj.be>
-              Steffen Schuldenzucker <steffen.schuldenzucker@googlemail.com>
-              Alex Lang <lang@tsurucapital.com>
-Maintainer:   Jasper Van der Jeugt <m@jaspervdj.be>
-Stability:    experimental
-Category:     Network
-Build-type:   Simple
+License:       BSD3
+License-file:  LICENCE
+Copyright:     (c) 2010-2011 Siniša Biđin
+               (c) 2011 Jasper Van der Jeugt
+               (c) 2011 Steffen Schuldenzucker
+               (c) 2011 Alex Lang
+Author:        Siniša Biđin <sinisa@bidin.cc>
+               Jasper Van der Jeugt <m@jaspervdj.be>
+               Steffen Schuldenzucker <steffen.schuldenzucker@googlemail.com>
+               Alex Lang <lang@tsurucapital.com>
+Maintainer:    Jasper Van der Jeugt <m@jaspervdj.be>
+Stability:     experimental
+Category:      Network
+Build-type:    Simple
+Cabal-version: >= 1.6
+
+Homepage:    http://jaspervdj.be/websockets
+Bug-reports: https://github.com/jaspervdj/websockets/issues
 
 Library
   Hs-source-dirs: src

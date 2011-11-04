@@ -50,14 +50,14 @@ data ConnectionError
 
 instance Exception ConnectionError
 
--- | A frame
+-- | A low-level representation of a WebSocket packet
 data Frame = Frame
     { frameFin     :: !Bool
     , frameType    :: !FrameType
     , framePayload :: !BL.ByteString
     } deriving (Eq, Show)
 
--- | Type of a frame
+-- | The type of a frame. Not all types are allowed for all protocols.
 data FrameType
     = ContinuationFrame
     | TextFrame

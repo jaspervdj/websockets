@@ -38,7 +38,7 @@ data RequestHttpPart = RequestHttpPart
     , requestHttpHeaders :: Headers
     } deriving (Eq, Show)
 
--- | Simple request type
+-- | Full request type
 data Request = Request
     { requestPath     :: !B.ByteString
     , requestHeaders  :: Headers

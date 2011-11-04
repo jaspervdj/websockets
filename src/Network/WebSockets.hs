@@ -41,11 +41,12 @@
 -- > app2 :: BinaryProtocol p => WebSockets p ()
 -- > app2 = sendBinaryData (B.pack [0 .. 100])
 --
--- When you "tie the knot", you will need to decide what protocol to use, to
+-- When you /tie the knot/, you will need to decide what protocol to use, to
 -- prevent ambiguousness. A good rule of thumb is to select the lowest protocol
--- possible, since higher versions are generally compatible. For example, the
--- following application uses only /features from Hybi00/, and is therefore
--- /compatible with Hybi10/ and later protocols.
+-- possible, since higher versions are generally backwards compatible in terms
+-- of features. . For example, the following application uses only
+-- /features from Hybi00/, and is therefore /compatible with Hybi10/ and later
+-- protocols.
 -- 
 -- > app :: Request -> WebSockets Hybi00 ()
 -- > app _ = app1
@@ -76,7 +77,7 @@
 --
 -- For a full example, see:
 --
--- <http://github.com/jaspervdj/websockets/tree/master/example>
+-- <http://jaspervdj.be/websockets/example.html>
 {-# LANGUAGE ScopedTypeVariables #-}
 module Network.WebSockets
     ( 

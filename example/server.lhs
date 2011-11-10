@@ -21,7 +21,11 @@ nearby to check out the functions we use.
 > import qualified Network.WebSockets as WS
 
 We represent a client by his username and a 'WS.Sender'. We can use this sender
-to asynchronously send 'Text' to the client later.
+to asynchronously send 'Text' to the client later. Note that using `WS.Hybi00`
+here does not imply that our server is only compatible with the `hybi-00`
+version of the protocol, for more details on this, see the
+[Network.WebSockets](http://jaspervdj.be/websockets/reference/Network-WebSockets.html) 
+reference.
 
 > type Client = (Text, WS.Sink WS.Hybi00)
 

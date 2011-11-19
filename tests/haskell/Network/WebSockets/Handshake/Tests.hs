@@ -93,7 +93,7 @@ handshakeHybi9000 :: Assertion
 handshakeHybi9000 = testHandshakeAccept (undefined :: Hybi00) rq9000 >>=
     \(Response code _ headers body) -> assert $
         code == 400 &&
-        headers ! "Sec-WebSocket-Version" == "0, 8" &&
+        headers ! "Sec-WebSocket-Version" == "13, 8, 0" &&
         body == ""
 
 handshakeReject :: Assertion

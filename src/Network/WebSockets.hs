@@ -96,6 +96,7 @@ module Network.WebSockets
     , I.BinaryProtocol
     , I.Hybi00
     , I.Hybi10
+    , I.Hybi17
 
       -- * A simple standalone server
     , I.runServer
@@ -160,6 +161,7 @@ import qualified Network.WebSockets.Monad as I
 import qualified Network.WebSockets.Protocol as I
 import qualified Network.WebSockets.Protocol.Hybi00 as I
 import qualified Network.WebSockets.Protocol.Hybi10 as I
+import qualified Network.WebSockets.Protocol.Hybi17 as I
 import qualified Network.WebSockets.Protocol.Unsafe as Unsafe
 import qualified Network.WebSockets.Socket as I
 import qualified Network.WebSockets.Types as I

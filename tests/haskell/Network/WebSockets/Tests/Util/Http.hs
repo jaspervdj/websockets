@@ -20,8 +20,8 @@ import qualified Data.CaseInsensitive as CI
 
 import Network.WebSockets.Handshake.Http
 import Network.WebSockets.Types
-import Network.WebSockets.Protocol.Hybi00
-import Network.WebSockets.Protocol.Hybi10
+import Network.WebSockets.Protocol.Hybi00.Internal
+import Network.WebSockets.Protocol.Hybi10.Internal
 
 class ExampleRequest p where
     exampleRequest :: p -> RequestBody

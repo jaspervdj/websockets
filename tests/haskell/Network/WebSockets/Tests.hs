@@ -30,8 +30,8 @@ import qualified Test.QuickCheck.Monadic as QC
 import Network.WebSockets
 import Network.WebSockets.Mask
 import Network.WebSockets.Protocol
-import Network.WebSockets.Protocol.Hybi00
-import Network.WebSockets.Protocol.Hybi10
+import Network.WebSockets.Protocol.Hybi00.Internal
+import Network.WebSockets.Protocol.Hybi10.Internal
 import Network.WebSockets.Tests.Util
 import Network.WebSockets.Tests.Util.IterAccum
 import qualified Network.WebSockets.Protocol.Unsafe as Unsafe

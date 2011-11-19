@@ -20,8 +20,8 @@ import qualified Network.Socket as S
 import Network.WebSockets
 import Network.WebSockets.Monad
 import Network.WebSockets.Socket
-import Network.WebSockets.Protocol.Hybi00
-import Network.WebSockets.Protocol.Hybi10
+import Network.WebSockets.Protocol.Hybi00.Internal
+import Network.WebSockets.Protocol.Hybi10.Internal
 import Network.WebSockets.Tests.Util
 import Network.WebSockets.Tests.Util.Http
 

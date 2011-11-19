@@ -18,8 +18,8 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.Enumerator as E
 
 import Network.WebSockets
-import Network.WebSockets.Protocol.Hybi00
-import Network.WebSockets.Protocol.Hybi10
+import Network.WebSockets.Protocol.Hybi00.Internal
+import Network.WebSockets.Protocol.Hybi10.Internal
 import Network.WebSockets.Tests.Util.Http
 import Network.WebSockets.Tests.Util.IterAccum
 

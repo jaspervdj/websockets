@@ -58,6 +58,8 @@ Library
     Network.WebSockets.Protocol.Hybi00.Internal
     Network.WebSockets.Protocol.Hybi10
     Network.WebSockets.Protocol.Hybi10.Internal
+    Network.WebSockets.Protocol.Hybi17
+    Network.WebSockets.Protocol.Hybi17.Internal
     Network.WebSockets.Protocol.Unsafe
     Network.WebSockets.Socket
     Network.WebSockets.Types

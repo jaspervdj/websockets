@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP #-}
 module Network.WebSockets.Protocol.Hybi00.Internal
        ( Hybi00_ (..)
        ) where
@@ -13,6 +14,9 @@ import Data.Digest.Pure.MD5 (md5)
 import Data.Int (Int32)
 import qualified Blaze.ByteString.Builder as BB
 import qualified Data.Attoparsec as A
+#if MIN_VERSION_attoparsec(0,10,0)
+import qualified Data.Attoparsec.Types as AT
+#endif
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy as BL
@@ -64,7 +68,11 @@ divBySpaces str
     spaces = fromIntegral . length $ filter (== ' ') str
 
 handshakeHybi00 :: RequestHttpPart
+#if MIN_VERSION_attoparsec(0,10,0)
+                -> ErrorT HandshakeError (AT.Parser B.ByteString) Request
+#else
                 -> ErrorT HandshakeError A.Parser Request
+#endif
 handshakeHybi00 reqHttp@(RequestHttpPart path h) = do
     -- _ <- lift . A.word8 $ fromIntegral 0x0d
     -- _ <- lift . A.word8 $ fromIntegral 0x0a

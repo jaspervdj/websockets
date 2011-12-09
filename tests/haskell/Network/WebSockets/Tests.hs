@@ -13,12 +13,12 @@ import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 import qualified Data.Set as S
 
-import Data.Attoparsec (Result (..), parse)
 import Test.Framework (Test, testGroup)
 import Test.Framework.Providers.HUnit (testCase)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
 import Test.QuickCheck (Arbitrary (..), Gen, Property)
 import qualified Blaze.ByteString.Builder as Builder
+import qualified Data.Attoparsec as A
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as T
@@ -64,9 +64,9 @@ encodeDecodeFrame :: Protocol p => p -> ArbitraryMask -> Frame -> Bool
 encodeDecodeFrame proto (ArbitraryMask m) f =
     let lbs = Builder.toLazyByteString $ (encodeFrame proto) m f
         bs = B.concat $ BL.toChunks lbs
-    in case parse (decodeFrame proto) bs of
-        Done "" r -> f == r
-        err       -> error ("encodeDecodeFrame: " ++ show err)
+    in case A.parse (decodeFrame proto) bs of
+        A.Done "" r -> f == r
+        err         -> error ("encodeDecodeFrame: " ++ show err)
 
 encodeDecodeFrameHybi00 :: Protocol p
                         => p -> ArbitraryMask -> ArbitraryFrameHybi00 -> Bool

@@ -47,4 +47,4 @@ responseError _ err = response400 $ case err of
     _            -> []
   where
     versionHeader = [("Sec-WebSocket-Version",
-        B.intercalate ", " $ map headerVersion (implementations :: [p]))]
+        B.intercalate ", " $ concatMap headerVersions (implementations :: [p]))]

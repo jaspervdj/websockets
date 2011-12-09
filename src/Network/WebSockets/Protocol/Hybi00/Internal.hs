@@ -30,7 +30,7 @@ data Hybi00_ = Hybi00_
 
 instance Protocol Hybi00_ where
     version         Hybi00_ = "hybi00"
-    headerVersion   Hybi00_ = "0"  -- but the client will elide it
+    headerVersions  Hybi00_ = ["0"]  -- but the client will elide it
     encodeFrame     Hybi00_ = encodeFrameHybi00
     decodeFrame     Hybi00_ = decodeFrameHybi00
     finishRequest   Hybi00_ = runErrorT . handshakeHybi00

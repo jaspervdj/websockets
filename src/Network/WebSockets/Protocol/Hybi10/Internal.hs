@@ -31,7 +31,7 @@ data Hybi10_ = Hybi10_
 
 instance Protocol Hybi10_ where
     version         Hybi10_ = "hybi10"
-    headerVersion   Hybi10_ = "8"
+    headerVersions  Hybi10_ = ["13", "8", "7"]
     encodeFrame     Hybi10_ = encodeFrameHybi10
     decodeFrame     Hybi10_ = decodeFrameHybi10
     finishRequest   Hybi10_ = handshakeHybi10
@@ -115,8 +115,10 @@ encodeFrameHybi10 mask f = B.fromWord8 byte0 `mappend`
 handshakeHybi10 :: RequestHttpPart -> Decoder p (Either HandshakeError Request)
 handshakeHybi10 reqHttp@(RequestHttpPart path h) = return $ do
     case getHeader "Sec-WebSocket-Version" of
-        Right "8" -> return ()
-        _         -> throwError NotSupported
+        Right "7"  -> return ()
+        Right "8"  -> return ()
+        Right "13" -> return ()
+        _          -> throwError NotSupported
     key <- getHeader "Sec-WebSocket-Key"
     let hash = unlazy $ bytestringDigest $ sha1 $ lazy $ key `mappend` guid
     let encoded = B64.encode hash

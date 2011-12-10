@@ -5,11 +5,14 @@ EXCLUDES=$(find tests/haskell -name '*.hs' |
         sed 's/^/--exclude=/' |
         xargs echo)
 
-ghc -isrc -itests/haskell -fhpc --make tests/haskell/TestSuite.hs
-./tests//haskell/TestSuite
+TARGET=websockets-tests
+
+cabal configure --enable-tests && cabal build
+./dist/build/$TARGET/$TARGET
+
 mkdir -p tests/coverage
-hpc markup --destdir=tests/coverage --exclude=Main $EXCLUDES TestSuite.tix
-hpc report --exclude=Main $EXCLUDES TestSuite.tix
-rm TestSuite.tix
+hpc markup --destdir=tests/coverage --exclude=Main $EXCLUDES $TARGET.tix
+hpc report --exclude=Main $EXCLUDES $TARGET.tix
+rm $TARGET.tix
 
 echo "Output written to tests/coverage/hpc_index.html"

@@ -85,6 +85,7 @@ Test-suite websockets-tests
     Type:           exitcode-stdio-1.0
     Hs-source-dirs: src tests/haskell
     Main-is:        TestSuite.hs
+    Ghc-options:    -fhpc -Wall
 
   Build-depends:
     HUnit                      >= 1.2    && < 1.3,

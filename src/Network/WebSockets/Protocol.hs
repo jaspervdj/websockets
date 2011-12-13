@@ -12,6 +12,7 @@ module Network.WebSockets.Protocol
     ) where
 
 import qualified Data.ByteString as B
+import qualified Data.Enumerator as E
 
 import Network.WebSockets.Types
 import Network.WebSockets.Handshake.Http
@@ -27,7 +28,7 @@ class Protocol p where
     headerVersions  :: p -> [B.ByteString]
 
     encodeFrame     :: p -> Encoder p Frame
-    decodeFrame     :: p -> Decoder p Frame
+    enumMessages    :: Monad m => p -> E.Enumeratee B.ByteString (Message p) m a
 
     -- | Parse and validate the rest of the request. For hybi10, this is just
     -- validation, but hybi00 also needs to fetch a "security token"

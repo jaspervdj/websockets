@@ -1,5 +1,6 @@
 module Network.WebSockets.Protocol.Unsafe
-    ( close
+    ( castMessage
+    , close
     , ping
     , pong
     , textData
@@ -7,6 +8,16 @@ module Network.WebSockets.Protocol.Unsafe
     ) where
 
 import Network.WebSockets.Types
+
+castMessage :: Message p1 -> Message p2
+castMessage (ControlMessage m) = ControlMessage $ case m of
+    Close b -> Close b
+    Ping b  -> Ping b
+    Pong b  -> Pong b
+castMessage (DataMessage m)    = DataMessage $ case m of
+    Text b   -> Text b
+    Binary b -> Binary b
+{-# INLINE castMessage #-}
 
 close :: WebSocketsData a => a -> Message p
 close = ControlMessage . Close . toLazyByteString

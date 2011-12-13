@@ -14,10 +14,12 @@ import Data.Digest.Pure.MD5 (md5)
 import Data.Int (Int32)
 import qualified Blaze.ByteString.Builder as BB
 import qualified Data.Attoparsec as A
-#if MIN_VERSION_attoparsec(0,10,0)
+import qualified Data.Attoparsec.Enumerator as A
+-- #if MIN_VERSION_attoparsec(0,10,0)
 import qualified Data.Attoparsec.Types as AT
-#endif
+-- #endif
 import qualified Data.ByteString as B
+import qualified Data.Enumerator as E
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.CaseInsensitive as CI
@@ -32,7 +34,7 @@ instance Protocol Hybi00_ where
     version         Hybi00_ = "hybi00"
     headerVersions  Hybi00_ = ["0"]  -- but the client will elide it
     encodeFrame     Hybi00_ = encodeFrameHybi00
-    decodeFrame     Hybi00_ = decodeFrameHybi00
+    enumMessages    Hybi00_ = E.sequence (A.iterParser parseMessage)
     finishRequest   Hybi00_ = runErrorT . handshakeHybi00
     implementations         = [Hybi00_]
 
@@ -46,18 +48,18 @@ encodeFrameHybi00 _ (Frame _ CloseFrame _) =
     -- TODO: prevent the user from doing this using type tags
 encodeFrameHybi00 _ _ = error "Not supported"
 
-decodeFrameHybi00 :: Decoder p Frame
-decodeFrameHybi00 = decodeTextFrame <|> decodeCloseFrame
+parseMessage :: A.Parser (Message p)
+parseMessage = parseText <|> parseClose
   where
-    decodeTextFrame = do
+    parseText = do
         _ <- A.word8 0x00
         utf8string <- A.manyTill A.anyWord8 (A.try $ A.word8 0xff)
-        return $ Frame True TextFrame $ BL.pack utf8string
+        return $ DataMessage $ Text $ BL.pack utf8string
 
-    decodeCloseFrame = do
+    parseClose = do
         _ <- A.word8 0xff
         _ <- A.word8 0x00
-        return $ Frame True CloseFrame ""
+        return $ ControlMessage $ Close ""
 
 divBySpaces :: String -> Maybe Int32
 divBySpaces str
@@ -68,11 +70,11 @@ divBySpaces str
     spaces = fromIntegral . length $ filter (== ' ') str
 
 handshakeHybi00 :: RequestHttpPart
-#if MIN_VERSION_attoparsec(0,10,0)
+-- #if MIN_VERSION_attoparsec(0,10,0)
                 -> ErrorT HandshakeError (AT.Parser B.ByteString) Request
-#else
-                -> ErrorT HandshakeError A.Parser Request
-#endif
+-- #else
+--                -> ErrorT HandshakeError A.Parser Request
+-- #endif
 handshakeHybi00 reqHttp@(RequestHttpPart path h) = do
     -- _ <- lift . A.word8 $ fromIntegral 0x0d
     -- _ <- lift . A.word8 $ fromIntegral 0x0a

@@ -4,28 +4,33 @@ module Network.WebSockets.Protocol.Hybi10.Internal
     ) where
 
 import Control.Applicative (pure, (<$>))
+import Control.Monad.Error (throwError)
 import Data.Bits ((.&.), (.|.))
-import Data.Monoid (mempty)
+import Data.Maybe (maybeToList)
+import Data.Monoid (mempty, mappend, mconcat)
 
 import Data.Attoparsec (anyWord8)
 import Data.Binary.Get (runGet, getWord16be, getWord64be)
 import Data.ByteString (ByteString)
 import Data.ByteString.Char8 ()
+import Data.Digest.Pure.SHA (bytestringDigest, sha1)
 import Data.Int (Int64)
+import Data.Enumerator ((=$))
 import qualified Blaze.ByteString.Builder as B
 import qualified Data.Attoparsec as A
-import qualified Data.ByteString.Lazy as BL
-import Data.Digest.Pure.SHA (bytestringDigest, sha1)
+import qualified Data.Attoparsec.Enumerator as A
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as BC
+import qualified Data.ByteString.Lazy as BL
 import qualified Data.CaseInsensitive as CI
-import Control.Monad.Error (throwError)
-import Data.Monoid (mappend, mconcat)
+import qualified Data.Enumerator as E
+import qualified Data.Enumerator.List as EL
 
 import Network.WebSockets.Handshake.Http
 import Network.WebSockets.Mask
 import Network.WebSockets.Protocol
 import Network.WebSockets.Types
+import Network.WebSockets.Demultiplex
 
 data Hybi10_ = Hybi10_
 
@@ -33,16 +38,24 @@ instance Protocol Hybi10_ where
     version         Hybi10_ = "hybi10"
     headerVersions  Hybi10_ = ["13", "8", "7"]
     encodeFrame     Hybi10_ = encodeFrameHybi10
-    decodeFrame     Hybi10_ = decodeFrameHybi10
+    enumMessages    Hybi10_ = enumMessagesHybi10
     finishRequest   Hybi10_ = handshakeHybi10
     implementations         = [Hybi10_]
 
 instance TextProtocol Hybi10_
 instance BinaryProtocol Hybi10_
 
+enumMessagesHybi10 :: Monad m => E.Enumeratee ByteString (Message p) m a
+enumMessagesHybi10 = (E.sequence (A.iterParser parseFrame) =$) . demultiplexEnum
+
+demultiplexEnum :: Monad m => E.Enumeratee Frame (Message p) m a
+demultiplexEnum = EL.concatMapAccum step emptyDemultiplexState
+  where
+    step s f = let (m, s') = demultiplex s f in (s', maybeToList m)
+
 -- | Parse a frame
-decodeFrameHybi10 :: Decoder p Frame
-decodeFrameHybi10 = do
+parseFrame :: A.Parser Frame
+parseFrame = do
     byte0 <- anyWord8
     let fin = byte0 .&. 0x80 == 0x80
         opcode = byte0 .&. 0x0f

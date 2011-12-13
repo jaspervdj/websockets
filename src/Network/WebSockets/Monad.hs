@@ -10,7 +10,6 @@ module Network.WebSockets.Monad
     , runWebSocketsHandshake
     , runWebSocketsWithHandshake
     , runWebSocketsWith'
-    , receiveWith
     , sendWith
     , send
     , Sink
@@ -30,23 +29,21 @@ import Control.Concurrent.MVar (newMVar, withMVar)
 import Control.Exception (Exception (..), SomeException, throw)
 import Control.Monad (forever)
 import Control.Monad.Reader (ReaderT, ask, runReaderT)
-import Control.Monad.State (StateT, evalStateT, get)
 import Control.Monad.Trans (MonadIO, lift, liftIO)
 
 import Blaze.ByteString.Builder (Builder)
 import Blaze.ByteString.Builder.Enumerator (builderToByteString)
 import Data.ByteString (ByteString)
-import Data.Enumerator (Enumerator, Iteratee, ($$), (>>==))
+import Data.Enumerator (Enumerator, Iteratee, ($$), (>>==), (=$))
 import qualified Data.Attoparsec.Enumerator as AE
 import qualified Data.Enumerator as E
 
-import Network.WebSockets.Demultiplex (DemultiplexState, emptyDemultiplexState)
 import Network.WebSockets.Handshake
 import Network.WebSockets.Handshake.Http
 import Network.WebSockets.Handshake.ShyIterParser
 import Network.WebSockets.Mask
 import Network.WebSockets.Protocol
-import Network.WebSockets.Types as T
+import Network.WebSockets.Types
 
 -- | Options for the WebSocket program
 data WebSocketsOptions = WebSocketsOptions
@@ -68,8 +65,7 @@ data WebSocketsEnv p = WebSocketsEnv
 
 -- | The monad in which you can write WebSocket-capable applications
 newtype WebSockets p a = WebSockets
-    { unWebSockets :: ReaderT (WebSocketsEnv p)
-        (StateT DemultiplexState (Iteratee ByteString IO)) a
+    { unWebSockets :: ReaderT (WebSocketsEnv p) (Iteratee (Message p) IO) a
     } deriving (Applicative, Functor, Monad, MonadIO)
 
 -- | Receives the initial client handshake, then behaves like 'runWebSockets'.
@@ -134,9 +130,9 @@ runWebSocketsWith' opts proto ws outIter = do
 
     let sender = makeSend sendLock
         env    = WebSocketsEnv opts sender proto
-        state  = runReaderT (unWebSockets ws) env
-        iter   = evalStateT state emptyDemultiplexState
-    iter
+        iter   = runReaderT (unWebSockets ws) env
+
+    enumMessages proto =$ iter
   where
     makeSend sendLock x = withMVar sendLock $ \_ ->
         builderSender outIter x
@@ -154,13 +150,9 @@ spawnPingThread i = do
         sendSink sink $ ping ("Hi" :: ByteString)
     return ()
 
--- | Receive some data from the socket, using a user-supplied parser.
-receiveWith :: Decoder p a -> WebSockets p a
-receiveWith = liftIteratee . receiveIteratee
-
 -- todo: move some stuff to another module. "Decode"?
 
--- | Underlying iteratee version of 'receiveWith'.
+-- | Receive arbitrary data.
 receiveIteratee :: Decoder p a -> Iteratee ByteString IO a
 receiveIteratee parser = do
     eof <- E.isEOF
@@ -193,7 +185,7 @@ sendWith encoder x = WebSockets $ do
     liftIO $ mkSend send' encoder x
 
 -- | Low-level sending with an arbitrary 'T.Message'
-send :: Protocol p => T.Message p -> WebSockets p ()
+send :: Protocol p => Message p -> WebSockets p ()
 send msg = getSink >>= \sink -> liftIO $ sendSink sink msg
 
 -- | Used for asynchronous sending.
@@ -259,14 +251,12 @@ catchWsError :: WebSockets p a
              -> WebSockets p a
 catchWsError act c = WebSockets $ do
     env <- ask
-    state <- get
-    let it  = peelWebSockets state env $ act
-        cit = peelWebSockets state env . c
-    lift . lift $ it `E.catchError` cit
+    let it  = peelWebSockets env $ act
+        cit = peelWebSockets env . c
+    lift $ it `E.catchError` cit
   where
-    peelWebSockets state env =
-        flip evalStateT state . flip runReaderT env . unWebSockets
+    peelWebSockets env = flip runReaderT env . unWebSockets
 
 -- | Lift an Iteratee computation to WebSockets
-liftIteratee :: Iteratee ByteString IO a -> WebSockets p a
-liftIteratee = WebSockets . lift . lift
+liftIteratee :: Iteratee (Message p) IO a -> WebSockets p a
+liftIteratee = WebSockets . lift

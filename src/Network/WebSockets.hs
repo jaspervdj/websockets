@@ -168,16 +168,6 @@ import qualified Network.WebSockets.Types as I
 -- determined by the request, we can't provide this as a WebSockets action. See
 -- the various flavours of runWebSockets.
 
--- | Read a 'I.Frame' from the socket. Blocks until a frame is received. If the
--- socket is closed, throws 'ConnectionClosed' (a 'ConnectionError')
---
--- Note that a typical library user will want to use something like
--- 'receiveByteStringData' instead.
-receiveFrame :: I.Protocol p => I.WebSockets p I.Frame
-receiveFrame = do
-    proto <- I.getProtocol
-    I.receiveWith $ I.decodeFrame proto
-
 -- | Receive a message
 receive :: I.Protocol p => I.WebSockets p (I.Message p)
 receive = I.WebSockets $ do

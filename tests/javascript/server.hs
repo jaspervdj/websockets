@@ -4,16 +4,20 @@ import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar (newMVar, putMVar, readMVar, takeMVar)
 import Control.Monad (forever, forM_)
 import Control.Monad.Trans (liftIO)
+import Data.Monoid (mappend)
+
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy.Char8 ()
-import Data.Monoid (mappend)
 import Data.Text (Text)
+import Data.Enumerator ((=$))
+import qualified Data.Enumerator.List as EL
 import qualified Data.Text.Lazy as TL
 
 import Network.WebSockets.Protocol (Protocol (..))
 import qualified Network.WebSockets as WS
-import qualified Network.WebSockets.Protocol.Hybi00 as WS
-import qualified Network.WebSockets.Protocol.Hybi10 as WS
+import qualified Network.WebSockets.Protocol.Hybi00.Internal as WS
+import qualified Network.WebSockets.Protocol.Hybi10.Internal as WS
+import qualified Network.WebSockets.Protocol.Unsafe as WS.Unsafe
 
 --------------------------------------------------------------------------------
 -- Hybi00-compatible tests                                                    --
@@ -78,12 +82,13 @@ tests =
 data UnsafeProtocol = forall p. WS.Protocol p => UnsafeProtocol p
 
 instance WS.Protocol UnsafeProtocol where
-    version       (UnsafeProtocol p) = version p
-    headerVersion (UnsafeProtocol p) = headerVersion p
-    encodeFrame   (UnsafeProtocol p) = encodeFrame p
-    decodeFrame   (UnsafeProtocol p) = decodeFrame p
-    finishRequest (UnsafeProtocol p) = finishRequest p
-    implementations               =
+    version        (UnsafeProtocol p) = version p
+    headerVersions (UnsafeProtocol p) = headerVersions p
+    encodeFrame    (UnsafeProtocol p) = encodeFrame p
+    enumMessages   (UnsafeProtocol p) =
+        (enumMessages p =$) . EL.map WS.Unsafe.castMessage
+    finishRequest  (UnsafeProtocol p) = finishRequest p
+    implementations                   =
         [UnsafeProtocol WS.Hybi00_, UnsafeProtocol WS.Hybi10_]
 
 instance WS.TextProtocol UnsafeProtocol

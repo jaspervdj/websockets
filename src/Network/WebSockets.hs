@@ -121,8 +121,7 @@ module Network.WebSockets
     , I.getVersion
 
       -- * Receiving
-    , receiveFrame
-    , receive
+    , I.receive
     , receiveDataMessage
     , receiveData
 
@@ -150,10 +149,8 @@ module Network.WebSockets
     , I.ConnectionError(..)
     ) where
 
-import Control.Monad.State (put, get)
 import Control.Monad.Trans (liftIO)
 
-import qualified Network.WebSockets.Demultiplex as I
 import qualified Network.WebSockets.Handshake as I
 import qualified Network.WebSockets.Handshake.Http as I
 import qualified Network.WebSockets.Monad as I
@@ -168,21 +165,10 @@ import qualified Network.WebSockets.Types as I
 -- determined by the request, we can't provide this as a WebSockets action. See
 -- the various flavours of runWebSockets.
 
--- | Receive a message
-receive :: I.Protocol p => I.WebSockets p (I.Message p)
-receive = I.WebSockets $ do
-    f <- I.unWebSockets receiveFrame
-    s <- get
-    let (msg, s') = I.demultiplex s f
-    put s'
-    case msg of
-        Nothing -> I.unWebSockets receive
-        Just m  -> return m
-
 -- | Receive an application message. Automatically respond to control messages.
 receiveDataMessage :: I.Protocol p => I.WebSockets p (I.DataMessage p)
 receiveDataMessage = do
-    m <- receive
+    m <- I.receive
     case m of
         (I.DataMessage am) -> return am
         (I.ControlMessage cm) -> case cm of

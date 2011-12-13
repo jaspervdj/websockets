@@ -17,8 +17,6 @@ import Test.Framework (Test, testGroup)
 import Test.Framework.Providers.HUnit (testCase)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
 import Test.QuickCheck (Arbitrary (..), Gen, Property)
-import qualified Blaze.ByteString.Builder as Builder
-import qualified Data.Attoparsec as A
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as T
@@ -29,7 +27,6 @@ import qualified Test.QuickCheck.Monadic as QC
 
 import Network.WebSockets
 import Network.WebSockets.Mask
-import Network.WebSockets.Protocol
 import Network.WebSockets.Protocol.Hybi00.Internal
 import Network.WebSockets.Protocol.Hybi10.Internal
 import Network.WebSockets.Tests.Util
@@ -38,10 +35,7 @@ import qualified Network.WebSockets.Protocol.Unsafe as Unsafe
 
 tests :: Test
 tests = testGroup "Network.WebSockets.Test"
-    [ testProperty "encodeDecodeFrame-hybi10" (encodeDecodeFrame Hybi10_)
-    , testProperty "encodeDecodeFrame-hybi00" (encodeDecodeFrameHybi00 Hybi00_)
-
-    , testProperty "sendReceive-hybi10"       (sendReceive Hybi10_)
+    [ testProperty "sendReceive-hybi10"       (sendReceive Hybi10_)
     , testProperty "sendReceive-hybi00"       (sendReceiveHybi00 Hybi00_)
     , testProperty "sendReceiveTextData-hybi10"
         (sendReceiveTextData Hybi10_)
@@ -57,21 +51,6 @@ tests = testGroup "Network.WebSockets.Test"
         (sendReceiveConcurrent Hybi00_)
     , testCase     "pingThread-hybi10"        (pingThread Hybi10_)
     ]
-
--- | Encode a frame, then decode it again. We should obviously get our original
--- frame back
-encodeDecodeFrame :: Protocol p => p -> ArbitraryMask -> Frame -> Bool
-encodeDecodeFrame proto (ArbitraryMask m) f =
-    let lbs = Builder.toLazyByteString $ (encodeFrame proto) m f
-        bs = B.concat $ BL.toChunks lbs
-    in case A.parse (decodeFrame proto) bs of
-        A.Done "" r -> f == r
-        err         -> error ("encodeDecodeFrame: " ++ show err)
-
-encodeDecodeFrameHybi00 :: Protocol p
-                        => p -> ArbitraryMask -> ArbitraryFrameHybi00 -> Bool
-encodeDecodeFrameHybi00 proto am (ArbitraryFrameHybi00 f) =
-    encodeDecodeFrame proto am f
 
 sendReceive :: Protocol p => p -> [Message p] -> Property
 sendReceive proto msgs = QC.monadicIO $ do

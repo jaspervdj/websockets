@@ -10,6 +10,7 @@ module Network.WebSockets.Monad
     , runWebSocketsHandshake
     , runWebSocketsWithHandshake
     , runWebSocketsWith'
+    , receive
     , sendWith
     , send
     , Sink
@@ -37,6 +38,7 @@ import Data.ByteString (ByteString)
 import Data.Enumerator (Enumerator, Iteratee, ($$), (>>==), (=$))
 import qualified Data.Attoparsec.Enumerator as AE
 import qualified Data.Enumerator as E
+import qualified Data.Enumerator.List as EL
 
 import Network.WebSockets.Handshake
 import Network.WebSockets.Handshake.Http
@@ -171,6 +173,14 @@ receiveIterateeShy parser = wrappingParseError $ shyIterParser parser
 wrappingParseError :: (Monad m) => Iteratee a m b -> Iteratee a m b
 wrappingParseError = flip E.catchError $ \e -> E.throwError $
     maybe e (toException . ParseError) $ fromException e
+
+-- | Receive a message
+receive :: Protocol p => WebSockets p (Message p)
+receive = liftIteratee $ do
+    mmsg <- EL.head
+    case mmsg of
+        Nothing  -> E.throwError ConnectionClosed
+        Just msg -> return msg
 
 sendIteratee :: Encoder p a -> a
              -> Iteratee ByteString IO ()

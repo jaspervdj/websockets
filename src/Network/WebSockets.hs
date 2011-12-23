@@ -148,6 +148,9 @@ module Network.WebSockets
     , I.catchWsError
     , I.HandshakeError(..)
     , I.ConnectionError(..)
+
+      -- * Data Stream
+    , I.runIteratee
     ) where
 
 import Control.Monad.State (put, get)
@@ -251,3 +254,4 @@ failHandshakeWith err = do
 -- | Accept a request. After this, you can start sending and receiving data.
 acceptRequest :: I.Protocol p => I.Request -> I.WebSockets p ()
 acceptRequest = sendResponse . I.requestResponse
+

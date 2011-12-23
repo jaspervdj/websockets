@@ -22,12 +22,13 @@ module Network.WebSockets.Monad
     , throwWsError
     , catchWsError
     , spawnPingThread
+    , runIteratee
     ) where
 
 import Control.Applicative (Applicative, (<$>))
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.MVar (newMVar, withMVar)
-import Control.Exception (Exception (..), SomeException, throw)
+import Control.Exception (Exception (..), SomeException, throw, try)
 import Control.Monad (forever)
 import Control.Monad.Reader (ReaderT, ask, runReaderT)
 import Control.Monad.State (StateT, evalStateT, get)
@@ -36,17 +37,19 @@ import Control.Monad.Trans (MonadIO, lift, liftIO)
 import Blaze.ByteString.Builder (Builder)
 import Blaze.ByteString.Builder.Enumerator (builderToByteString)
 import Data.ByteString (ByteString)
-import Data.Enumerator (Enumerator, Iteratee, ($$), (>>==))
+import Data.Enumerator (Enumerator, Enumeratee, Iteratee, ($$), (>>==), (=$) )
 import qualified Data.Attoparsec.Enumerator as AE
 import qualified Data.Enumerator as E
+import qualified Data.Enumerator.List as EL
 
-import Network.WebSockets.Demultiplex (DemultiplexState, emptyDemultiplexState)
+import Network.WebSockets.Demultiplex (DemultiplexState, emptyDemultiplexState, demultiplex)
 import Network.WebSockets.Handshake
 import Network.WebSockets.Handshake.Http
 import Network.WebSockets.Handshake.ShyIterParser
 import Network.WebSockets.Mask
 import Network.WebSockets.Protocol
 import Network.WebSockets.Types as T
+import qualified Network.WebSockets.Protocol.Unsafe as Unsafe
 
 -- | Options for the WebSocket program
 data WebSocketsOptions = WebSocketsOptions
@@ -270,3 +273,57 @@ catchWsError act c = WebSockets $ do
 -- | Lift an Iteratee computation to WebSockets
 liftIteratee :: Iteratee ByteString IO a -> WebSockets p a
 liftIteratee = WebSockets . lift . lift
+
+-- | Run an inner Iteratee which consumes data messages.
+runIteratee :: Protocol p => Iteratee ByteString IO a -> WebSockets p a
+runIteratee iter = do
+    proto <- getProtocol
+    demultiplexState <- WebSockets get
+    opt <- getOptions
+    sink <- getSink
+    liftIteratee $ toFrameStream proto
+                =$ toMessageStream demultiplexState
+                =$ toDataMessageStream opt sink
+                =$ toDataStream
+                =$ iter
+
+toFrameStream :: (Monad m, Protocol p) => p -> Enumeratee ByteString Frame m a
+toFrameStream p = E.sequence iter
+  where iter = wrappingParseError . AE.iterParser $ decodeFrame p
+
+toMessageStream :: (Monad m) => DemultiplexState -> Enumeratee Frame (Message p) m a
+toMessageStream state = EL.concatMapAccum step state
+  where step st frame = case demultiplex st frame of
+            (Nothing,  st') -> (st', [])
+            (Just msg, st') -> (st', [msg])
+
+toDataMessageStream :: Protocol p => WebSocketsOptions -> Sink p -> Enumeratee (Message p) (DataMessage p) IO a
+toDataMessageStream opt sink = concatMapIO step
+  where step msg = case msg of
+            (DataMessage am) -> return [am]
+            (ControlMessage cm) -> case cm of
+                Close _ -> throw ConnectionClosed
+                Pong _ -> onPong opt >> return []
+                Ping pl -> sendSink sink (Unsafe.pong pl) >> return []
+
+toDataStream :: (Monad m, Protocol p, WebSocketsData s) => Enumeratee (DataMessage p) s m a
+toDataStream = EL.map $ \dm -> case dm of
+                   Text x   -> fromLazyByteString x
+                   Binary x -> fromLazyByteString x
+
+-- | like `concatMapM', except it catch exception and send EOF to inner `Iteratee'. 
+concatMapIO :: (ao -> IO [ai])
+            -> Enumeratee ao ai IO b
+concatMapIO f = E.checkDone (E.continue . step) where
+    step k E.EOF = E.yield (E.Continue k) E.EOF
+    step k (E.Chunks xs) = loop k xs
+
+    loop k [] = E.continue (step k)
+    loop k (x:xs) = do
+        efx <- lift (try (f x))
+        case efx of
+            Left e -> (e::SomeException) `seq` 
+                (k E.EOF >>== (\s -> E.yield s (E.Chunks [])))
+            Right fx -> k (E.Chunks fx) >>==
+                E.checkDoneEx (E.Chunks xs) (\k' -> loop k' xs)
+

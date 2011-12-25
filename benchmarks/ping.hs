@@ -7,7 +7,7 @@ import qualified Network.WebSockets as WS
 
 ping :: WS.Request -> WS.WebSockets WS.Hybi00 ()
 ping rq = do
-    WS.sendResponse $ WS.requestResponse rq
+    WS.acceptRequest rq
     WS.send $ WS.textData ("Ping 0" :: B.ByteString)
     forever $ do
         msg <- WS.receiveData

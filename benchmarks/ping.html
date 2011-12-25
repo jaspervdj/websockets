@@ -13,7 +13,8 @@
                 var pings = 0;
 
                 $('#stats').text('Opening WebSocket...');
-                var ws = new WebSocket(uri);
+                Socket = "WebSocket" in window ? WebSocket : MozWebSocket;
+                var ws = new Socket(uri);
                 ws.onopen = function() {
                     window.setInterval(function () {
                         $('#stats').text(pings + ' ping/s');

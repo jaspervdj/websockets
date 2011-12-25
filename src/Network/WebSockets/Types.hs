@@ -35,6 +35,7 @@ type Decoder p a = Parser a
 
 -- | The inverse of a parser
 type Encoder p a = Mask -> a -> B.Builder
+-- TODO: Remove the mask
 
 -- | The connection couldn't be established or broke down unexpectedly. thrown
 -- as an iteratee exception.

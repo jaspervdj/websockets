@@ -213,15 +213,7 @@ getSink :: Protocol p => WebSockets p (Sink p)
 getSink = WebSockets $ do
     proto <- unWebSockets getProtocol
     send' <- sendBuilder <$> ask
-    return $ Sink $ mkSend send' $ encodeMessage $ encodeFrame proto
-  where
-    -- TODO: proper multiplexing?
-    encodeMessage frame mask msg = frame mask $ case msg of
-        (ControlMessage (Close pl)) -> Frame True CloseFrame pl
-        (ControlMessage (Ping pl))  -> Frame True PingFrame pl
-        (ControlMessage (Pong pl))  -> Frame True PongFrame pl
-        (DataMessage (Text pl))     -> Frame True TextFrame pl
-        (DataMessage (Binary pl))   -> Frame True BinaryFrame pl
+    return $ Sink $ mkSend send' $ encodeMessage proto
 
 -- TODO: rename to mkEncodedSender?
 mkSend :: (Builder -> IO ()) -> Encoder p a -> a -> IO ()

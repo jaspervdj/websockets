@@ -126,7 +126,6 @@ module Network.WebSockets
     , receiveData
 
       -- * Sending
-    , sendFrame
     , I.send
     , sendTextData
     , sendBinaryData
@@ -196,12 +195,6 @@ receiveData = do
 -- | Send a 'I.Response' to the socket immediately.
 sendResponse :: I.Protocol p => I.Response -> I.WebSockets p ()
 sendResponse response = I.sendWith I.encodeResponse response
-
--- | A low-level function to send an arbitrary frame over the wire.
-sendFrame :: I.Protocol p => I.Frame -> I.WebSockets p ()
-sendFrame frame = do
-    proto <- I.getProtocol
-    I.sendWith (I.encodeFrame proto) frame
 
 -- | Send a text message
 sendTextData :: (I.TextProtocol p, I.WebSocketsData a) => a -> I.WebSockets p ()

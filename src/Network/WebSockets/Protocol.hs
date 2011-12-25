@@ -27,7 +27,7 @@ class Protocol p where
     -- "7", "8" or "17".
     headerVersions  :: p -> [B.ByteString]
 
-    encodeFrame     :: p -> Encoder p Frame
+    encodeMessage   :: p -> Encoder p (Message p)
     enumMessages    :: Monad m => p -> E.Enumeratee B.ByteString (Message p) m a
 
     -- | Parse and validate the rest of the request. For hybi10, this is just

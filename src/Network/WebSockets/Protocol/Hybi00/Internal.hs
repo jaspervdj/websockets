@@ -33,20 +33,21 @@ data Hybi00_ = Hybi00_
 instance Protocol Hybi00_ where
     version         Hybi00_ = "hybi00"
     headerVersions  Hybi00_ = ["0"]  -- but the client will elide it
-    encodeFrame     Hybi00_ = encodeFrameHybi00
+    encodeMessage   Hybi00_ = encodeMessageHybi00
     enumMessages    Hybi00_ = E.sequence (A.iterParser parseMessage)
     finishRequest   Hybi00_ = runErrorT . handshakeHybi00
     implementations         = [Hybi00_]
 
 instance TextProtocol Hybi00_
 
-encodeFrameHybi00 :: Encoder p Frame
-encodeFrameHybi00 _ (Frame True TextFrame pl) =
+encodeMessageHybi00 :: Encoder p (Message p)
+encodeMessageHybi00 _ (DataMessage (Text pl))    =
     BB.fromLazyByteString $ "\0" `BL.append` pl `BL.append` "\255"
-encodeFrameHybi00 _ (Frame _ CloseFrame _) =
+encodeMessageHybi00 _ (ControlMessage (Close _)) =
     BB.fromLazyByteString  "\255\0"
-    -- TODO: prevent the user from doing this using type tags
-encodeFrameHybi00 _ _ = error "Not supported"
+encodeMessageHybi00 _ msg                        = error $
+    "Network.WebSockets.Protocol.Hybi00.encodeFrame: unsupported message: " ++
+    show msg
 
 parseMessage :: A.Parser (Message p)
 parseMessage = parseText <|> parseClose

@@ -37,13 +37,48 @@ data Hybi10_ = Hybi10_
 instance Protocol Hybi10_ where
     version         Hybi10_ = "hybi10"
     headerVersions  Hybi10_ = ["13", "8", "7"]
-    encodeFrame     Hybi10_ = encodeFrameHybi10
+    encodeMessage   Hybi10_ = encodeMessageHybi10
     enumMessages    Hybi10_ = enumMessagesHybi10
     finishRequest   Hybi10_ = handshakeHybi10
     implementations         = [Hybi10_]
 
 instance TextProtocol Hybi10_
 instance BinaryProtocol Hybi10_
+
+encodeMessageHybi10 :: Encoder p (Message p)
+encodeMessageHybi10 mask msg = encodeFrameHybi10 mask $ case msg of
+    (ControlMessage (Close pl)) -> Frame True CloseFrame pl
+    (ControlMessage (Ping pl))  -> Frame True PingFrame pl
+    (ControlMessage (Pong pl))  -> Frame True PongFrame pl
+    (DataMessage (Text pl))     -> Frame True TextFrame pl
+    (DataMessage (Binary pl))   -> Frame True BinaryFrame pl
+
+-- | Encode a frame
+encodeFrameHybi10 :: Encoder p Frame
+encodeFrameHybi10 mask f = B.fromWord8 byte0 `mappend`
+    B.fromWord8 byte1 `mappend` len `mappend` maskbytes `mappend`
+    B.fromLazyByteString (maskPayload mask (framePayload f))
+  where
+    byte0  = fin .|. opcode
+    fin    = if frameFin f then 0x80 else 0x00
+    opcode = case frameType f of
+        ContinuationFrame -> 0x00
+        TextFrame         -> 0x01
+        BinaryFrame       -> 0x02
+        CloseFrame        -> 0x08
+        PingFrame         -> 0x09
+        PongFrame         -> 0x0a
+
+    (maskflag, maskbytes) = case mask of
+        Nothing -> (0x00, mempty)
+        Just m  -> (0x80, B.fromByteString m)
+
+    byte1 = maskflag .|. lenflag
+    len'  = BL.length (framePayload f)
+    (lenflag, len)
+        | len' < 126     = (fromIntegral len', mempty)
+        | len' < 0x10000 = (126, B.fromWord16be (fromIntegral len'))
+        | otherwise      = (127, B.fromWord64be (fromIntegral len'))
 
 enumMessagesHybi10 :: Monad m => E.Enumeratee ByteString (Message p) m a
 enumMessagesHybi10 = (E.sequence (A.iterParser parseFrame) =$) . demultiplexEnum
@@ -96,34 +131,6 @@ parseFrame = do
       where
         intMax :: Int64
         intMax = fromIntegral (maxBound :: Int)
-
--- | Encode a frame
-encodeFrameHybi10 :: Encoder p Frame
-encodeFrameHybi10 mask f = B.fromWord8 byte0 `mappend`
-    B.fromWord8 byte1 `mappend` len `mappend` maskbytes `mappend`
-    B.fromLazyByteString (maskPayload mask (framePayload f))
-  where
-    byte0  = fin .|. opcode
-    fin    = if frameFin f then 0x80 else 0x00
-    opcode = case frameType f of
-        ContinuationFrame -> 0x00
-        TextFrame         -> 0x01
-        BinaryFrame       -> 0x02
-        CloseFrame        -> 0x08
-        PingFrame         -> 0x09
-        PongFrame         -> 0x0a
-
-    (maskflag, maskbytes) = case mask of
-        Nothing -> (0x00, mempty)
-        Just m  -> (0x80, B.fromByteString m)
-
-    byte1 = maskflag .|. lenflag
-    len'  = BL.length (framePayload f)
-    (lenflag, len)
-        | len' < 126     = (fromIntegral len', mempty)
-        | len' < 0x10000 = (126, B.fromWord16be (fromIntegral len'))
-        | otherwise      = (127, B.fromWord64be (fromIntegral len'))
-
 
 handshakeHybi10 :: RequestHttpPart -> Decoder p (Either HandshakeError Request)
 handshakeHybi10 reqHttp@(RequestHttpPart path h) = return $ do

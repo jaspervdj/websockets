@@ -27,6 +27,7 @@ import qualified Test.QuickCheck.Monadic as QC
 
 import Network.WebSockets
 import Network.WebSockets.Mask
+import Network.WebSockets.Monad
 import Network.WebSockets.Protocol.Hybi00.Internal
 import Network.WebSockets.Protocol.Hybi10.Internal
 import Network.WebSockets.Tests.Util
@@ -41,8 +42,7 @@ tests = testGroup "Network.WebSockets.Test"
         (sendReceiveTextData Hybi10_)
     , testProperty "sendReceiveTextData-hybi00"
         (sendReceiveTextData Hybi00_)
-    , testProperty "sendReceiveFragmented-hybi10"
-        (sendReceiveFragmented Hybi10_)
+    , testProperty "sendReceiveFragmented-hybi10" sendReceiveFragmentedHybi10
     , testProperty "sendReceiveClose-hybi10"  (sendReceiveClose Hybi10_)
     , testProperty "sendReceiveClose-hybi00"  (sendReceiveClose Hybi00_)
     , testProperty "sendReceiveConcurrent-hybi10"
@@ -76,11 +76,12 @@ sendReceiveTextData proto = QC.monadicIO $ do
     tl' <- QC.run $ pipe proto (sendTextData tl) receiveData
     QC.assert $ tl == tl'
 
-sendReceiveFragmented :: Protocol p => p -> FragmentedMessage p -> Property
-sendReceiveFragmented proto (FragmentedMessage msg frames) = QC.monadicIO $ do
+sendReceiveFragmentedHybi10 :: FragmentedMessage Hybi10_ -> Property
+sendReceiveFragmentedHybi10 (FragmentedMessage msg frames) = QC.monadicIO $ do
     -- Put some other frames in between
     let frames' = concatMap addCrap frames
-    msg' <- QC.run $ pipe proto (mapM_ sendFrame frames') receiveDataMessage
+        client  = mapM_ (sendWith encodeFrameHybi10) frames'
+    msg' <- QC.run $ pipe Hybi10_ client receiveDataMessage
     QC.assert $ msg == DataMessage msg'
   where
     addCrap x = [Frame True PingFrame "Herp", Frame True PongFrame "Derp", x]
@@ -88,8 +89,8 @@ sendReceiveFragmented proto (FragmentedMessage msg frames) = QC.monadicIO $ do
 sendReceiveClose :: Protocol p => p -> Property
 sendReceiveClose proto = QC.monadicIO $ do
     -- Put some other frames in between
-    let frames = [Frame True CloseFrame "", Frame True TextFrame "Herp"]
-    closed <- QC.run $ pipe proto (mapM_ sendFrame frames) receiver
+    let msgs = [ControlMessage (Close ""), (DataMessage (Text "Herp"))]
+    closed <- QC.run $ pipe proto (mapM_ send msgs) receiver
     QC.assert closed
   where
     receiver = catchWsError (receiveDataMessage >> return False) $ \e ->

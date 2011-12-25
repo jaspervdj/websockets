@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.WebSockets.Protocol.Hybi10.Internal
     ( Hybi10_ (..)
+    , encodeFrameHybi10
     ) where
 
 import Control.Applicative (pure, (<$>))

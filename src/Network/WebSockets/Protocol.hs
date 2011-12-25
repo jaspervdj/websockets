@@ -28,7 +28,7 @@ class Protocol p where
     headerVersions  :: p -> [B.ByteString]
 
     encodeMessage   :: p -> Encoder p (Message p)
-    enumMessages    :: Monad m => p -> E.Enumeratee B.ByteString (Message p) m a
+    decodeMessages  :: Monad m => p -> E.Enumeratee B.ByteString (Message p) m a
 
     -- | Parse and validate the rest of the request. For hybi10, this is just
     -- validation, but hybi00 also needs to fetch a "security token"

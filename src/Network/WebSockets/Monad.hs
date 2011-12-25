@@ -134,7 +134,7 @@ runWebSocketsWith' opts proto ws outIter = do
         env    = WebSocketsEnv opts sender proto
         iter   = runReaderT (unWebSockets ws) env
 
-    enumMessages proto =$ iter
+    decodeMessages proto =$ iter
   where
     makeSend sendLock x = withMVar sendLock $ \_ ->
         builderSender outIter x

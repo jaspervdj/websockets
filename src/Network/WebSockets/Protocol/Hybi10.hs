@@ -15,7 +15,7 @@ instance Protocol Hybi10 where
     version        (Hybi10 p) = version p
     headerVersions (Hybi10 p) = headerVersions p
     encodeMessage  (Hybi10 p) = \f -> encodeMessage p f . castMessage
-    enumMessages   (Hybi10 p) = (enumMessages p =$) . EL.map castMessage
+    decodeMessages (Hybi10 p) = (decodeMessages p =$) . EL.map castMessage
     finishRequest  (Hybi10 p) = finishRequest p
     implementations           = [Hybi10 Hybi10_]
 

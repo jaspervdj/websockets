@@ -39,7 +39,7 @@ instance Protocol Hybi10_ where
     version         Hybi10_ = "hybi10"
     headerVersions  Hybi10_ = ["13", "8", "7"]
     encodeMessage   Hybi10_ = encodeMessageHybi10
-    enumMessages    Hybi10_ = enumMessagesHybi10
+    decodeMessages  Hybi10_ = decodeMessagesHybi10
     finishRequest   Hybi10_ = handshakeHybi10
     implementations         = [Hybi10_]
 
@@ -81,8 +81,9 @@ encodeFrameHybi10 mask f = B.fromWord8 byte0 `mappend`
         | len' < 0x10000 = (126, B.fromWord16be (fromIntegral len'))
         | otherwise      = (127, B.fromWord64be (fromIntegral len'))
 
-enumMessagesHybi10 :: Monad m => E.Enumeratee ByteString (Message p) m a
-enumMessagesHybi10 = (E.sequence (A.iterParser parseFrame) =$) . demultiplexEnum
+decodeMessagesHybi10 :: Monad m => E.Enumeratee ByteString (Message p) m a
+decodeMessagesHybi10 =
+    (E.sequence (A.iterParser parseFrame) =$) . demultiplexEnum
 
 demultiplexEnum :: Monad m => E.Enumeratee Frame (Message p) m a
 demultiplexEnum = EL.concatMapAccum step emptyDemultiplexState

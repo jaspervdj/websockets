@@ -34,7 +34,7 @@ instance Protocol Hybi00_ where
     version         Hybi00_ = "hybi00"
     headerVersions  Hybi00_ = ["0"]  -- but the client will elide it
     encodeMessage   Hybi00_ = encodeMessageHybi00
-    enumMessages    Hybi00_ = E.sequence (A.iterParser parseMessage)
+    decodeMessages  Hybi00_ = E.sequence (A.iterParser parseMessage)
     finishRequest   Hybi00_ = runErrorT . handshakeHybi00
     implementations         = [Hybi00_]
 

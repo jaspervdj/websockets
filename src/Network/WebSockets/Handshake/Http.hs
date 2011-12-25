@@ -18,16 +18,13 @@ import Control.Applicative ((<$>), (<*>), (*>), (<*))
 import Control.Exception (Exception)
 import Control.Monad.Error (Error (..))
 
-import Data.Attoparsec (string, takeWhile1, word8)
-import Data.Attoparsec.Combinator (manyTill)
 import Data.ByteString.Char8 ()
 import Data.ByteString.Internal (c2w)
+import qualified Data.Attoparsec as A
 import qualified Blaze.ByteString.Builder as Builder
 import qualified Blaze.ByteString.Builder.Char.Utf8 as Builder
 import qualified Data.ByteString as B
 import qualified Data.CaseInsensitive as CI
-
-import Network.WebSockets.Types
 
 -- | Request headers
 type Headers = [(CI.CI B.ByteString, B.ByteString)]
@@ -80,27 +77,27 @@ instance Error HandshakeError where
 instance Exception HandshakeError
 
 -- | Parse an initial request
-decodeRequest :: Decoder p RequestHttpPart
+decodeRequest :: A.Parser RequestHttpPart
 decodeRequest = RequestHttpPart
     <$> requestLine
-    <*> manyTill header newline
+    <*> A.manyTill header newline
   where
-    space = word8 (c2w ' ')
-    newline = string "\r\n"
+    space   = A.word8 (c2w ' ')
+    newline = A.string "\r\n"
 
-    requestLine = string "GET" *> space *> takeWhile1 (/= c2w ' ')
+    requestLine = A.string "GET" *> space *> A.takeWhile1 (/= c2w ' ')
         <* space
-        <* string "HTTP/1.1" <* newline
+        <* A.string "HTTP/1.1" <* newline
 
     header = (,)
-        <$> (CI.mk <$> takeWhile1 (/= c2w ':'))
-        <*  string ": "
-        <*> takeWhile1 (/= c2w '\r')
+        <$> (CI.mk <$> A.takeWhile1 (/= c2w ':'))
+        <*  A.string ": "
+        <*> A.takeWhile1 (/= c2w '\r')
         <*  newline
 
 -- | Encode an HTTP upgrade response
-encodeResponse :: Encoder p Response
-encodeResponse _ (Response code msg headers body) =
+encodeResponse :: Response -> Builder.Builder
+encodeResponse (Response code msg headers body) =
     Builder.copyByteString "HTTP/1.1 " `mappend`
     Builder.fromString (show code)     `mappend`
     Builder.fromChar ' '               `mappend`

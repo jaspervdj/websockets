@@ -38,7 +38,8 @@ data Hybi10_ = Hybi10_
 instance Protocol Hybi10_ where
     version         Hybi10_ = "hybi10"
     headerVersions  Hybi10_ = ["13", "8", "7"]
-    encodeMessage   Hybi10_ = encodeMessageHybi10
+    -- TODO: Use mask!
+    encodeMessages  Hybi10_ = EL.map (encodeMessageHybi10 Nothing)
     decodeMessages  Hybi10_ = decodeMessagesHybi10
     finishRequest   Hybi10_ = handshakeHybi10
     implementations         = [Hybi10_]

@@ -37,7 +37,7 @@ testHandshake app _ rq = do
     ia <- newIterAccum
     -- Encode request
     let bs = B.concat $ BL.toChunks $ Builder.toLazyByteString $
-                encodeRequestBody Nothing rq
+                encodeRequestBody rq
     -- Ignore possible error, we can inspect it using the response anyway
     _ <- E.run $ E.enumList 1 [bs] $$ runWebSocketsHandshake app (getIter ia)
     Right rsp <- A.parseOnly parseResponse . B.concat <$> getAccum ia

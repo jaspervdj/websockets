@@ -10,6 +10,7 @@ module Network.WebSockets.Tests.Util.Http
 import Data.Monoid (mappend, mconcat)
 import Control.Applicative ((<$>), (<*>), (<*), (*>))
 
+import Blaze.ByteString.Builder (Builder)
 import Data.Attoparsec (Parser)
 import Data.ByteString.Internal (c2w)
 import qualified Blaze.ByteString.Builder as Builder
@@ -19,7 +20,6 @@ import qualified Data.ByteString.Char8 as BC
 import qualified Data.CaseInsensitive as CI
 
 import Network.WebSockets.Handshake.Http
-import Network.WebSockets.Types
 import Network.WebSockets.Protocol.Hybi00.Internal
 import Network.WebSockets.Protocol.Hybi10.Internal
 
@@ -77,8 +77,8 @@ parseResponse = Response
         <*  newline
 
 -- | Request encoder
-encodeRequestBody :: Encoder p RequestBody
-encodeRequestBody _ (RequestBody (RequestHttpPart path headers) body) = 
+encodeRequestBody :: RequestBody -> Builder
+encodeRequestBody (RequestBody (RequestHttpPart path headers) body) = 
     Builder.copyByteString "GET "      `mappend`
     Builder.copyByteString path        `mappend`
     Builder.copyByteString " HTTP/1.1" `mappend`

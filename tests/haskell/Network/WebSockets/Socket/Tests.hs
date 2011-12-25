@@ -61,7 +61,7 @@ sendReceive proto = monadicIO $ do
 
     client' :: [BL.ByteString] -> WebSockets p [BL.ByteString]
     client' texts = do
-        sendWith encodeRequestBody $ exampleRequest proto
+        sendBuilder $ encodeRequestBody $ exampleRequest proto
         forM_ texts sendTextData
         replicateM (length texts) $ do
             receiveData

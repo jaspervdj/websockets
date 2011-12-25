@@ -11,7 +11,7 @@ module Network.WebSockets.Monad
     , runWebSocketsWithHandshake
     , runWebSocketsWith'
     , receive
-    , sendWith
+    , sendBuilder
     , send
     , Sink
     , sendSink
@@ -26,7 +26,7 @@ module Network.WebSockets.Monad
 
 import Control.Applicative (Applicative, (<$>))
 import Control.Concurrent (forkIO, threadDelay)
-import Control.Concurrent.MVar (newMVar, withMVar)
+import Control.Concurrent.MVar (MVar, modifyMVar_, newMVar)
 import Control.Exception (Exception (..), SomeException, throw)
 import Control.Monad (forever)
 import Control.Monad.Reader (ReaderT, ask, runReaderT)
@@ -43,7 +43,6 @@ import qualified Data.Enumerator.List as EL
 import Network.WebSockets.Handshake
 import Network.WebSockets.Handshake.Http
 import Network.WebSockets.Handshake.ShyIterParser
-import Network.WebSockets.Mask
 import Network.WebSockets.Protocol
 import Network.WebSockets.Types
 
@@ -60,9 +59,15 @@ defaultWebSocketsOptions = WebSocketsOptions
 
 -- | Environment in which the 'WebSockets' monad actually runs
 data WebSocketsEnv p = WebSocketsEnv
-    { options     :: WebSocketsOptions
-    , sendBuilder :: Builder -> IO ()
-    , protocol    :: p
+    { envOptions     :: WebSocketsOptions
+    , envSendBuilder :: Builder -> IO ()
+    , envSink        :: Sink p
+    , envProtocol    :: p
+    }
+
+-- | Used for asynchronous sending.
+newtype Sink p = Sink
+    { unSink :: MVar (E.Iteratee (Message p) IO ())
     }
 
 -- | The monad in which you can write WebSocket-capable applications
@@ -114,7 +119,8 @@ runWebSocketsWith opts httpReq goWs outIter = do
     mreq <- receiveIterateeShy $ tryFinishRequest httpReq
     case mreq of
         (Left err) -> do
-            sendIteratee encodeResponse (responseError proto err) outIter
+            let builder = encodeResponse $ responseError proto err
+            liftIO $ builderSender outIter builder
             E.throwError err
         (Right (r, p)) -> runWebSocketsWith' opts p (goWs r) outIter
   where
@@ -128,16 +134,15 @@ runWebSocketsWith' :: Protocol p
                    -> Iteratee ByteString IO ()
                    -> Iteratee ByteString IO a
 runWebSocketsWith' opts proto ws outIter = do
-    sendLock <- liftIO $ newMVar () 
+    -- Create sink
+    let sinkIter = encodeMessages proto =$ builderToByteString =$ outIter
+    sink <- Sink <$> liftIO (newMVar sinkIter)
 
-    let sender = makeSend sendLock
-        env    = WebSocketsEnv opts sender proto
+    let sender = builderSender outIter
+        env    = WebSocketsEnv opts sender sink proto
         iter   = runReaderT (unWebSockets ws) env
 
     decodeMessages proto =$ iter
-  where
-    makeSend sendLock x = withMVar sendLock $ \_ ->
-        builderSender outIter x
 
 -- | @spawnPingThread n@ spawns a thread which sends a ping every @n@ seconds
 -- (if the protocol supports it). To be called after having sent the response.
@@ -182,44 +187,28 @@ receive = liftIteratee $ do
         Nothing  -> E.throwError ConnectionClosed
         Just msg -> return msg
 
-sendIteratee :: Encoder p a -> a
-             -> Iteratee ByteString IO ()
-             -> Iteratee ByteString IO ()
-sendIteratee enc resp outIter = do
-    liftIO $ mkSend (builderSender outIter) enc resp
-
--- | Low-leven sending with an arbitrary 'Encoder'
-sendWith :: Encoder p a -> a -> WebSockets p ()
-sendWith encoder x = WebSockets $ do
-    send' <- sendBuilder <$> ask
-    liftIO $ mkSend send' encoder x
+-- | Send an arbitrary 'Builder'
+sendBuilder :: Builder -> WebSockets p ()
+sendBuilder builder = WebSockets $ do
+    sb <- envSendBuilder <$> ask
+    liftIO $ sb builder
 
 -- | Low-level sending with an arbitrary 'T.Message'
 send :: Protocol p => Message p -> WebSockets p ()
 send msg = getSink >>= \sink -> liftIO $ sendSink sink msg
 
--- | Used for asynchronous sending.
-newtype Sink p = Sink {unSink :: Message p -> IO ()}
-
 -- | Send a message to a sink. Might generate an exception if the underlying
 -- connection is closed.
 sendSink :: Sink p -> Message p -> IO ()
-sendSink = unSink
+sendSink sink msg = modifyMVar_ (unSink sink) $ \iter -> do
+    step <- E.runIteratee $ singleton msg $$ iter
+    return $ E.returnI step
 
 -- | In case the user of the library wants to do asynchronous sending to the
 -- socket, he can extract a 'Sink' and pass this value around, for example,
 -- to other threads.
 getSink :: Protocol p => WebSockets p (Sink p)
-getSink = WebSockets $ do
-    proto <- unWebSockets getProtocol
-    send' <- sendBuilder <$> ask
-    return $ Sink $ mkSend send' $ encodeMessage proto
-
--- TODO: rename to mkEncodedSender?
-mkSend :: (Builder -> IO ()) -> Encoder p a -> a -> IO ()
-mkSend send' encoder x = do
-    mask <- randomMask
-    send' $ encoder mask x
+getSink = WebSockets $ envSink <$> ask
 
 singleton :: Monad m => a -> Enumerator a m b
 singleton c = E.checkContinue0 $ \_ f -> f (E.Chunks [c]) >>== E.returnI
@@ -233,11 +222,11 @@ builderSender outIter x = do
 
 -- | Get the current configuration
 getOptions :: WebSockets p WebSocketsOptions
-getOptions = WebSockets $ ask >>= return . options
+getOptions = WebSockets $ ask >>= return . envOptions
 
 -- | Get the underlying protocol
 getProtocol :: WebSockets p p
-getProtocol = WebSockets $ protocol <$> ask
+getProtocol = WebSockets $ envProtocol <$> ask
 
 -- | Find out the 'WebSockets' version used at runtime
 getVersion :: Protocol p => WebSockets p String

@@ -194,7 +194,7 @@ receiveData = do
 
 -- | Send a 'I.Response' to the socket immediately.
 sendResponse :: I.Protocol p => I.Response -> I.WebSockets p ()
-sendResponse response = I.sendWith I.encodeResponse response
+sendResponse = I.sendBuilder . I.encodeResponse
 
 -- | Send a text message
 sendTextData :: (I.TextProtocol p, I.WebSocketsData a) => a -> I.WebSockets p ()

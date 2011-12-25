@@ -15,11 +15,9 @@ import Data.Int (Int32)
 import qualified Blaze.ByteString.Builder as BB
 import qualified Data.Attoparsec as A
 import qualified Data.Attoparsec.Enumerator as A
--- #if MIN_VERSION_attoparsec(0,10,0)
-import qualified Data.Attoparsec.Types as AT
--- #endif
 import qualified Data.ByteString as B
 import qualified Data.Enumerator as E
+import qualified Data.Enumerator.List as EL
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.CaseInsensitive as CI
@@ -33,19 +31,19 @@ data Hybi00_ = Hybi00_
 instance Protocol Hybi00_ where
     version         Hybi00_ = "hybi00"
     headerVersions  Hybi00_ = ["0"]  -- but the client will elide it
-    encodeMessage   Hybi00_ = encodeMessageHybi00
+    encodeMessages  Hybi00_ = EL.map encodeMessage
     decodeMessages  Hybi00_ = E.sequence (A.iterParser parseMessage)
     finishRequest   Hybi00_ = runErrorT . handshakeHybi00
     implementations         = [Hybi00_]
 
 instance TextProtocol Hybi00_
 
-encodeMessageHybi00 :: Encoder p (Message p)
-encodeMessageHybi00 _ (DataMessage (Text pl))    =
+encodeMessage :: Message p -> BB.Builder
+encodeMessage (DataMessage (Text pl))    =
     BB.fromLazyByteString $ "\0" `BL.append` pl `BL.append` "\255"
-encodeMessageHybi00 _ (ControlMessage (Close _)) =
+encodeMessage (ControlMessage (Close _)) =
     BB.fromLazyByteString  "\255\0"
-encodeMessageHybi00 _ msg                        = error $
+encodeMessage msg                        = error $
     "Network.WebSockets.Protocol.Hybi00.encodeFrame: unsupported message: " ++
     show msg
 
@@ -71,11 +69,7 @@ divBySpaces str
     spaces = fromIntegral . length $ filter (== ' ') str
 
 handshakeHybi00 :: RequestHttpPart
--- #if MIN_VERSION_attoparsec(0,10,0)
-                -> ErrorT HandshakeError (AT.Parser B.ByteString) Request
--- #else
---                -> ErrorT HandshakeError A.Parser Request
--- #endif
+                -> ErrorT HandshakeError A.Parser Request
 handshakeHybi00 reqHttp@(RequestHttpPart path h) = do
     -- _ <- lift . A.word8 $ fromIntegral 0x0d
     -- _ <- lift . A.word8 $ fromIntegral 0x0a

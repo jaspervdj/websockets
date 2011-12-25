@@ -11,6 +11,7 @@ module Network.WebSockets.Protocol
     , binaryData
     ) where
 
+import Blaze.ByteString.Builder (Builder)
 import qualified Data.ByteString as B
 import qualified Data.Enumerator as E
 
@@ -27,7 +28,7 @@ class Protocol p where
     -- "7", "8" or "17".
     headerVersions  :: p -> [B.ByteString]
 
-    encodeMessage   :: p -> Encoder p (Message p)
+    encodeMessages  :: Monad m => p -> E.Enumeratee (Message p) Builder m a
     decodeMessages  :: Monad m => p -> E.Enumeratee B.ByteString (Message p) m a
 
     -- | Parse and validate the rest of the request. For hybi10, this is just

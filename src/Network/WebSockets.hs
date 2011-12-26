@@ -106,8 +106,6 @@ module Network.WebSockets
     , I.RequestHttpPart (..)
     , I.Request (..)
     , I.Response (..)
-    , I.FrameType (..)
-    , I.Frame (..)
     , I.Message (..)
     , I.ControlMessage (..)
     , I.DataMessage (..)

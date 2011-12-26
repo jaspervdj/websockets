@@ -3,9 +3,7 @@
 
 -- | Primary types
 module Network.WebSockets.Types
-    ( FrameType (..)
-    , Frame (..)
-    , Message (..)
+    ( Message (..)
     , ControlMessage (..)
     , DataMessage (..)
     , WebSocketsData (..)
@@ -36,23 +34,6 @@ data ConnectionError
     deriving (Show, Typeable)
 
 instance Exception ConnectionError
-
--- | A low-level representation of a WebSocket packet
-data Frame = Frame
-    { frameFin     :: !Bool
-    , frameType    :: !FrameType
-    , framePayload :: !BL.ByteString
-    } deriving (Eq, Show)
-
--- | The type of a frame. Not all types are allowed for all protocols.
-data FrameType
-    = ContinuationFrame
-    | TextFrame
-    | BinaryFrame
-    | CloseFrame
-    | PingFrame
-    | PongFrame
-    deriving (Eq, Show)
 
 -- | The kind of message a server application typically deals with
 data Message p

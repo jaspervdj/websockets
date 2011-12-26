@@ -31,7 +31,7 @@ import Network.WebSockets.Handshake.Http
 import Network.WebSockets.Mask
 import Network.WebSockets.Protocol
 import Network.WebSockets.Types
-import Network.WebSockets.Demultiplex
+import Network.WebSockets.Protocol.Hybi10.Demultiplex
 
 data Hybi10_ = Hybi10_
 

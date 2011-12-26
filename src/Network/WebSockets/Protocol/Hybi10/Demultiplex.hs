@@ -1,6 +1,8 @@
 -- | Demultiplexing of frames into messages
-module Network.WebSockets.Demultiplex
-    ( DemultiplexState
+module Network.WebSockets.Protocol.Hybi10.Demultiplex
+    ( FrameType (..)
+    , Frame (..)
+    , DemultiplexState
     , emptyDemultiplexState
     , demultiplex
     ) where
@@ -8,8 +10,26 @@ module Network.WebSockets.Demultiplex
 import Blaze.ByteString.Builder (Builder)
 import Data.Monoid (mappend)
 import qualified Blaze.ByteString.Builder as B
+import qualified Data.ByteString.Lazy as BL
 
 import Network.WebSockets.Types
+
+-- | A low-level representation of a WebSocket packet
+data Frame = Frame
+    { frameFin     :: !Bool
+    , frameType    :: !FrameType
+    , framePayload :: !BL.ByteString
+    } deriving (Eq, Show)
+
+-- | The type of a frame. Not all types are allowed for all protocols.
+data FrameType
+    = ContinuationFrame
+    | TextFrame
+    | BinaryFrame
+    | CloseFrame
+    | PingFrame
+    | PongFrame
+    deriving (Eq, Show)
 
 -- | Internal state used by the demultiplexer
 newtype DemultiplexState = DemultiplexState

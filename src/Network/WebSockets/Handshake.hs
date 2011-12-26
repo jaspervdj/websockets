@@ -6,11 +6,11 @@ module Network.WebSockets.Handshake
     , tryFinishRequest
     ) where
 
+import qualified Data.Attoparsec as A
 import qualified Data.ByteString as B
 
 import Network.WebSockets.Handshake.Http
 import Network.WebSockets.Protocol
-import Network.WebSockets.Types
 
 -- | Receives and checks the client handshake.
 -- 
@@ -26,7 +26,7 @@ import Network.WebSockets.Types
 --
 tryFinishRequest :: Protocol p
                  => RequestHttpPart
-                 -> Decoder p (Either HandshakeError (Request, p))
+                 -> A.Parser (Either HandshakeError (Request, p))
 tryFinishRequest httpReq = tryInOrder implementations
     -- NOTE that the protocols are tried in order, the first one first. So that
     -- should be the latest one. (only matters if we have overlaps in specs,

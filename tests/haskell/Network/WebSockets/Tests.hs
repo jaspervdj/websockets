@@ -81,7 +81,7 @@ sendReceiveFragmentedHybi10 (FragmentedMessage msg frames) = QC.monadicIO $ do
     -- Put some other frames in between
     let frames' = concatMap addCrap frames
         -- TODO: use a mask?
-        client  = mapM_ (sendBuilder . encodeFrameHybi10 Nothing) frames'
+        client  = mapM_ (sendBuilder . encodeFrameHybi10) frames'
     msg' <- QC.run $ pipe Hybi10_ client receiveDataMessage
     QC.assert $ msg == DataMessage msg'
   where

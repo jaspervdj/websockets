@@ -38,8 +38,7 @@ data Hybi10_ = Hybi10_
 instance Protocol Hybi10_ where
     version         Hybi10_ = "hybi10"
     headerVersions  Hybi10_ = ["13", "8", "7"]
-    -- TODO: Use mask!
-    encodeMessages  Hybi10_ = EL.map (encodeMessageHybi10 Nothing)
+    encodeMessages  Hybi10_ = EL.map encodeMessageHybi10
     decodeMessages  Hybi10_ = decodeMessagesHybi10
     finishRequest   Hybi10_ = handshakeHybi10
     implementations         = [Hybi10_]
@@ -47,8 +46,8 @@ instance Protocol Hybi10_ where
 instance TextProtocol Hybi10_
 instance BinaryProtocol Hybi10_
 
-encodeMessageHybi10 :: Encoder p (Message p)
-encodeMessageHybi10 mask msg = encodeFrameHybi10 mask $ case msg of
+encodeMessageHybi10 :: Message p -> B.Builder
+encodeMessageHybi10 msg = encodeFrameHybi10 $ case msg of
     (ControlMessage (Close pl)) -> Frame True CloseFrame pl
     (ControlMessage (Ping pl))  -> Frame True PingFrame pl
     (ControlMessage (Pong pl))  -> Frame True PongFrame pl
@@ -56,11 +55,14 @@ encodeMessageHybi10 mask msg = encodeFrameHybi10 mask $ case msg of
     (DataMessage (Binary pl))   -> Frame True BinaryFrame pl
 
 -- | Encode a frame
-encodeFrameHybi10 :: Encoder p Frame
-encodeFrameHybi10 mask f = B.fromWord8 byte0 `mappend`
+encodeFrameHybi10 :: Frame -> B.Builder
+encodeFrameHybi10 f = B.fromWord8 byte0 `mappend`
     B.fromWord8 byte1 `mappend` len `mappend` maskbytes `mappend`
     B.fromLazyByteString (maskPayload mask (framePayload f))
   where
+    -- TODO: Use mask!
+    mask   = Nothing
+
     byte0  = fin .|. opcode
     fin    = if frameFin f then 0x80 else 0x00
     opcode = case frameType f of
@@ -124,7 +126,7 @@ parseFrame = do
   where
     runGet' g = runGet g . BL.fromChunks . return
 
-    take64 :: Int64 -> Decoder p [ByteString]
+    take64 :: Int64 -> A.Parser [ByteString]
     take64 n
         | n <= 0    = return []
         | otherwise = do
@@ -135,7 +137,7 @@ parseFrame = do
         intMax :: Int64
         intMax = fromIntegral (maxBound :: Int)
 
-handshakeHybi10 :: RequestHttpPart -> Decoder p (Either HandshakeError Request)
+handshakeHybi10 :: RequestHttpPart -> A.Parser (Either HandshakeError Request)
 handshakeHybi10 reqHttp@(RequestHttpPart path h) = return $ do
     case getHeader "Sec-WebSocket-Version" of
         Right "7"  -> return ()

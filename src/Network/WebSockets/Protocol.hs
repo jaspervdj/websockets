@@ -12,6 +12,7 @@ module Network.WebSockets.Protocol
     ) where
 
 import Blaze.ByteString.Builder (Builder)
+import qualified Data.Attoparsec as A
 import qualified Data.ByteString as B
 import qualified Data.Enumerator as E
 
@@ -37,7 +38,7 @@ class Protocol p where
     -- Todo: Maybe we should introduce our own simplified error type here. (to
     -- be amended with the RequestHttpPart for the user)
     finishRequest   :: p -> RequestHttpPart
-                    -> Decoder p (Either HandshakeError Request)
+                    -> A.Parser (Either HandshakeError Request)
 
     -- | Implementations of the specification
     implementations :: [p]

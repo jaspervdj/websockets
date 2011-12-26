@@ -3,10 +3,7 @@
 
 -- | Primary types
 module Network.WebSockets.Types
-    ( Decoder
-    , Encoder
-
-    , FrameType (..)
+    ( FrameType (..)
     , Frame (..)
     , Message (..)
     , ControlMessage (..)
@@ -19,23 +16,12 @@ module Network.WebSockets.Types
 import Control.Exception (Exception(..))
 import Data.Typeable (Typeable)
 
-import Data.Attoparsec (Parser)
-import qualified Blaze.ByteString.Builder as B
 import qualified Data.Attoparsec.Enumerator as AE
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TL
-
-import Network.WebSockets.Mask
-
--- | An alias so we don't have to import attoparsec everywhere
-type Decoder p a = Parser a
-
--- | The inverse of a parser
-type Encoder p a = Mask -> a -> B.Builder
--- TODO: Remove the mask
 
 -- | The connection couldn't be established or broke down unexpectedly. thrown
 -- as an iteratee exception.

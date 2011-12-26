@@ -36,6 +36,7 @@ import Blaze.ByteString.Builder (Builder)
 import Data.ByteString (ByteString)
 import Data.Enumerator (Enumerator, Iteratee, ($$), (>>==), (=$))
 import qualified Blaze.ByteString.Builder as BB
+import qualified Data.Attoparsec as A
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Attoparsec.Enumerator as AE
 import qualified Data.Enumerator as E
@@ -121,7 +122,7 @@ runWebSocketsWith opts httpReq goWs outIter = do
     case mreq of
         (Left err) -> do
             let builder = encodeResponse $ responseError proto err
-            liftIO $ builderSender outIter builder
+            liftIO $ makeBuilderSender outIter builder
             E.throwError err
         (Right (r, p)) -> runWebSocketsWith' opts p (goWs r) outIter
   where
@@ -139,11 +140,18 @@ runWebSocketsWith' opts proto ws outIter = do
     let sinkIter = encodeMessages proto =$ builderToByteString =$ outIter
     sink <- Sink <$> liftIO (newMVar sinkIter)
 
-    let sender = builderSender outIter
+    let sender = makeBuilderSender outIter
         env    = WebSocketsEnv opts sender sink proto
         iter   = runReaderT (unWebSockets ws) env
 
     decodeMessages proto =$ iter
+
+makeBuilderSender :: MonadIO m => Iteratee ByteString m b -> Builder -> m ()
+makeBuilderSender outIter x = do
+    ok <- E.run $ singleton x $$ builderToByteString $$ outIter
+    case ok of
+        Left err -> throw err
+        Right _  -> return ()
 
 -- | @spawnPingThread n@ spawns a thread which sends a ping every @n@ seconds
 -- (if the protocol supports it). To be called after having sent the response.
@@ -158,10 +166,8 @@ spawnPingThread i = do
         sendSink sink $ ping ("Hi" :: ByteString)
     return ()
 
--- todo: move some stuff to another module. "Decode"?
-
 -- | Receive arbitrary data.
-receiveIteratee :: Decoder p a -> Iteratee ByteString IO a
+receiveIteratee :: A.Parser a -> Iteratee ByteString IO a
 receiveIteratee parser = do
     eof <- E.isEOF
     if eof
@@ -171,7 +177,7 @@ receiveIteratee parser = do
 -- | Like receiveIteratee, but if the supplied parser is happy with no input,
 -- we don't supply any more. This is very, very important when we have parsers
 -- that don't necessarily read data, like hybi10's completeRequest.
-receiveIterateeShy :: Decoder p a -> Iteratee ByteString IO a
+receiveIterateeShy :: A.Parser a -> Iteratee ByteString IO a
 receiveIterateeShy parser = wrappingParseError $ shyIterParser parser
 
 -- | Execute an iteratee, wrapping attoparsec-enumeratee's ParseError into the
@@ -214,17 +220,10 @@ getSink = WebSockets $ envSink <$> ask
 singleton :: Monad m => a -> Enumerator a m b
 singleton c = E.checkContinue0 $ \_ f -> f (E.Chunks [c]) >>== E.returnI
 
-builderSender :: MonadIO m => Iteratee ByteString m b -> Builder -> m ()
-builderSender outIter x = do
-    ok <- E.run $ singleton x $$ builderToByteString $$ outIter
-    case ok of
-        Left err -> throw err
-        Right _  -> return ()
-
 -- TODO: Figure out why Blaze.ByteString.Enumerator.builderToByteString doesn't
 -- work, then inform Simon or send a patch.
 builderToByteString :: Monad m => E.Enumeratee Builder ByteString m a
-builderToByteString = EL.concatMap (BL.toChunks . BB.toLazyByteString)
+builderToByteString = EL.concatMap $ BL.toChunks . BB.toLazyByteString
 
 -- | Get the current configuration
 getOptions :: WebSockets p WebSocketsOptions

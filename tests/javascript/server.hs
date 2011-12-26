@@ -84,9 +84,10 @@ data UnsafeProtocol = forall p. WS.Protocol p => UnsafeProtocol p
 instance WS.Protocol UnsafeProtocol where
     version        (UnsafeProtocol p) = version p
     headerVersions (UnsafeProtocol p) = headerVersions p
-    encodeFrame    (UnsafeProtocol p) = encodeFrame p
-    enumMessages   (UnsafeProtocol p) =
-        (enumMessages p =$) . EL.map WS.Unsafe.castMessage
+    encodeMessages (UnsafeProtocol p) =
+        (EL.map WS.Unsafe.castMessage =$) . encodeMessages p
+    decodeMessages (UnsafeProtocol p) =
+        (decodeMessages p =$) . EL.map WS.Unsafe.castMessage
     finishRequest  (UnsafeProtocol p) = finishRequest p
     implementations                   =
         [UnsafeProtocol WS.Hybi00_, UnsafeProtocol WS.Hybi10_]

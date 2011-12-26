@@ -78,8 +78,8 @@ sendIter s = E.continue go
   where
     go (E.Chunks []) = E.continue go
     go (E.Chunks cs) = do
-      b <- liftIO $ S.sIsWritable s
-      if b
-        then E.tryIO (SB.sendMany s cs) >> E.continue go
-        else E.throwError ConnectionClosed
-    go E.EOF         = E.yield () E.EOF
+        b <- liftIO $ S.sIsWritable s
+        if b
+            then E.tryIO (SB.sendMany s cs) >> E.continue go
+            else E.throwError ConnectionClosed
+    go E.EOF         = E.continue go

@@ -1,5 +1,5 @@
 -- | Provides a simple, clean monad to write websocket servers in
-{-# LANGUAGE GeneralizedNewtypeDeriving, OverloadedStrings,
+{-# LANGUAGE BangPatterns, GeneralizedNewtypeDeriving, OverloadedStrings,
         NoMonomorphismRestriction, Rank2Types, ScopedTypeVariables #-}
 module Network.WebSockets.Monad
     ( WebSocketsOptions (..)
@@ -33,9 +33,10 @@ import Control.Monad.Reader (ReaderT, ask, runReaderT)
 import Control.Monad.Trans (MonadIO, lift, liftIO)
 
 import Blaze.ByteString.Builder (Builder)
-import Blaze.ByteString.Builder.Enumerator (builderToByteString)
 import Data.ByteString (ByteString)
 import Data.Enumerator (Enumerator, Iteratee, ($$), (>>==), (=$))
+import qualified Blaze.ByteString.Builder as BB
+import qualified Data.ByteString.Lazy as BL
 import qualified Data.Attoparsec.Enumerator as AE
 import qualified Data.Enumerator as E
 import qualified Data.Enumerator.List as EL
@@ -219,6 +220,11 @@ builderSender outIter x = do
     case ok of
         Left err -> throw err
         Right _  -> return ()
+
+-- TODO: Figure out why Blaze.ByteString.Enumerator.builderToByteString doesn't
+-- work, then inform Simon or send a patch.
+builderToByteString :: Monad m => E.Enumeratee Builder ByteString m a
+builderToByteString = EL.concatMap (BL.toChunks . BB.toLazyByteString)
 
 -- | Get the current configuration
 getOptions :: WebSockets p WebSocketsOptions

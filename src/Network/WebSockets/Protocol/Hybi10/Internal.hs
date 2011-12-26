@@ -36,12 +36,12 @@ import Network.WebSockets.Protocol.Hybi10.Demultiplex
 data Hybi10_ = Hybi10_
 
 instance Protocol Hybi10_ where
-    version         Hybi10_ = "hybi10"
-    headerVersions  Hybi10_ = ["13", "8", "7"]
-    encodeMessages  Hybi10_ = EL.map encodeMessageHybi10
-    decodeMessages  Hybi10_ = decodeMessagesHybi10
-    finishRequest   Hybi10_ = handshakeHybi10
-    implementations         = [Hybi10_]
+    version         Hybi10_   = "hybi10"
+    headerVersions  Hybi10_   = ["13", "8", "7"]
+    encodeMessages  Hybi10_ _ = EL.map encodeMessageHybi10
+    decodeMessages  Hybi10_   = decodeMessagesHybi10
+    finishRequest   Hybi10_   = handshakeHybi10
+    implementations           = [Hybi10_]
 
 instance TextProtocol Hybi10_
 instance BinaryProtocol Hybi10_

@@ -29,12 +29,12 @@ import Network.WebSockets.Types
 data Hybi00_ = Hybi00_
 
 instance Protocol Hybi00_ where
-    version         Hybi00_ = "hybi00"
-    headerVersions  Hybi00_ = ["0"]  -- but the client will elide it
-    encodeMessages  Hybi00_ = EL.map encodeMessage
-    decodeMessages  Hybi00_ = E.sequence (A.iterParser parseMessage)
-    finishRequest   Hybi00_ = runErrorT . handshakeHybi00
-    implementations         = [Hybi00_]
+    version         Hybi00_   = "hybi00"
+    headerVersions  Hybi00_   = ["0"]  -- but the client will elide it
+    encodeMessages  Hybi00_ _ = EL.map encodeMessage
+    decodeMessages  Hybi00_   = E.sequence (A.iterParser parseMessage)
+    finishRequest   Hybi00_   = runErrorT . handshakeHybi00
+    implementations           = [Hybi00_]
 
 instance TextProtocol Hybi00_
 

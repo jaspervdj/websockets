@@ -12,6 +12,7 @@ module Network.WebSockets.Protocol
     ) where
 
 import Blaze.ByteString.Builder (Builder)
+import System.Random (RandomGen)
 import qualified Data.Attoparsec as A
 import qualified Data.ByteString as B
 import qualified Data.Enumerator as E
@@ -29,7 +30,14 @@ class Protocol p where
     -- "7", "8" or "17".
     headerVersions  :: p -> [B.ByteString]
 
-    encodeMessages  :: Monad m => p -> E.Enumeratee (Message p) Builder m a
+    -- | Encodes messages to binary 'Builder's. Takes a random source so it is
+    -- able to do masking of frames (needed in some cases).
+    encodeMessages  :: (Monad m, RandomGen g)
+                    => p
+                    -> g
+                    -> E.Enumeratee (Message p) Builder m a
+
+    -- | Decodes messages from binary 'B.ByteString's.
     decodeMessages  :: Monad m => p -> E.Enumeratee B.ByteString (Message p) m a
 
     -- | Parse and validate the rest of the request. For hybi10, this is just

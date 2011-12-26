@@ -9,6 +9,7 @@ import Control.Monad.Error (throwError)
 import Data.Bits ((.&.), (.|.))
 import Data.Maybe (maybeToList)
 import Data.Monoid (mempty, mappend, mconcat)
+import System.Random (RandomGen)
 
 import Data.Attoparsec (anyWord8)
 import Data.Binary.Get (runGet, getWord16be, getWord64be)
@@ -36,33 +37,33 @@ import Network.WebSockets.Types
 data Hybi10_ = Hybi10_
 
 instance Protocol Hybi10_ where
-    version         Hybi10_   = "hybi10"
-    headerVersions  Hybi10_   = ["13", "8", "7"]
-    encodeMessages  Hybi10_ _ = EL.map encodeMessageHybi10
-    decodeMessages  Hybi10_   = decodeMessagesHybi10
-    finishRequest   Hybi10_   = handshakeHybi10
-    implementations           = [Hybi10_]
+    version         Hybi10_ = "hybi10"
+    headerVersions  Hybi10_ = ["13", "8", "7"]
+    encodeMessages  Hybi10_ = EL.mapAccum encodeMessageHybi10
+    decodeMessages  Hybi10_ = decodeMessagesHybi10
+    finishRequest   Hybi10_ = handshakeHybi10
+    implementations         = [Hybi10_]
 
 instance TextProtocol Hybi10_
 instance BinaryProtocol Hybi10_
 
-encodeMessageHybi10 :: Message p -> B.Builder
-encodeMessageHybi10 msg = encodeFrameHybi10 $ case msg of
-    (ControlMessage (Close pl)) -> Frame True CloseFrame pl
-    (ControlMessage (Ping pl))  -> Frame True PingFrame pl
-    (ControlMessage (Pong pl))  -> Frame True PongFrame pl
-    (DataMessage (Text pl))     -> Frame True TextFrame pl
-    (DataMessage (Binary pl))   -> Frame True BinaryFrame pl
+encodeMessageHybi10 :: RandomGen g => g -> Message p -> (g, B.Builder)
+encodeMessageHybi10 gen msg = (gen', builder)
+  where
+    (mask, gen') = randomMask gen
+    builder      = encodeFrameHybi10 mask $ case msg of
+        (ControlMessage (Close pl)) -> Frame True CloseFrame pl
+        (ControlMessage (Ping pl))  -> Frame True PingFrame pl
+        (ControlMessage (Pong pl))  -> Frame True PongFrame pl
+        (DataMessage (Text pl))     -> Frame True TextFrame pl
+        (DataMessage (Binary pl))   -> Frame True BinaryFrame pl
 
 -- | Encode a frame
-encodeFrameHybi10 :: Frame -> B.Builder
-encodeFrameHybi10 f = B.fromWord8 byte0 `mappend`
+encodeFrameHybi10 :: Mask -> Frame -> B.Builder
+encodeFrameHybi10 mask f = B.fromWord8 byte0 `mappend`
     B.fromWord8 byte1 `mappend` len `mappend` maskbytes `mappend`
     B.fromLazyByteString (maskPayload mask (framePayload f))
   where
-    -- TODO: Use mask!
-    mask   = Nothing
-
     byte0  = fin .|. opcode
     fin    = if frameFin f then 0x80 else 0x00
     opcode = case frameType f of

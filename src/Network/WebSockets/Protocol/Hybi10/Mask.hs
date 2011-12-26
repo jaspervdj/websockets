@@ -1,15 +1,13 @@
 -- | Masking of fragmes using a simple XOR algorithm
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns, ScopedTypeVariables #-}
 module Network.WebSockets.Protocol.Hybi10.Mask
     ( Mask
     , maskPayload
     , randomMask
     ) where
 
-import Control.Applicative ((<$>))
-import Control.Monad (replicateM)
-import Data.Bits (xor)
-import System.Random (randomRIO)
+import Data.Bits (shiftR, xor)
+import System.Random (RandomGen, random)
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
@@ -28,7 +26,11 @@ maskPayload (Just mask) = snd . BL.mapAccumL f 0
               in (i', m `xor` c)
 
 -- | Create a random mask
-randomMask :: IO Mask
-randomMask = Just . B.pack <$> replicateM 4 randomByte
+randomMask :: forall g. RandomGen g => g -> (Mask, g)
+randomMask gen = (Just (B.pack [b1, b2, b3, b4]), gen')
   where
-    randomByte = fromIntegral <$> randomRIO (0x00 :: Int, 0xff)
+    (!int, !gen') = random gen :: (Int, g)
+    !b1           = fromIntegral $ int `mod` 0x100
+    !b2           = fromIntegral $ int `shiftR` 8  `mod` 0x100
+    !b3           = fromIntegral $ int `shiftR` 16 `mod` 0x100
+    !b4           = fromIntegral $ int `shiftR` 24 `mod` 0x100

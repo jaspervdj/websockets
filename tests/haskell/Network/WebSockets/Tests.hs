@@ -11,6 +11,8 @@ import Control.Monad (forM_, replicateM)
 import Control.Monad.Trans (liftIO)
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
+import Data.List (unfoldr)
+import System.Random (newStdGen)
 import qualified Data.Set as S
 
 import Test.Framework (Test, testGroup)
@@ -80,9 +82,10 @@ sendReceiveTextData proto = QC.monadicIO $ do
 sendReceiveFragmentedHybi10 :: FragmentedMessage Hybi10_ -> Property
 sendReceiveFragmentedHybi10 (FragmentedMessage msg frames) = QC.monadicIO $ do
     -- Put some other frames in between
+    gen <- QC.run newStdGen
     let frames' = concatMap addCrap frames
-        -- TODO: use a mask?
-        client  = mapM_ (sendBuilder . encodeFrameHybi10) frames'
+        masks   = unfoldr (Just . randomMask) gen
+        client  = mapM_ sendBuilder $ zipWith encodeFrameHybi10 masks frames'
     msg' <- QC.run $ pipe Hybi10_ client receiveDataMessage
     QC.assert $ msg == DataMessage msg'
   where

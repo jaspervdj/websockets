@@ -28,10 +28,10 @@ import qualified Data.Enumerator as E
 import qualified Data.Enumerator.List as EL
 
 import Network.WebSockets.Handshake.Http
-import Network.WebSockets.Mask
 import Network.WebSockets.Protocol
-import Network.WebSockets.Types
 import Network.WebSockets.Protocol.Hybi10.Demultiplex
+import Network.WebSockets.Protocol.Hybi10.Mask
+import Network.WebSockets.Types
 
 data Hybi10_ = Hybi10_
 

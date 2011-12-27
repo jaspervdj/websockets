@@ -49,7 +49,6 @@ Library
   Other-modules:
     Network.WebSockets.Handshake
     Network.WebSockets.Handshake.Http
-    Network.WebSockets.Handshake.ShyIterParser
     Network.WebSockets.Monad
     Network.WebSockets.Protocol
     Network.WebSockets.Protocol.Hybi00

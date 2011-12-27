@@ -46,7 +46,6 @@ import qualified Data.Enumerator.List as EL
 
 import Network.WebSockets.Handshake
 import Network.WebSockets.Handshake.Http
-import Network.WebSockets.Handshake.ShyIterParser
 import Network.WebSockets.Protocol
 import Network.WebSockets.Types
 
@@ -177,12 +176,6 @@ receiveIteratee parser = do
     if eof
         then E.throwError ConnectionClosed
         else wrappingParseError . AE.iterParser $ parser
-
--- | Like receiveIteratee, but if the supplied parser is happy with no input,
--- we don't supply any more. This is very, very important when we have parsers
--- that don't necessarily read data, like hybi10's completeRequest.
-receiveIterateeShy :: A.Parser a -> Iteratee ByteString IO a
-receiveIterateeShy parser = wrappingParseError $ shyIterParser parser
 
 -- | Execute an iteratee, wrapping attoparsec-enumeratee's ParseError into the
 -- ParseError constructor (which is a ConnectionError).

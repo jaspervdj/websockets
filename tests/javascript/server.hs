@@ -101,12 +101,16 @@ application rq = do
     -- When a client succesfully connects, lookup the requested test and
     -- run it
     WS.acceptRequest rq
-    version' <- WS.getVersion
-    liftIO $ putStrLn $ "Selected version: " ++ version'
+    version'' <- WS.getVersion
+    liftIO $ putStrLn $ "==================================="
+    liftIO $ putStrLn $ "Requested client version: " ++ show version'
+    liftIO $ putStrLn $ "Selected version: " ++ version''
     let name = WS.requestPath rq
     liftIO $ putStrLn $ "Starting test " ++ show name
     let Just test = lookup name tests in test
     liftIO $ putStrLn $ "Test " ++ show name ++ " finished"
+  where
+    version' = lookup "Sec-WebSocket-Version" (WS.requestHeaders rq)
 
 -- | Accepts clients, spawns a single handler for each one.
 main :: IO ()

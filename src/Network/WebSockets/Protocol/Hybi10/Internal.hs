@@ -5,7 +5,6 @@ module Network.WebSockets.Protocol.Hybi10.Internal
     ) where
 
 import Control.Applicative (pure, (<$>))
-import Control.Monad.Error (throwError)
 import Data.Bits ((.&.), (.|.))
 import Data.Maybe (maybeToList)
 import Data.Monoid (mempty, mappend, mconcat)
@@ -138,13 +137,10 @@ parseFrame = do
         intMax :: Int64
         intMax = fromIntegral (maxBound :: Int)
 
-handshakeHybi10 :: RequestHttpPart -> A.Parser (Either HandshakeError Request)
-handshakeHybi10 reqHttp@(RequestHttpPart path h) = return $ do
-    case getHeader "Sec-WebSocket-Version" of
-        Right "7"  -> return ()
-        Right "8"  -> return ()
-        Right "13" -> return ()
-        _          -> throwError NotSupported
+handshakeHybi10 :: Monad m
+                => RequestHttpPart
+                -> E.Iteratee ByteString m Request
+handshakeHybi10 reqHttp@(RequestHttpPart path h) = do
     key <- getHeader "Sec-WebSocket-Key"
     let hash = unlazy $ bytestringDigest $ sha1 $ lazy $ key `mappend` guid
     let encoded = B64.encode hash
@@ -155,6 +151,5 @@ handshakeHybi10 reqHttp@(RequestHttpPart path h) = return $ do
     unlazy = mconcat . BL.toChunks
     getHeader k = case lookup k h of
         Just t  -> return t
-        Nothing -> throwError $
-                   MalformedRequest reqHttp $ 
-                   "Header missing: " ++ BC.unpack (CI.original k)
+        Nothing -> E.throwError $ MalformedRequest reqHttp $ 
+            "Header missing: " ++ BC.unpack (CI.original k)

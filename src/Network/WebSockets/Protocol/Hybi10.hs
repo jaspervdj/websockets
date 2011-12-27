@@ -14,6 +14,7 @@ data Hybi10 = forall p. Protocol p => Hybi10 p
 instance Protocol Hybi10 where
     version        (Hybi10 p)   = version p
     headerVersions (Hybi10 p)   = headerVersions p
+    supported      (Hybi10 p) h = supported p h
     encodeMessages (Hybi10 p) g = (EL.map castMessage =$) . encodeMessages p g
     decodeMessages (Hybi10 p)   = (decodeMessages p =$) . EL.map castMessage
     finishRequest  (Hybi10 p)   = finishRequest p

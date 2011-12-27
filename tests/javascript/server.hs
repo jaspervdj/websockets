@@ -84,6 +84,7 @@ data UnsafeProtocol = forall p. WS.Protocol p => UnsafeProtocol p
 instance WS.Protocol UnsafeProtocol where
     version        (UnsafeProtocol p)   = version p
     headerVersions (UnsafeProtocol p)   = headerVersions p
+    supported      (UnsafeProtocol p) h = supported p h
     encodeMessages (UnsafeProtocol p) g =
         (EL.map WS.Unsafe.castMessage =$) . encodeMessages p g
     decodeMessages (UnsafeProtocol p)   =

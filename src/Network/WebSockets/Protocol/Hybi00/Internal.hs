@@ -5,8 +5,6 @@ module Network.WebSockets.Protocol.Hybi00.Internal
        ) where
 
 import Control.Applicative ((<|>))
-import Control.Monad.Error (ErrorT (..), MonadError, throwError)
-import Control.Monad.Trans (lift)
 import Data.Char (isDigit)
 
 import Data.Binary (encode)
@@ -30,10 +28,11 @@ data Hybi00_ = Hybi00_
 
 instance Protocol Hybi00_ where
     version         Hybi00_   = "hybi00"
-    headerVersions  Hybi00_   = ["0"]  -- but the client will elide it
+    headerVersions  Hybi00_   = []  -- The client will elide it
+    supported       Hybi00_ h = getSecWebSocketVersion h == Nothing
     encodeMessages  Hybi00_ _ = EL.map encodeMessage
     decodeMessages  Hybi00_   = E.sequence (A.iterParser parseMessage)
-    finishRequest   Hybi00_   = runErrorT . handshakeHybi00
+    finishRequest   Hybi00_   = handshakeHybi00
     implementations           = [Hybi00_]
 
 instance TextProtocol Hybi00_
@@ -68,18 +67,11 @@ divBySpaces str
     number = read $ filter isDigit str :: Integer
     spaces = fromIntegral . length $ filter (== ' ') str
 
-handshakeHybi00 :: RequestHttpPart
-                -> ErrorT HandshakeError A.Parser Request
+handshakeHybi00 :: Monad m
+                => RequestHttpPart
+                -> E.Iteratee B.ByteString m Request
 handshakeHybi00 reqHttp@(RequestHttpPart path h) = do
-    -- _ <- lift . A.word8 $ fromIntegral 0x0d
-    -- _ <- lift . A.word8 $ fromIntegral 0x0a
-
-    case getHeader "Sec-WebSocket-Version" of
-        Left _    -> return ()
-        Right "0" -> return ()
-        Right _   -> throwError NotSupported
-
-    keyPart3 <- lift $ A.take 8
+    keyPart3 <- A.iterParser $ A.take 8
     keyPart1 <- numberFromToken =<< getHeader "Sec-WebSocket-Key1"
     keyPart2 <- numberFromToken =<< getHeader "Sec-WebSocket-Key2"
 
@@ -99,10 +91,10 @@ handshakeHybi00 reqHttp@(RequestHttpPart path h) = do
   where
     getHeader k = case lookup k h of
         Just t  -> return t
-        Nothing -> throwError $ MalformedRequest reqHttp $
+        Nothing -> E.throwError $ MalformedRequest reqHttp $
             "Header missing: " ++ BC.unpack (CI.original k)
 
     numberFromToken token = case divBySpaces (BC.unpack token) of
         Just n  -> return $ encode n
-        Nothing -> throwError $ MalformedRequest reqHttp
+        Nothing -> E.throwError $ MalformedRequest reqHttp
             "Security token does not contain enough spaces"

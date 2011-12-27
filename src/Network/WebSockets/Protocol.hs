@@ -13,7 +13,6 @@ module Network.WebSockets.Protocol
 
 import Blaze.ByteString.Builder (Builder)
 import System.Random (RandomGen)
-import qualified Data.Attoparsec as A
 import qualified Data.ByteString as B
 import qualified Data.Enumerator as E
 
@@ -30,6 +29,14 @@ class Protocol p where
     -- "7", "8" or "17".
     headerVersions  :: p -> [B.ByteString]
 
+    -- | Determine if the protocol is compatible with a requested version. A
+    -- default implementation exists which uses the @headerVersions@ of the
+    -- protocol.
+    supported       :: p -> RequestHttpPart -> Bool
+    supported p h   = case getSecWebSocketVersion h of
+        Just v -> v `elem` headerVersions p
+        _      -> False
+
     -- | Encodes messages to binary 'Builder's. Takes a random source so it is
     -- able to do masking of frames (needed in some cases).
     encodeMessages  :: (Monad m, RandomGen g)
@@ -43,10 +50,11 @@ class Protocol p where
     -- | Parse and validate the rest of the request. For hybi10, this is just
     -- validation, but hybi00 also needs to fetch a "security token"
     --
-    -- Todo: Maybe we should introduce our own simplified error type here. (to
+    -- In case of failure, this function may throw a 'HandshakeError'.
     -- be amended with the RequestHttpPart for the user)
-    finishRequest   :: p -> RequestHttpPart
-                    -> A.Parser (Either HandshakeError Request)
+    finishRequest   :: Monad m
+                    => p -> RequestHttpPart
+                    -> E.Iteratee B.ByteString m Request
 
     -- | Implementations of the specification
     implementations :: [p]

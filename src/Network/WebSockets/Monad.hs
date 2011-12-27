@@ -31,6 +31,7 @@ import Control.Exception (Exception (..), SomeException, throw)
 import Control.Monad (forever)
 import Control.Monad.Reader (ReaderT, ask, runReaderT)
 import Control.Monad.Trans (MonadIO, lift, liftIO)
+import Data.Foldable (forM_)
 import System.Random (newStdGen)
 
 import Blaze.ByteString.Builder (Builder)
@@ -118,17 +119,18 @@ runWebSocketsWith :: forall p a. Protocol p
                   -> (Request -> WebSockets p a)
                   -> Iteratee ByteString IO ()
                   -> Iteratee ByteString IO a
-runWebSocketsWith opts httpReq goWs outIter = do
-    mreq <- receiveIterateeShy $ tryFinishRequest httpReq
-    case mreq of
-        (Left err) -> do
-            let builder = encodeResponse $ responseError proto err
-            liftIO $ makeBuilderSender outIter builder
-            E.throwError err
-        (Right (r, p)) -> runWebSocketsWith' opts p (goWs r) outIter
+runWebSocketsWith opts httpReq goWs outIter = E.catchError ok $ \e -> do
+    -- If handshake went bad, send response
+    forM_ (fromException e) $ \he ->
+        let builder = encodeResponse $ responseError (undefined :: p) he
+        in liftIO $ makeBuilderSender outIter builder
+    -- Re-throw error
+    E.throwError e
   where
-    proto :: p
-    proto = undefined
+    -- Perform handshake, call runWebSocketsWith'
+    ok = do
+        (rq, p) <- handshake httpReq
+        runWebSocketsWith' opts p (goWs rq) outIter
 
 runWebSocketsWith' :: Protocol p
                    => WebSocketsOptions

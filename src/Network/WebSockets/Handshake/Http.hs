@@ -6,6 +6,7 @@ module Network.WebSockets.Handshake.Http
     , Request (..)
     , Response (..)
     , HandshakeError (..)
+    , getSecWebSocketVersion
     , decodeRequest
     , encodeResponse
     , response101
@@ -75,6 +76,10 @@ instance Error HandshakeError where
     strMsg = OtherHandshakeError
 
 instance Exception HandshakeError
+
+-- | Get the @Sec-WebSocket-Version@ header
+getSecWebSocketVersion :: RequestHttpPart -> Maybe B.ByteString
+getSecWebSocketVersion p = lookup "Sec-WebSocket-Version" (requestHttpHeaders p)
 
 -- | Parse an initial request
 decodeRequest :: A.Parser RequestHttpPart

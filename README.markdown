@@ -21,12 +21,13 @@ Installation is provided using cabal:
 Compatibility
 -------------
 
-Both the `Hybi00` and `Hybi10` protocols are supported by the library.
+The `Hybi00`, `Hybi10` and `Rfc6455` protocols are all supported by the library.
 
 Protocol  Firefox  Chrome  Opera  Safari
 --------- -------- ------- ------ ---------
 `Hybi00`  >= 4     >= 6    >= 11  >= 5.0.1
 `Hybi10`  >= 7     >= 14
+`Rfc6455`          >- 16
 
 Authors
 -------

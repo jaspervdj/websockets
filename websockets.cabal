@@ -76,6 +76,7 @@ Library
     enumerator               >= 0.4.13 && < 0.5,
     mtl                      >= 2.0    && < 2.2,
     network                  >= 2.3    && < 2.4,
+    network-enumerator       >= 0.1    && < 0.2,
     random                   >= 1.0    && < 1.1,
     SHA                      >= 1.5    && < 1.6,
     text                     >= 0.10   && < 0.12,

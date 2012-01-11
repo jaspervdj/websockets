@@ -4,8 +4,7 @@
 module Network.WebSockets.Socket
     ( runServer
     , runWithSocket
-    , receiveEnum
-    , sendIter
+    , iterSocket
     ) where
 
 import Prelude hiding (catch)
@@ -16,11 +15,12 @@ import Control.Monad (forever)
 import Control.Monad.Trans (liftIO)
 
 import Data.ByteString (ByteString)
-import Data.Enumerator (Enumerator, Iteratee, (>>==), ($$))
+import Data.Enumerator (Iteratee, ($$))
 import Network.Socket (Socket)
 import qualified Data.Enumerator as E
 import qualified Network.Socket as S
 import qualified Network.Socket.ByteString as SB
+import qualified Network.Socket.Enumerator as SE
 
 import Network.WebSockets.Handshake.Http
 import Network.WebSockets.Monad
@@ -44,7 +44,7 @@ runServer host port ws = S.withSocketsDo $ do
     flip catch (closeSock sock) $ forever $ do
         (conn, _) <- S.accept sock
         -- Voodoo fix: set this to True as soon as we notice the connection was
-        -- closed. Will prevent sendIter' from even trying to send anything.
+        -- closed. Will prevent iterSocket' from even trying to send anything.
         -- Without it, we got many "Couldn't decode text frame as UTF8" errors
         -- in the browser (although the payload is definitely UTF8).
         -- killRef <- newIORef False
@@ -59,22 +59,15 @@ runServer host port ws = S.withSocketsDo $ do
 runWithSocket :: Protocol p
               => Socket -> (Request -> WebSockets p a) -> IO a
 runWithSocket s ws = do
-    r <- E.run $ receiveEnum s $$
-        runWebSocketsWithHandshake defaultWebSocketsOptions ws (sendIter s)
+    r <- E.run $ SE.enumSocket 4096 s $$
+        runWebSocketsWithHandshake defaultWebSocketsOptions ws (iterSocket s)
     S.sClose s
     either (error . show) return r
 
--- | Create an enumerator which reads from a socket and yields the chunks
-receiveEnum :: Socket -> Enumerator ByteString IO a
-receiveEnum s = E.checkContinue0 $ \loop f -> do
-    b <- liftIO $ SB.recv s 4096
-    if b == ""
-        then E.continue f
-        else f (E.Chunks [b]) >>== loop
-
--- | Create an iterator which writes to a socket
-sendIter :: Socket -> Iteratee ByteString IO ()
-sendIter s = E.continue go
+-- | Create an iterator which writes to a socket. Throws a 'ConnectionClosed'
+-- exception if the user attempts to write to a closed socket.
+iterSocket :: Socket -> Iteratee ByteString IO ()
+iterSocket s = E.continue go
   where
     go (E.Chunks []) = E.continue go
     go (E.Chunks cs) = do

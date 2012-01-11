@@ -16,6 +16,7 @@ import Test.QuickCheck.Monadic (assert, monadicIO, pick, run)
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Enumerator as E
 import qualified Network.Socket as S
+import qualified Network.Socket.Enumerator as SE
 
 import Network.WebSockets
 import Network.WebSockets.Monad
@@ -37,7 +38,7 @@ client port app = do
     hostAddr <- S.inet_addr "127.0.0.1"
     let addr = S.SockAddrInet (fromIntegral port) hostAddr
     S.connect sock addr
-    res <- E.run_ $ receiveEnum sock $$ app $ sendIter sock
+    res <- E.run_ $ SE.enumSocket 4096 sock $$ app $ iterSocket sock
     S.sClose sock
     return res
 

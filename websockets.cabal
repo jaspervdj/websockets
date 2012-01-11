@@ -1,5 +1,5 @@
 Name:    websockets
-Version: 0.5.1.0
+Version: 0.5.1.1
 
 Synopsis:
   A sensible and clean way to write WebSocket-capable servers in Haskell.
@@ -7,7 +7,7 @@ Synopsis:
 Description:
  This library allows you to write WebSocket-capable servers.
  .
- See an example: <http://jaspervdj/.be/websockets/example.html>.
+ See an example: <http://jaspervdj.be/websockets/example.html>.
  .
  The API of the 'Network.WebSockets' module should also contain enough
  information to get you started.

@@ -14,7 +14,7 @@ createSymbolicLink' dst src = createSymbolicLink dst src `catch` \_ ->
 
 makeLinks :: IO ()
 makeLinks = do
-    createSymbolicLink' "../README.markdown"          "README.markdown"
+    createSymbolicLink' "../README"                   "README.markdown"
     createSymbolicLink' "../example/server.lhs"       "example.lhs"
     createSymbolicLink' "../dist/doc/html/websockets" "reference"
 

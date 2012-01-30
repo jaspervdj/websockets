@@ -46,6 +46,7 @@ Library
   Exposed-modules:
     Network.WebSockets
     Network.WebSockets.Internal
+    Network.WebSockets.Util.PubSub
 
   Other-modules:
     Network.WebSockets.Handshake

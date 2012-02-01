@@ -10,7 +10,7 @@
 --
 -- * Push new updates from the server using the 'publish' call
 --
-{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE Rank2Types, ScopedTypeVariables #-}
 module Network.WebSockets.Util.PubSub
     ( PubSub
     , newPubSub
@@ -19,9 +19,11 @@ module Network.WebSockets.Util.PubSub
     ) where
 
 import Control.Applicative ((<$>))
-import Control.Monad (forM_, forever)
+import Control.Exception (IOException, handle)
+import Control.Monad (foldM, forever)
 import Control.Monad.Trans (liftIO)
 import Data.IntMap (IntMap)
+import Data.List (foldl')
 import qualified Control.Concurrent.MVar as MV
 
 import qualified Data.IntMap as IM
@@ -52,9 +54,17 @@ newPubSub = PubSub <$> MV.newMVar PubSub_
 
 -- | Broadcast a message to all connected clients
 publish :: PubSub p -> Message p -> IO ()
-publish (PubSub mvar) msg = do
-    sinks <- pubSubSinks <$> MV.readMVar mvar 
-    forM_ (IM.toList sinks) $ \(_, s) -> sendSink s msg
+publish (PubSub mvar) msg = MV.modifyMVar_ mvar $ \pubSub -> do
+    -- Take care to detect and remove broken clients
+    broken <- foldM publish' [] (IM.toList $ pubSubSinks pubSub)
+    return $ foldl' (\p b -> removeClient b p) pubSub broken
+  where
+    -- Publish the message to a single client, add it to the broken list if an
+    -- IOException occurs
+    publish' broken (i, s) =
+        handle (\(_ :: IOException) -> return (i : broken)) $ do
+            sendSink s msg
+            return broken
 
 -- | Blocks forever
 subscribe :: Protocol p => PubSub p -> WebSockets p ()

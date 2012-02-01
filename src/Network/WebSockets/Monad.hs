@@ -205,7 +205,7 @@ send msg = getSink >>= \sink -> liftIO $ sendSink sink msg
 -- connection is closed.
 sendSink :: Sink p -> Message p -> IO ()
 sendSink sink msg = modifyMVar_ (unSink sink) $ \iter -> do
-    step <- E.runIteratee $ singleton msg $$ iter
+    step <- E.runIteratee $ E.catchError (singleton msg $$ iter) throw
     return $ E.returnI step
 
 -- | In case the user of the library wants to do asynchronous sending to the

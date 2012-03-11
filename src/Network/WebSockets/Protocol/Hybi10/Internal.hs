@@ -140,7 +140,7 @@ parseFrame = do
 handshakeHybi10 :: Monad m
                 => RequestHttpPart
                 -> E.Iteratee ByteString m Request
-handshakeHybi10 reqHttp@(RequestHttpPart path h) = do
+handshakeHybi10 reqHttp@(RequestHttpPart path h _) = do
     key <- getHeader "Sec-WebSocket-Key"
     let hash = unlazy $ bytestringDigest $ sha1 $ lazy $ key `mappend` guid
     let encoded = B64.encode hash

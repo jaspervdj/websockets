@@ -34,6 +34,7 @@ type Headers = [(CI.CI B.ByteString, B.ByteString)]
 data RequestHttpPart = RequestHttpPart
     { requestHttpPath    :: !B.ByteString
     , requestHttpHeaders :: Headers
+    , requestHttpSecure :: Bool
     } deriving (Eq, Show)
 
 -- | Full request type
@@ -82,7 +83,7 @@ getSecWebSocketVersion :: RequestHttpPart -> Maybe B.ByteString
 getSecWebSocketVersion p = lookup "Sec-WebSocket-Version" (requestHttpHeaders p)
 
 -- | Parse an initial request
-decodeRequest :: A.Parser RequestHttpPart
+decodeRequest :: A.Parser (Bool -> RequestHttpPart)
 decodeRequest = RequestHttpPart
     <$> requestLine
     <*> A.manyTill header newline

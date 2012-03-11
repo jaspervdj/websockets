@@ -60,7 +60,7 @@ runWithSocket :: Protocol p
               => Socket -> (Request -> WebSockets p a) -> IO a
 runWithSocket s ws = do
     r <- E.run $ SE.enumSocket 4096 s $$
-        runWebSocketsWithHandshake defaultWebSocketsOptions ws (iterSocket s)
+        runWebSocketsWithHandshake defaultWebSocketsOptions False ws (iterSocket s)
     S.sClose s
     either (error . show) return r
 

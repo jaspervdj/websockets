@@ -80,7 +80,8 @@ newtype WebSockets p a = WebSockets
 
 -- | Receives the initial client handshake, then behaves like 'runWebSockets'.
 runWebSocketsHandshake :: Protocol p
-                       => (Request -> WebSockets p a)
+                       => Bool
+                       -> (Request -> WebSockets p a)
                        -> Iteratee ByteString IO ()
                        -> Iteratee ByteString IO a
 runWebSocketsHandshake = runWebSocketsWithHandshake defaultWebSocketsOptions
@@ -89,12 +90,13 @@ runWebSocketsHandshake = runWebSocketsWithHandshake defaultWebSocketsOptions
 -- 'runWebSocketsWith'.
 runWebSocketsWithHandshake :: Protocol p
                            => WebSocketsOptions
+                           -> Bool
                            -> (Request -> WebSockets p a)
                            -> Iteratee ByteString IO ()
                            -> Iteratee ByteString IO a
-runWebSocketsWithHandshake opts goWs outIter = do
+runWebSocketsWithHandshake opts isSecure goWs outIter = do
     httpReq <- receiveIteratee decodeRequest
-    runWebSocketsWith opts httpReq goWs outIter
+    runWebSocketsWith opts (httpReq isSecure) goWs outIter
 
 -- | Run a 'WebSockets' application on an 'Enumerator'/'Iteratee' pair, given
 -- that you (read: your web server) has already received the HTTP part of the

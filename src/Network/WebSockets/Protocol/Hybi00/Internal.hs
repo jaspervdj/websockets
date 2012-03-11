@@ -70,7 +70,7 @@ divBySpaces str
 handshakeHybi00 :: Monad m
                 => RequestHttpPart
                 -> E.Iteratee B.ByteString m Request
-handshakeHybi00 reqHttp@(RequestHttpPart path h) = do
+handshakeHybi00 reqHttp@(RequestHttpPart path h isSecure) = do
     keyPart3 <- A.iterParser $ A.take 8
     keyPart1 <- numberFromToken =<< getHeader "Sec-WebSocket-Key1"
     keyPart2 <- numberFromToken =<< getHeader "Sec-WebSocket-Key2"
@@ -81,8 +81,9 @@ handshakeHybi00 reqHttp@(RequestHttpPart path h) = do
     host <- getHeader "Host"
     -- todo: origin right? (also applies to hybi10)
     origin <- getHeader "Origin"
+    let schema = if isSecure then "wss://" else "ws://"
     let response = response101
-            [ ("Sec-WebSocket-Location", B.concat ["ws://", host, path])
+            [ ("Sec-WebSocket-Location", B.concat [schema, host, path])
             , ("Sec-WebSocket-Origin", origin)
             ]
             key

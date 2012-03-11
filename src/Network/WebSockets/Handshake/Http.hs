@@ -15,7 +15,7 @@ module Network.WebSockets.Handshake.Http
 
 import Data.Dynamic (Typeable)
 import Data.Monoid (mappend, mconcat)
-import Control.Applicative ((<$>), (<*>), (*>), (<*))
+import Control.Applicative (pure, (<$>), (<*>), (*>), (<*))
 import Control.Exception (Exception)
 import Control.Monad.Error (Error (..))
 
@@ -34,7 +34,7 @@ type Headers = [(CI.CI B.ByteString, B.ByteString)]
 data RequestHttpPart = RequestHttpPart
     { requestHttpPath    :: !B.ByteString
     , requestHttpHeaders :: Headers
-    , requestHttpSecure :: Bool
+    , requestHttpSecure  :: Bool
     } deriving (Eq, Show)
 
 -- | Full request type
@@ -83,10 +83,11 @@ getSecWebSocketVersion :: RequestHttpPart -> Maybe B.ByteString
 getSecWebSocketVersion p = lookup "Sec-WebSocket-Version" (requestHttpHeaders p)
 
 -- | Parse an initial request
-decodeRequest :: A.Parser (Bool -> RequestHttpPart)
-decodeRequest = RequestHttpPart
+decodeRequest :: Bool -> A.Parser RequestHttpPart
+decodeRequest isSecure = RequestHttpPart
     <$> requestLine
     <*> A.manyTill header newline
+    <*> pure isSecure
   where
     space   = A.word8 (c2w ' ')
     newline = A.string "\r\n"

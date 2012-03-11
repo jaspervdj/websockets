@@ -95,8 +95,8 @@ runWebSocketsWithHandshake :: Protocol p
                            -> Iteratee ByteString IO ()
                            -> Iteratee ByteString IO a
 runWebSocketsWithHandshake opts isSecure goWs outIter = do
-    httpReq <- receiveIteratee decodeRequest
-    runWebSocketsWith opts (httpReq isSecure) goWs outIter
+    httpReq <- receiveIteratee $ decodeRequest isSecure
+    runWebSocketsWith opts httpReq goWs outIter
 
 -- | Run a 'WebSockets' application on an 'Enumerator'/'Iteratee' pair, given
 -- that you (read: your web server) has already received the HTTP part of the

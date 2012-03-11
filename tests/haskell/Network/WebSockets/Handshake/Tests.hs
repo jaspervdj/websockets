@@ -39,7 +39,9 @@ testHandshake app _ rq = do
     let bs = B.concat $ BL.toChunks $ Builder.toLazyByteString $
                 encodeRequestBody rq
     -- Ignore possible error, we can inspect it using the response anyway
-    _ <- E.run $ E.enumList 1 [bs] $$ runWebSocketsHandshake app (getIter ia)
+    -- TODO: also test secure handshake?
+    _ <- E.run $ E.enumList 1 [bs] $$
+        runWebSocketsHandshake False app (getIter ia)
     Right rsp <- A.parseOnly parseResponse . B.concat <$> getAccum ia
     return rsp
 
@@ -86,6 +88,7 @@ rq9000 = RequestBody
       , ("Sec-WebSocket-Protocol", "chat, superchat")
       , ("Sec-WebSocket-Version", "9000")
       ]
+      False
     )
     ""
 

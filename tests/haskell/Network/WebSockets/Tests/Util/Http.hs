@@ -40,6 +40,7 @@ instance ExampleRequest Hybi00_ where
           , ("Sec-WebSocket-Key1", "4 @1  46546xW%0l 1 5")
           , ("Origin", "http://example.com")
           ]
+          False
         )
         "^n:ds[4U"
 
@@ -54,6 +55,7 @@ instance ExampleRequest Hybi10_ where
           , ("Sec-WebSocket-Protocol", "chat, superchat")
           , ("Sec-WebSocket-Version", "8")
           ]
+          False
         )
         ""
 
@@ -78,7 +80,7 @@ parseResponse = Response
 
 -- | Request encoder
 encodeRequestBody :: RequestBody -> Builder
-encodeRequestBody (RequestBody (RequestHttpPart path headers) body) = 
+encodeRequestBody (RequestBody (RequestHttpPart path headers _) body) =
     Builder.copyByteString "GET "      `mappend`
     Builder.copyByteString path        `mappend`
     Builder.copyByteString " HTTP/1.1" `mappend`

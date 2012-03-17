@@ -1,10 +1,11 @@
+<!DOCTYPE html>
 <html>
     <head>
         <title>Haskell WebSockets example</title>
         <script type="text/JavaScript"
             src="http://code.jquery.com/jquery-1.6.3.min.js"></script>
         <script type="text/JavaScript" src="client.js"></script>
-        <link rel="stylesheet" type="text/css" href="screen.css"></script>
+        <link rel="stylesheet" type="text/css" href="screen.css"/>
     </head>
     <body>
         <h1>Haskell WebSockets example</h1>
@@ -13,10 +14,10 @@
             </div>
             <div id="join-section">
                 <h2>Join</h2>
-                <form id="join-form" action="">
+                <form id="join-form" action="javascript: void(0)">
                     <label for="user">Username: </label>
                     <input id="user" type="text" size="12" />
-                    <input id="send" type="submit" value="Join" />
+                    <input id="welcome" type="submit" value="Join" />
                 </form>
             </div>
             <div id="users-section" style="display: none">
@@ -29,9 +30,9 @@
                 <div id="messages">
                 </div>
                 <br />
-                <form id="message-form" action="">
+                <form id="message-form" action="javascript: void(0)">
                     <input id="text" type="text" size="40" />
-                    <input id="send" type="submit" value="Send" />
+                    <input id="talk" type="submit" value="Send" />
                 </form>
             </div>
         </div>

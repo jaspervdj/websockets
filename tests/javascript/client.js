@@ -16,6 +16,8 @@ function createWebSocket(path) {
 * Actual tests                                                                 *
 *******************************************************************************/
 
+module('QUnit');
+
 test('demo', function () {
     ok(true, 'Demo test');
 });
@@ -67,9 +69,9 @@ asyncTest('concurrent send', function () {
         expected.splice(idx, 1);
 
         if(expected.length <= 0) {
-            start();
             ws.close();
             ok(true, 'all received');
+            start();
         }
     }
 });
@@ -82,6 +84,7 @@ asyncTest('ping', function() {
     ws.onmessage = function (event) {
         if(event.data == 'OK') {
             ws.close();
+            ok(true, 'ping');
             start();
         }
     };

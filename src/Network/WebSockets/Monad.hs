@@ -207,8 +207,10 @@ send msg = getSink >>= \sink -> liftIO $ sendSink sink msg
 -- connection is closed.
 sendSink :: Sink p -> Message p -> IO ()
 sendSink sink msg = modifyMVar_ (unSink sink) $ \iter -> do
-    step <- E.runIteratee $ E.catchError (singleton msg $$ iter) throw
-    return $ E.returnI step
+    step <- E.runIteratee $ singleton msg $$ iter
+    case step of
+        E.Error err -> throw err
+        _           -> return $! E.returnI step
 
 -- | In case the user of the library wants to do asynchronous sending to the
 -- socket, he can extract a 'Sink' and pass this value around, for example,

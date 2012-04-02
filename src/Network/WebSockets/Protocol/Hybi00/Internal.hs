@@ -30,7 +30,7 @@ instance Protocol Hybi00_ where
     version         Hybi00_   = "hybi00"
     headerVersions  Hybi00_   = []  -- The client will elide it
     supported       Hybi00_ h = getSecWebSocketVersion h == Nothing
-    encodeMessages  Hybi00_ _ = EL.map encodeMessage
+    encodeMessages  Hybi00_   = EL.map encodeMessage
     decodeMessages  Hybi00_   = E.sequence (A.iterParser parseMessage)
     finishRequest   Hybi00_   = handshakeHybi00
     implementations           = [Hybi00_]

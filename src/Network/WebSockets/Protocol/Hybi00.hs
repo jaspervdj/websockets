@@ -17,7 +17,7 @@ instance Protocol Hybi00 where
     version        (Hybi00 p)   = version p
     headerVersions (Hybi00 p)   = headerVersions p
     supported      (Hybi00 p) h = supported p h
-    encodeMessages (Hybi00 p) g = (EL.map castMessage =$) . encodeMessages p g
+    encodeMessages (Hybi00 p)   = (EL.map castMessage =$) . encodeMessages p
     decodeMessages (Hybi00 p)   = (decodeMessages p =$) . EL.map castMessage
     finishRequest  (Hybi00 p)   = finishRequest p
     implementations             = [Hybi00 Hybi10_, Hybi00 Hybi00_]

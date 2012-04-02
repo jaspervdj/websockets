@@ -4,7 +4,7 @@ module Network.WebSockets.Socket.Tests
     ) where
 
 import Control.Applicative ((<$>))
-import Control.Concurrent (forkIO, killThread, yield)
+import Control.Concurrent (forkIO, killThread, threadDelay)
 import Control.Exception (SomeException, catch)
 import Control.Monad (forever, forM_, replicateM)
 import Prelude hiding (catch)
@@ -51,12 +51,15 @@ webSocketsClient port proto ws =
 sendReceive :: forall p. (ExampleRequest p, TextProtocol p) => p -> Property
 sendReceive proto = monadicIO $ do
     serverThread <- run $ forkIO $ retry $ runServer "0.0.0.0" 42940 server
-    run yield  -- Give the server some time
+    waitSome
     texts <- map unArbitraryUtf8 <$> pick arbitrary
     texts' <- run $ retry $ webSocketsClient 42940 proto $ client' texts
+    waitSome
     run $ killThread serverThread
     assert $ texts == texts'
   where
+    waitSome = run $ threadDelay $ 200 * 1000
+
     server :: Request -> WebSockets p ()
     server _ = flip catchWsError (\_ -> return ()) $ forever $ do
         text <- receiveData

@@ -3,11 +3,9 @@
 module Network.WebSockets.Protocol.Hybi10.Mask
     ( Mask
     , maskPayload
-    , randomMask
     ) where
 
-import Data.Bits (shiftR, xor)
-import System.Random (RandomGen, random)
+import Data.Bits (xor)
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
@@ -24,13 +22,3 @@ maskPayload (Just mask) = snd . BL.mapAccumL f 0
     f !i !c = let i' = (i + 1) `mod` len
                   m = mask `B.index` i
               in (i', m `xor` c)
-
--- | Create a random mask
-randomMask :: forall g. RandomGen g => g -> (Mask, g)
-randomMask gen = (Just (B.pack [b1, b2, b3, b4]), gen')
-  where
-    (!int, !gen') = random gen :: (Int, g)
-    !b1           = fromIntegral $ int `mod` 0x100
-    !b2           = fromIntegral $ int `shiftR` 8  `mod` 0x100
-    !b3           = fromIntegral $ int `shiftR` 16 `mod` 0x100
-    !b4           = fromIntegral $ int `shiftR` 24 `mod` 0x100

@@ -8,7 +8,6 @@ import Control.Applicative (pure, (<$>))
 import Data.Bits ((.&.), (.|.))
 import Data.Maybe (maybeToList)
 import Data.Monoid (mempty, mappend, mconcat)
-import System.Random (RandomGen)
 
 import Data.Attoparsec (anyWord8)
 import Data.Binary.Get (runGet, getWord16be, getWord64be)
@@ -38,7 +37,7 @@ data Hybi10_ = Hybi10_
 instance Protocol Hybi10_ where
     version         Hybi10_ = "hybi10"
     headerVersions  Hybi10_ = ["13", "8", "7"]
-    encodeMessages  Hybi10_ = EL.mapAccum encodeMessageHybi10
+    encodeMessages  Hybi10_ = EL.map encodeMessageHybi10
     decodeMessages  Hybi10_ = decodeMessagesHybi10
     finishRequest   Hybi10_ = handshakeHybi10
     implementations         = [Hybi10_]
@@ -46,11 +45,10 @@ instance Protocol Hybi10_ where
 instance TextProtocol Hybi10_
 instance BinaryProtocol Hybi10_
 
-encodeMessageHybi10 :: RandomGen g => g -> Message p -> (g, B.Builder)
-encodeMessageHybi10 gen msg = (gen', builder)
+encodeMessageHybi10 :: Message p -> B.Builder
+encodeMessageHybi10 msg = builder
   where
-    (mask, gen') = randomMask gen
-    builder      = encodeFrameHybi10 mask $ case msg of
+    builder = encodeFrameHybi10 $ case msg of
         (ControlMessage (Close pl)) -> Frame True CloseFrame pl
         (ControlMessage (Ping pl))  -> Frame True PingFrame pl
         (ControlMessage (Pong pl))  -> Frame True PongFrame pl
@@ -58,10 +56,10 @@ encodeMessageHybi10 gen msg = (gen', builder)
         (DataMessage (Binary pl))   -> Frame True BinaryFrame pl
 
 -- | Encode a frame
-encodeFrameHybi10 :: Mask -> Frame -> B.Builder
-encodeFrameHybi10 mask f = B.fromWord8 byte0 `mappend`
-    B.fromWord8 byte1 `mappend` len `mappend` maskbytes `mappend`
-    B.fromLazyByteString (maskPayload mask (framePayload f))
+encodeFrameHybi10 :: Frame -> B.Builder
+encodeFrameHybi10 f = B.fromWord8 byte0 `mappend`
+    B.fromWord8 byte1 `mappend` len `mappend`
+    B.fromLazyByteString (framePayload f)
   where
     byte0  = fin .|. opcode
     fin    = if frameFin f then 0x80 else 0x00
@@ -73,11 +71,7 @@ encodeFrameHybi10 mask f = B.fromWord8 byte0 `mappend`
         PingFrame         -> 0x09
         PongFrame         -> 0x0a
 
-    (maskflag, maskbytes) = case mask of
-        Nothing -> (0x00, mempty)
-        Just m  -> (0x80, B.fromByteString m)
-
-    byte1 = maskflag .|. lenflag
+    byte1 = lenflag
     len'  = BL.length (framePayload f)
     (lenflag, len)
         | len' < 126     = (fromIntegral len', mempty)

@@ -7,19 +7,16 @@ module Network.WebSockets.Tests
 
 import Control.Applicative (pure, (<$>))
 import Control.Exception (fromException)
-import Control.Monad (forM_, replicateM)
+import Control.Monad (forM_)
 import Control.Monad.Trans (liftIO)
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
-import Data.List (unfoldr)
-import System.Random (newStdGen)
 import qualified Data.Set as S
 
 import Test.Framework (Test, testGroup)
 import Test.Framework.Providers.HUnit (testCase)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
 import Test.QuickCheck (Arbitrary (..), Gen, Property)
-import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
@@ -32,7 +29,6 @@ import Network.WebSockets.Monad
 import Network.WebSockets.Protocol.Hybi00.Internal
 import Network.WebSockets.Protocol.Hybi10.Demultiplex
 import Network.WebSockets.Protocol.Hybi10.Internal
-import Network.WebSockets.Protocol.Hybi10.Mask
 import Network.WebSockets.Tests.Util
 import Network.WebSockets.Tests.Util.IterAccum
 import qualified Network.WebSockets.Protocol.Unsafe as Unsafe
@@ -82,10 +78,8 @@ sendReceiveTextData proto = QC.monadicIO $ do
 sendReceiveFragmentedHybi10 :: FragmentedMessage Hybi10_ -> Property
 sendReceiveFragmentedHybi10 (FragmentedMessage msg frames) = QC.monadicIO $ do
     -- Put some other frames in between
-    gen <- QC.run newStdGen
     let frames' = concatMap addCrap frames
-        masks   = unfoldr (Just . randomMask) gen
-        client  = mapM_ sendBuilder $ zipWith encodeFrameHybi10 masks frames'
+        client  = mapM_ (sendBuilder . encodeFrameHybi10) frames'
     msg' <- QC.run $ pipe Hybi10_ client receiveDataMessage
     QC.assert $ msg == DataMessage msg'
   where
@@ -132,15 +126,6 @@ pingThread proto = HU.assert $ pipe proto server $ client 0
     client n = receive >>= \msg -> case msg of
         ControlMessage (Ping _) -> client (n + 1 :: Int)
         _                       -> return False
-
-newtype ArbitraryMask = ArbitraryMask Mask
-                      deriving (Show)
-
-instance Arbitrary ArbitraryMask where
-    arbitrary = ArbitraryMask <$> QC.oneof
-        [ return Nothing
-        , Just . B.pack <$> replicateM 4 arbitrary
-        ]
 
 instance Arbitrary FrameType where
     arbitrary = QC.elements

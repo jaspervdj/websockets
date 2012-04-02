@@ -32,7 +32,6 @@ import Control.Monad (forever)
 import Control.Monad.Reader (ReaderT, ask, runReaderT)
 import Control.Monad.Trans (MonadIO, lift, liftIO)
 import Data.Foldable (forM_)
-import System.Random (newStdGen)
 
 import Blaze.ByteString.Builder (Builder)
 import Data.ByteString (ByteString)
@@ -141,8 +140,7 @@ runWebSocketsWith' :: Protocol p
                    -> Iteratee ByteString IO a
 runWebSocketsWith' opts proto ws outIter = do
     -- Create sink with a random source
-    gen <- liftIO newStdGen
-    let sinkIter = encodeMessages proto gen =$ builderToByteString =$ outIter
+    let sinkIter = encodeMessages proto =$ builderToByteString =$ outIter
     sink <- Sink <$> liftIO (newMVar sinkIter)
 
     let sender = makeBuilderSender outIter

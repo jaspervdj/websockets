@@ -1,6 +1,8 @@
-{-# LANGUAGE Arrows, OverloadedStrings #-}
+{-# LANGUAGE Arrows, OverloadedStrings, ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 import Control.Arrow ((>>>))
+import Control.Exception (IOException, catch)
+import Prelude hiding (catch)
 import System.Posix.Directory (changeWorkingDirectory)
 import System.Posix.Files (createSymbolicLink)
 import System.Process (rawSystem)
@@ -8,9 +10,9 @@ import System.Process (rawSystem)
 import Hakyll
 
 createSymbolicLink' :: FilePath -> FilePath -> IO ()
-createSymbolicLink' dst src = createSymbolicLink dst src `catch` \_ ->
-    putStrLn $ "Could not link " ++ src ++ " -> " ++ dst ++
-        ", perhaps link already exists?"
+createSymbolicLink' dst src = createSymbolicLink dst src `catch`
+    \(_ :: IOException) -> putStrLn $ "Could not link " ++
+        src ++ " -> " ++ dst ++ ", perhaps link already exists?"
 
 makeLinks :: IO ()
 makeLinks = do

@@ -120,7 +120,7 @@ encodeResponse (Response code msg headers body) =
 -- | An upgrade response
 response101 :: Headers -> B.ByteString -> Response
 response101 headers body = Response 101 "WebSocket Protocol Handshake"
-    (("Upgrade", "WebSocket") : ("Connection", "Upgrade") : headers)
+    (("Upgrade", "websocket") : ("Connection", "Upgrade") : headers)
     body
 
 -- | Bad request

@@ -11,10 +11,12 @@ import Prelude hiding (catch)
 
 import Data.ByteString (ByteString)
 import Data.Enumerator (Iteratee, ($$))
+import System.Random (newStdGen)
 import Test.Framework (Test, testGroup)
-import Test.Framework.Providers.QuickCheck2 (testProperty)
-import Test.QuickCheck (Property, arbitrary)
-import Test.QuickCheck.Monadic (assert, monadicIO, pick, run)
+import Test.Framework.Providers.HUnit (testCase)
+import Test.HUnit (Assertion, (@=?))
+import Test.QuickCheck (Arbitrary, arbitrary)
+import Test.QuickCheck.Gen (Gen (..))
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Enumerator as E
 import qualified Network.Socket as S
@@ -30,8 +32,8 @@ import Network.WebSockets.Tests.Util.Http
 
 tests :: Test
 tests = testGroup "Network.WebSockets.Socket.Tests"
-    [ testProperty "sendReceive-hybi10" (sendReceive Hybi10_)
-    , testProperty "sendReceive-hybi00" (sendReceive Hybi00_)
+    [ testCase "sendReceive-hybi10" (sendReceive Hybi10_)
+    , testCase "sendReceive-hybi00" (sendReceive Hybi00_)
     ]
 
 client :: Int -> (Iteratee ByteString IO () -> Iteratee ByteString IO a) -> IO a
@@ -48,17 +50,22 @@ webSocketsClient :: Protocol p => Int -> p -> WebSockets p a -> IO a
 webSocketsClient port proto ws =
     client port $ runWebSocketsWith' defaultWebSocketsOptions proto ws
 
-sendReceive :: forall p. (ExampleRequest p, TextProtocol p) => p -> Property
-sendReceive proto = monadicIO $ do
-    serverThread <- run $ forkIO $ retry $ runServer "0.0.0.0" 42940 server
+sample :: Arbitrary a => IO [a]
+sample = do
+    gen <- newStdGen
+    return $ (unGen arbitrary) gen 512
+
+sendReceive :: forall p. (ExampleRequest p, TextProtocol p) => p -> Assertion
+sendReceive proto = do
+    serverThread <- forkIO $ retry $ runServer "0.0.0.0" 42940 server
     waitSome
-    texts <- map unArbitraryUtf8 <$> pick arbitrary
-    texts' <- run $ retry $ webSocketsClient 42940 proto $ client' texts
+    texts  <- map unArbitraryUtf8 <$> sample
+    texts' <- retry $ webSocketsClient 42940 proto $ client' texts
     waitSome
-    run $ killThread serverThread
-    assert $ texts == texts'
+    killThread serverThread
+    texts @=? texts'
   where
-    waitSome = run $ threadDelay $ 200 * 1000
+    waitSome = threadDelay $ 200 * 1000
 
     server :: Request -> WebSockets p ()
     server _ = flip catchWsError (\_ -> return ()) $ forever $ do

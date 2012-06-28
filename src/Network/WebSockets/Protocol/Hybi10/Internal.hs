@@ -48,12 +48,13 @@ instance BinaryProtocol Hybi10_
 encodeMessageHybi10 :: Message p -> B.Builder
 encodeMessageHybi10 msg = builder
   where
+    mkFrame = Frame True False False False
     builder = encodeFrameHybi10 $ case msg of
-        (ControlMessage (Close pl)) -> Frame True CloseFrame pl
-        (ControlMessage (Ping pl))  -> Frame True PingFrame pl
-        (ControlMessage (Pong pl))  -> Frame True PongFrame pl
-        (DataMessage (Text pl))     -> Frame True TextFrame pl
-        (DataMessage (Binary pl))   -> Frame True BinaryFrame pl
+        (ControlMessage (Close pl)) -> mkFrame CloseFrame  pl
+        (ControlMessage (Ping pl))  -> mkFrame PingFrame   pl
+        (ControlMessage (Pong pl))  -> mkFrame PongFrame   pl
+        (DataMessage (Text pl))     -> mkFrame TextFrame   pl
+        (DataMessage (Binary pl))   -> mkFrame BinaryFrame pl
 
 -- | Encode a frame
 encodeFrameHybi10 :: Frame -> B.Builder
@@ -61,8 +62,11 @@ encodeFrameHybi10 f = B.fromWord8 byte0 `mappend`
     B.fromWord8 byte1 `mappend` len `mappend`
     B.fromLazyByteString (framePayload f)
   where
-    byte0  = fin .|. opcode
-    fin    = if frameFin f then 0x80 else 0x00
+    byte0  = fin .|. rsv1 .|. rsv2 .|. rsv3 .|. opcode
+    fin    = if frameFin f  then 0x80 else 0x00
+    rsv1   = if frameRsv1 f then 0x40 else 0x00
+    rsv2   = if frameRsv2 f then 0x20 else 0x00
+    rsv3   = if frameRsv3 f then 0x10 else 0x00
     opcode = case frameType f of
         ContinuationFrame -> 0x00
         TextFrame         -> 0x01
@@ -91,7 +95,10 @@ demultiplexEnum = EL.concatMapAccum step emptyDemultiplexState
 parseFrame :: A.Parser Frame
 parseFrame = do
     byte0 <- anyWord8
-    let fin = byte0 .&. 0x80 == 0x80
+    let fin    = byte0 .&. 0x80 == 0x80
+        rsv1   = byte0 .&. 0x40 == 0x40
+        rsv2   = byte0 .&. 0x20 == 0x20
+        rsv3   = byte0 .&. 0x10 == 0x10
         opcode = byte0 .&. 0x0f
 
     let ft = case opcode of
@@ -116,7 +123,7 @@ parseFrame = do
 
     chunks <- take64 len
 
-    return $ Frame fin ft (masker $ BL.fromChunks chunks)
+    return $ Frame fin rsv1 rsv2 rsv3 ft (masker $ BL.fromChunks chunks)
   where
     runGet' g = runGet g . BL.fromChunks . return
 

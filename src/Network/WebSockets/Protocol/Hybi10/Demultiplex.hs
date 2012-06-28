@@ -17,6 +17,9 @@ import Network.WebSockets.Types
 -- | A low-level representation of a WebSocket packet
 data Frame = Frame
     { frameFin     :: !Bool
+    , frameRsv1    :: !Bool
+    , frameRsv2    :: !Bool
+    , frameRsv3    :: !Bool
     , frameType    :: !FrameType
     , framePayload :: !BL.ByteString
     } deriving (Eq, Show)
@@ -42,7 +45,7 @@ emptyDemultiplexState = DemultiplexState Nothing
 demultiplex :: DemultiplexState
             -> Frame
             -> (Maybe (Message p), DemultiplexState)
-demultiplex state (Frame fin tp pl) = case tp of
+demultiplex state (Frame fin _ _ _ tp pl) = case tp of
     -- Return control messages immediately, they have no influence on the state
     CloseFrame  -> (Just (ControlMessage (Close pl)), state)
     PingFrame   -> (Just (ControlMessage (Ping pl)), state)

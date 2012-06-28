@@ -83,7 +83,11 @@ sendReceiveFragmentedHybi10 (FragmentedMessage msg frames) = QC.monadicIO $ do
     msg' <- QC.run $ pipe Hybi10_ client receiveDataMessage
     QC.assert $ msg == DataMessage msg'
   where
-    addCrap x = [Frame True PingFrame "Herp", Frame True PongFrame "Derp", x]
+    addCrap x =
+        [ Frame True False False False PingFrame "Herp"
+        , Frame True True  True  True  PongFrame "Derp"
+        , x
+        ]
 
 sendReceiveClose :: Protocol p => p -> Property
 sendReceiveClose proto = QC.monadicIO $ do
@@ -139,19 +143,22 @@ instance Arbitrary FrameType where
 
 instance Arbitrary Frame where
     arbitrary = do
-        fin <- arbitrary
-        t <- arbitrary
+        fin  <- arbitrary
+        rsv1 <- arbitrary
+        rsv2 <- arbitrary
+        rsv3 <- arbitrary
+        t    <- arbitrary
         payload <- case t of
             TextFrame -> arbitraryUtf8
             _ -> BL.pack <$> arbitrary
-        return $ Frame fin t payload
+        return $ Frame fin rsv1 rsv2 rsv3 t payload
 
 newtype ArbitraryFrameHybi00 = ArbitraryFrameHybi00 Frame
     deriving (Show)
 
 instance Arbitrary ArbitraryFrameHybi00 where
     arbitrary = ArbitraryFrameHybi00 <$>
-        Frame True TextFrame <$> arbitraryUtf8
+        Frame True False False False TextFrame <$> arbitraryUtf8
 
 instance (TextProtocol p, BinaryProtocol p) => Arbitrary (Message p) where
     arbitrary = do
@@ -190,8 +197,9 @@ instance Arbitrary (FragmentedMessage p) where
         return $ FragmentedMessage msg fs
       where
         makeFrames []              = []
-        makeFrames [(ft, pl)]      = [Frame True ft pl]
-        makeFrames ((ft, pl) : fr) = Frame False ft pl : makeFrames fr
+        makeFrames [(ft, pl)]      = [Frame True False False False ft pl]
+        makeFrames ((ft, pl) : fr) =
+            Frame False False False False ft pl : makeFrames fr
 
 arbitraryFragmentation :: BL.ByteString -> Gen [BL.ByteString]
 arbitraryFragmentation bs = arbitraryFragmentation' bs

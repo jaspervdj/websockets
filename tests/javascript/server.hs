@@ -23,8 +23,8 @@ import qualified Network.WebSockets.Protocol.Unsafe as WS.Unsafe
 -- Hybi00-compatible tests                                                    --
 --------------------------------------------------------------------------------
 
-echo :: WS.TextProtocol p => WS.WebSockets p ()
-echo = forever $ do
+echoText :: WS.TextProtocol p => WS.WebSockets p ()
+echoText = forever $ do
     msg <- WS.receiveData
     liftIO $ putStrLn $ show (msg :: TL.Text)
     WS.sendTextData msg
@@ -66,6 +66,9 @@ ping = do
 
     WS.send $ WS.textData ("OK" :: Text)
 
+echo :: WS.Protocol p => WS.WebSockets p ()
+echo = forever $ WS.receive >>= WS.send
+
 --------------------------------------------------------------------------------
 -- Running...                                                                 --
 --------------------------------------------------------------------------------
@@ -73,10 +76,11 @@ ping = do
 -- | All tests
 tests :: WS.BinaryProtocol p => [(ByteString, WS.WebSockets p ())]
 tests =
-    [ ("/echo",            echo)
+    [ ("/echo-text",       echo)
     , ("/close-me",        closeMe)
     , ("/concurrent-send", concurrentSend)
     , ("/ping",            ping)
+    , ("/echo",            echo)
     ]
 
 data UnsafeProtocol = forall p. WS.Protocol p => UnsafeProtocol p

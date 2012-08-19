@@ -18,21 +18,21 @@ function createWebSocket(path) {
 
 module('QUnit');
 
-test('demo', function () {
+test('demo', function() {
     ok(true, 'Demo test');
 });
 
 module('Hybi00');
 
-asyncTest('echo', function() {
-    var ws = createWebSocket('/echo');
-    var messages = ['Hi folks', 'Hello there', 'What up'];
+asyncTest('echo-text', function() {
+    var ws = createWebSocket('/echo-text');
+    var messages = ['Hi folks', 'Hello there', 'λ±…'];
 
     ws.onopen = function() {
         ws.send(messages[0]);
     };
 
-    ws.onmessage = function (event) {
+    ws.onmessage = function(event) {
         var message = event.data;
         equal(message, messages[0]);
         messages = messages.slice(1);
@@ -45,7 +45,7 @@ asyncTest('echo', function() {
     };
 });
 
-asyncTest('close me', function () {
+asyncTest('close me', function() {
     var ws = createWebSocket('/close-me');
     ws.onopen = function() {
         ws.send('Close me!');
@@ -56,7 +56,7 @@ asyncTest('close me', function () {
     };
 });
 
-asyncTest('concurrent send', function () {
+asyncTest('concurrent send', function() {
     var ws = createWebSocket('/concurrent-send');
     var expected = [];
     for(var i = 1; i <= 100; i++) {
@@ -81,11 +81,26 @@ module('Hybi10');
 asyncTest('ping', function() {
     var ws = createWebSocket('/ping');
 
-    ws.onmessage = function (event) {
+    ws.onmessage = function(event) {
         if(event.data == 'OK') {
             ws.close();
             ok(true, 'ping');
             start();
         }
+    };
+});
+
+asyncTest('blob', function() {
+    var ws = createWebSocket('/echo');
+
+    ws.onopen = function() {
+        ws.binaryType = 'blob';
+        var b = new Blob(['Hello world.'], {"type": "text/plain"});
+        ws.send(b);
+    };
+
+    ws.onmessage = function(event){
+        console.log(event.data)
+        console.log(event.data.type)
     };
 });

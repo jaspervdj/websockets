@@ -26,9 +26,6 @@ import Network.WebSockets.Protocol.Hybi10.Internal
 class ExampleRequest p where
     exampleRequest :: p -> RequestBody
 
-data RequestBody = RequestBody RequestHttpPart B.ByteString
-    deriving (Show)
-
 instance ExampleRequest Hybi00_ where
     exampleRequest _ = RequestBody
         ( RequestHttpPart "/demo"
@@ -58,36 +55,3 @@ instance ExampleRequest Hybi10_ where
           False
         )
         ""
-
--- | HTTP response parser
-parseResponse :: Parser Response
-parseResponse = Response
-    <$> fmap (read . BC.unpack) code
-    <*> message
-    <*> A.manyTill header newline
-    <*> A.takeByteString
-  where
-    space = A.word8 (c2w ' ')
-    newline = A.string "\r\n"
-
-    code = A.string "HTTP/1.1" *> space *> A.takeWhile1 (/= c2w ' ') <* space
-    message = A.takeWhile1 (/= c2w '\r') <* newline
-    header = (,)
-        <$> (CI.mk <$> A.takeWhile1 (/= c2w ':'))
-        <*  A.string ": "
-        <*> A.takeWhile1 (/= c2w '\r')
-        <*  newline
-
--- | Request encoder
-encodeRequestBody :: RequestBody -> Builder
-encodeRequestBody (RequestBody (RequestHttpPart path headers _) body) =
-    Builder.copyByteString "GET "      `mappend`
-    Builder.copyByteString path        `mappend`
-    Builder.copyByteString " HTTP/1.1" `mappend`
-    Builder.fromByteString "\r\n"      `mappend`
-    mconcat (map header headers)       `mappend`
-    Builder.copyByteString "\r\n"      `mappend`
-    Builder.copyByteString body
-  where
-    header (k, v) = mconcat $ map Builder.copyByteString
-        [CI.original k, ": ", v, "\r\n"]

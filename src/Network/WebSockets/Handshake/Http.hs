@@ -7,8 +7,13 @@ module Network.WebSockets.Handshake.Http
     , Response (..)
     , HandshakeError (..)
     , getSecWebSocketVersion
+
+    , encodeRequestBody
     , decodeRequest
+
     , encodeResponse
+    , decodeResponse
+
     , response101
     , response400
     ) where
@@ -25,6 +30,7 @@ import qualified Data.Attoparsec as A
 import qualified Blaze.ByteString.Builder as Builder
 import qualified Blaze.ByteString.Builder.Char.Utf8 as Builder
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Char8 as BC
 import qualified Data.CaseInsensitive as CI
 
 -- | Request headers
@@ -52,6 +58,10 @@ data Response = Response
     , responseHeaders :: Headers
     , responseBody    :: B.ByteString
     } deriving (Show)
+
+-- | A request with a body
+data RequestBody = RequestBody RequestHttpPart B.ByteString
+    deriving (Show)
 
 -- | Error in case of failed handshake. Will be thrown as an iteratee
 -- exception. ('Error' condition).
@@ -81,6 +91,20 @@ instance Exception HandshakeError
 -- | Get the @Sec-WebSocket-Version@ header
 getSecWebSocketVersion :: RequestHttpPart -> Maybe B.ByteString
 getSecWebSocketVersion p = lookup "Sec-WebSocket-Version" (requestHttpHeaders p)
+
+-- | Request encoder
+encodeRequestBody :: RequestBody -> Builder.Builder
+encodeRequestBody (RequestBody (RequestHttpPart path headers _) body) =
+    Builder.copyByteString "GET "      `mappend`
+    Builder.copyByteString path        `mappend`
+    Builder.copyByteString " HTTP/1.1" `mappend`
+    Builder.fromByteString "\r\n"      `mappend`
+    mconcat (map header headers)       `mappend`
+    Builder.copyByteString "\r\n"      `mappend`
+    Builder.copyByteString body
+  where
+    header (k, v) = mconcat $ map Builder.copyByteString
+        [CI.original k, ": ", v, "\r\n"]
 
 -- | Parse an initial request
 decodeRequest :: Bool -> A.Parser RequestHttpPart
@@ -127,3 +151,22 @@ response101 headers body = Response 101 "WebSocket Protocol Handshake"
 --
 response400 :: Headers -> Response
 response400 headers = Response 400 "Bad Request" headers ""
+
+-- | HTTP response parser
+decodeResponse :: A.Parser Response
+decodeResponse = Response
+    <$> fmap (read . BC.unpack) code
+    <*> message
+    <*> A.manyTill header newline
+    <*> A.takeByteString
+  where
+    space = A.word8 (c2w ' ')
+    newline = A.string "\r\n"
+
+    code = A.string "HTTP/1.1" *> space *> A.takeWhile1 (/= c2w ' ') <* space
+    message = A.takeWhile1 (/= c2w '\r') <* newline
+    header = (,)
+        <$> (CI.mk <$> A.takeWhile1 (/= c2w ':'))
+        <*  A.string ": "
+        <*> A.takeWhile1 (/= c2w '\r')
+        <*  newline

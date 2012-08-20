@@ -8,6 +8,7 @@ import Control.Applicative ((<|>))
 import Data.Char (isDigit)
 
 import Data.Binary (encode)
+import Data.ByteString.Lazy.Char8 ()
 import Data.Digest.Pure.MD5 (md5)
 import Data.Int (Int32)
 import qualified Blaze.ByteString.Builder as BB

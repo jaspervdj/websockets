@@ -17,6 +17,7 @@ import qualified Data.ByteString as B
 import qualified Data.Enumerator as E
 import qualified Data.Enumerator.List as EL
 import qualified Data.ByteString.Char8 as BC
+import qualified Data.ByteString.Lazy.Char8 ()
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.CaseInsensitive as CI
 

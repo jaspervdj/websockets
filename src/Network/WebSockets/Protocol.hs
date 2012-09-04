@@ -45,6 +45,17 @@ class Protocol p where
     -- | Decodes messages from binary 'B.ByteString's.
     decodeMessages  :: Monad m => p -> E.Enumeratee B.ByteString (Message p) m a
 
+    -- | Create a @Request@ that can be sent to the websockets server to open
+    -- the connection.
+    createRequest   :: p
+                    -> B.ByteString         -- ^ Hostname of the server.
+                    -> B.ByteString         -- ^ Path
+                    -> Maybe B.ByteString   -- ^ Origin where we are connecting from.
+                    -> Maybe [B.ByteString] -- ^ Protocols list.
+                    -> Bool                 -- ^ Is the connection secure, i.e. wss.
+                    -> IO RequestHttpPart   -- ^ HTTP request that can be sent to the
+                                            --   to the server to initiate the connection.
+
     -- | Parse and validate the rest of the request. For hybi10, this is just
     -- validation, but hybi00 also needs to fetch a "security token"
     --
@@ -53,6 +64,17 @@ class Protocol p where
     finishRequest   :: Monad m
                     => p -> RequestHttpPart
                     -> E.Iteratee B.ByteString m Request
+
+    -- | Size of the challenge response body.
+    responseSize :: p -> (Headers -> Int)
+
+    -- | Parse and validate the handshake response received from the server.
+    validateResponse :: Monad m
+                     => p -> RequestHttpPart -> Response
+                     -> E.Iteratee B.ByteString m ()
+
+    -- | Validate handshake response from the websockets server.
+
 
     -- | Implementations of the specification
     implementations :: [p]

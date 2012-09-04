@@ -144,6 +144,10 @@ module Network.WebSockets
     , I.catchWsError
     , I.HandshakeError(..)
     , I.ConnectionError(..)
+
+      -- * WebSockets Client
+    , I.connect
+    , I.connectWith
     ) where
 
 import Control.Monad.Trans (liftIO)
@@ -157,6 +161,7 @@ import qualified Network.WebSockets.Protocol.Hybi10 as I
 import qualified Network.WebSockets.Protocol.Unsafe as Unsafe
 import qualified Network.WebSockets.Socket as I
 import qualified Network.WebSockets.Types as I
+import qualified Network.WebSockets.Client as I
 
 -- This doesn't work this way any more. As the Protocol first has to be
 -- determined by the request, we can't provide this as a WebSockets action. See

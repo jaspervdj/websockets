@@ -8,6 +8,7 @@ module Network.WebSockets.Handshake.Http
     , HandshakeError (..)
     , getSecWebSocketVersion
 
+    , encodeRequestHttpPart
     , encodeRequestBody
     , decodeRequest
 
@@ -75,6 +76,9 @@ data HandshakeError
     -- | The request was somehow invalid (missing headers or wrong security
     -- token)
     | MalformedRequest RequestHttpPart String
+    -- | The servers response was somehow invalid (missing headers or wrong security
+    -- token)
+    | MalformedResponse Response String
     -- | The request was well-formed, but the library user rejected it.
     -- (e.g. "unknown path")
     | RequestRejected Request String
@@ -92,19 +96,23 @@ instance Exception HandshakeError
 getSecWebSocketVersion :: RequestHttpPart -> Maybe B.ByteString
 getSecWebSocketVersion p = lookup "Sec-WebSocket-Version" (requestHttpHeaders p)
 
--- | Request encoder
-encodeRequestBody :: RequestBody -> Builder.Builder
-encodeRequestBody (RequestBody (RequestHttpPart path headers _) body) =
+-- | RequestHttpPart encoder
+encodeRequestHttpPart :: RequestHttpPart -> Builder.Builder
+encodeRequestHttpPart (RequestHttpPart path headers _) =
     Builder.copyByteString "GET "      `mappend`
     Builder.copyByteString path        `mappend`
     Builder.copyByteString " HTTP/1.1" `mappend`
     Builder.fromByteString "\r\n"      `mappend`
     mconcat (map header headers)       `mappend`
-    Builder.copyByteString "\r\n"      `mappend`
-    Builder.copyByteString body
+    Builder.copyByteString "\r\n"
   where
     header (k, v) = mconcat $ map Builder.copyByteString
         [CI.original k, ": ", v, "\r\n"]
+
+-- | RequestBody encoder
+encodeRequestBody :: RequestBody -> Builder.Builder
+encodeRequestBody (RequestBody httpPart body) =
+    encodeRequestHttpPart httpPart `mappend` Builder.copyByteString body
 
 -- | Parse an initial request
 decodeRequest :: Bool -> A.Parser RequestHttpPart
@@ -153,12 +161,13 @@ response400 :: Headers -> Response
 response400 headers = Response 400 "Bad Request" headers ""
 
 -- | HTTP response parser
-decodeResponse :: A.Parser Response
-decodeResponse = Response
-    <$> fmap (read . BC.unpack) code
-    <*> message
-    <*> A.manyTill header newline
-    <*> A.takeByteString
+decodeResponse :: (Headers -> Int) -> A.Parser Response
+decodeResponse n = do
+    code'    <- fmap (read . BC.unpack) code
+    message' <- message
+    headers' <- A.manyTill header newline
+    body     <- A.take (n headers')
+    return $ Response code' message' headers' body
   where
     space = A.word8 (c2w ' ')
     newline = A.string "\r\n"

@@ -22,6 +22,8 @@ module Network.WebSockets.Monad
     , throwWsError
     , catchWsError
     , spawnPingThread
+    , receiveIteratee
+    , makeBuilderSender
     ) where
 
 import Control.Applicative (Applicative, (<$>))

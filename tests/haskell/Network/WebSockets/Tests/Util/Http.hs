@@ -2,7 +2,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.WebSockets.Tests.Util.Http
     ( ExampleRequest (..)
+    , decodeResponseBody
     ) where
+
+import Control.Applicative ((<$>), (<*>))
+
+import qualified Data.Attoparsec as A
 
 import Network.WebSockets.Handshake.Http
 import Network.WebSockets.Protocol.Hybi00.Internal
@@ -40,3 +45,9 @@ instance ExampleRequest Hybi10_ where
           False
         )
         ""
+
+
+decodeResponseBody :: A.Parser ResponseBody
+decodeResponseBody = ResponseBody
+    <$> decodeResponse
+    <*> A.takeByteString

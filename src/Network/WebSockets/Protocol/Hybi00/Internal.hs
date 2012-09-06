@@ -19,7 +19,6 @@ import qualified Data.Enumerator.List as EL
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy.Char8 ()
 import qualified Data.ByteString.Lazy as BL
-import qualified Data.CaseInsensitive as CI
 
 import Network.WebSockets.Handshake.Http
 import Network.WebSockets.Protocol
@@ -28,15 +27,14 @@ import Network.WebSockets.Types
 data Hybi00_ = Hybi00_
 
 instance Protocol Hybi00_ where
-    version          Hybi00_   = "hybi00"
-    headerVersions   Hybi00_   = []  -- The client will elide it
-    supported        Hybi00_ h = getSecWebSocketVersion h == Nothing
-    encodeMessages   Hybi00_   = EL.map encodeMessage
-    decodeMessages   Hybi00_   = E.sequence (A.iterParser parseMessage)
-    createRequest    Hybi00_   = error "createRequest Hybi00_"
-    finishRequest    Hybi00_   = handshakeHybi00
-    responseSize     Hybi00_   = const 16
-    validateResponse Hybi00_   = error "validateResponse Hybi00_"
+    version        Hybi00_   = "hybi00"
+    headerVersions Hybi00_   = []  -- The client will elide it
+    supported      Hybi00_ h = getSecWebSocketVersion h == Nothing
+    encodeMessages Hybi00_   = EL.map encodeMessage
+    decodeMessages Hybi00_   = E.sequence (A.iterParser parseMessage)
+    createRequest  Hybi00_   = error "createRequest Hybi00_"
+    finishRequest  Hybi00_   = handshakeHybi00
+    finishResponse Hybi00_   = error "finishResponse Hybi00_"
     implementations            = [Hybi00_]
 
 instance TextProtocol Hybi00_
@@ -82,7 +80,7 @@ handshakeHybi00 reqHttp@(RequestHttpPart path h isSecure) = do
     let key = B.concat . BL.toChunks . encode . md5 $ BL.concat
                 [keyPart1, keyPart2, BL.fromChunks [keyPart3]]
 
-    host <- getHeader "Host"
+    host   <- getHeader "Host"
     -- todo: origin right? (also applies to hybi10)
     origin <- getHeader "Origin"
     let schema = if isSecure then "wss://" else "ws://"
@@ -94,11 +92,7 @@ handshakeHybi00 reqHttp@(RequestHttpPart path h isSecure) = do
 
     return $ Request path h response
   where
-    getHeader k = case lookup k h of
-        Just t  -> return t
-        Nothing -> E.throwError $ MalformedRequest reqHttp $
-            "Header missing: " ++ BC.unpack (CI.original k)
-
+    getHeader = getRequestHeader reqHttp
     numberFromToken token = case divBySpaces (BC.unpack token) of
         Just n  -> return $ encode n
         Nothing -> E.throwError $ MalformedRequest reqHttp

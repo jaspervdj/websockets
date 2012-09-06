@@ -15,15 +15,13 @@ import Data.Binary.Get (runGet, getWord16be, getWord64be)
 import Data.ByteString (ByteString, intercalate)
 import Data.ByteString.Char8 ()
 import Data.Digest.Pure.SHA (bytestringDigest, sha1)
-import Data.Int (Int64)
 import Data.Enumerator ((=$))
+import Data.Int (Int64)
 import qualified Blaze.ByteString.Builder as B
 import qualified Data.Attoparsec as A
 import qualified Data.Attoparsec.Enumerator as A
 import qualified Data.ByteString.Base64 as B64
-import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy as BL
-import qualified Data.CaseInsensitive as CI
 import qualified Data.Enumerator as E
 import qualified Data.Enumerator.List as EL
 
@@ -38,15 +36,14 @@ import System.Entropy as R
 data Hybi10_ = Hybi10_
 
 instance Protocol Hybi10_ where
-    version          Hybi10_ = "hybi10"
-    headerVersions   Hybi10_ = ["13", "8", "7"]
-    encodeMessages   Hybi10_ = EL.map encodeMessageHybi10
-    decodeMessages   Hybi10_ = decodeMessagesHybi10
-    createRequest    Hybi10_ = createRequestHybi10
-    finishRequest    Hybi10_ = handshakeHybi10
-    responseSize     Hybi10_ = responseSizeHybi10
-    validateResponse Hybi10_ = validateResponseHybi10
-    implementations          = [Hybi10_]
+    version        Hybi10_ = "hybi10"
+    headerVersions Hybi10_ = ["13", "8", "7"]
+    encodeMessages Hybi10_ = EL.map encodeMessageHybi10
+    decodeMessages Hybi10_ = decodeMessagesHybi10
+    createRequest  Hybi10_ = createRequestHybi10
+    finishRequest  Hybi10_ = handshakeHybi10
+    finishResponse Hybi10_ = finishResponseHybi10
+    implementations        = [Hybi10_]
 
 instance TextProtocol Hybi10_
 instance BinaryProtocol Hybi10_
@@ -179,21 +176,18 @@ createRequestHybi10 hostname path origin protocols secure = do
 
     versionNumber = head . headerVersions $ Hybi10_
 
-responseSizeHybi10 :: Headers -> Int
-responseSizeHybi10 _ = 0
-
-validateResponseHybi10 :: Monad m
-                       => RequestHttpPart
-                       -> Response
-                       -> E.Iteratee ByteString m ()
-validateResponseHybi10 request response@(Response s _ _ _) = do
+finishResponseHybi10 :: Monad m
+                     => RequestHttpPart
+                     -> ResponseHttpPart
+                     -> E.Iteratee ByteString m ResponseBody
+finishResponseHybi10 request response = do
     -- Response message should be one of
     --
     -- - WebSocket Protocol Handshake
     -- - Switching Protocols
     --
     -- But we don't check it for now
-    if s /= 101
+    if responseHttpCode response /= 101
         then throw "Wrong response status or message."
         else do
             key          <- getRequestHeader  request  "Sec-WebSocket-Key"
@@ -202,8 +196,7 @@ validateResponseHybi10 request response@(Response s _ _ _) = do
             let challengeHash = B64.encode $ hashKeyHybi10 key
             if responseHash /= challengeHash
                 then throw "Challenge and response hashes do not match."
-                else return ()
-
+                else return $ ResponseBody response ""
   where
     throw msg = E.throwError $ MalformedResponse response msg
 
@@ -214,21 +207,3 @@ hashKeyHybi10 key = unlazy $ bytestringDigest $ sha1 $ lazy $ key `mappend` guid
     guid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
     lazy = BL.fromChunks . return
     unlazy = mconcat . BL.toChunks
-
-getRequestHeader :: Monad m
-                 => RequestHttpPart
-                 -> CI.CI ByteString
-                 -> E.Iteratee ByteString m ByteString
-getRequestHeader reqHttp@(RequestHttpPart _ headers _) key = case lookup key headers of
-    Just t  -> return t
-    Nothing -> E.throwError $ MalformedRequest reqHttp $ 
-        "Header missing: " ++ BC.unpack (CI.original key)
-
-getResponseHeader :: Monad m
-                  => Response
-                  -> CI.CI ByteString
-                  -> E.Iteratee ByteString m ByteString
-getResponseHeader response@(Response _ _ headers _) key = case lookup key headers of
-    Just t  -> return t
-    Nothing -> E.throwError $ MalformedResponse response $ 
-        "Header missing: " ++ BC.unpack (CI.original key)

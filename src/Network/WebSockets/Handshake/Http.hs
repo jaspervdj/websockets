@@ -5,7 +5,8 @@ module Network.WebSockets.Handshake.Http
     , RequestHttpPart (..)
     , RequestBody (..)
     , Request (..)
-    , Response (..)
+    , ResponseHttpPart (..)
+    , ResponseBody (..)
     , HandshakeError (..)
     , getSecWebSocketVersion
 
@@ -13,11 +14,15 @@ module Network.WebSockets.Handshake.Http
     , encodeRequestBody
     , decodeRequest
 
-    , encodeResponse
+    , encodeResponseHttpPart
+    , encodeResponseBody
     , decodeResponse
 
     , response101
     , response400
+
+    , getRequestHeader
+    , getResponseHeader
     ) where
 
 import Data.Dynamic (Typeable)
@@ -26,14 +31,16 @@ import Control.Applicative (pure, (<$>), (<*>), (*>), (<*))
 import Control.Exception (Exception)
 import Control.Monad.Error (Error (..))
 
+import Data.ByteString (ByteString)
 import Data.ByteString.Char8 ()
 import Data.ByteString.Internal (c2w)
-import qualified Data.Attoparsec as A
 import qualified Blaze.ByteString.Builder as Builder
 import qualified Blaze.ByteString.Builder.Char.Utf8 as Builder
+import qualified Data.Attoparsec as A
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.CaseInsensitive as CI
+import qualified Data.Enumerator as E
 
 -- | Request headers
 type Headers = [(CI.CI B.ByteString, B.ByteString)]
@@ -53,17 +60,18 @@ data RequestBody = RequestBody RequestHttpPart B.ByteString
 data Request = Request
     { requestPath     :: !B.ByteString
     , requestHeaders  :: Headers
-    , requestResponse :: Response
-    }
-    deriving (Show)
+    , requestResponse :: ResponseBody
+    } deriving (Show)
 
 -- | Response to a 'Request'
-data Response = Response
-    { responseCode    :: !Int
-    , responseMessage :: !B.ByteString
-    , responseHeaders :: Headers
-    , responseBody    :: B.ByteString
+data ResponseHttpPart = ResponseHttpPart
+    { responseHttpCode    :: !Int
+    , responseHttpMessage :: !B.ByteString
+    , responseHttpHeaders :: Headers
     } deriving (Show)
+
+data ResponseBody = ResponseBody ResponseHttpPart B.ByteString
+    deriving (Show)
 
 -- | Error in case of failed handshake. Will be thrown as an iteratee
 -- exception. ('Error' condition).
@@ -77,9 +85,9 @@ data HandshakeError
     -- | The request was somehow invalid (missing headers or wrong security
     -- token)
     | MalformedRequest RequestHttpPart String
-    -- | The servers response was somehow invalid (missing headers or wrong security
-    -- token)
-    | MalformedResponse Response String
+    -- | The servers response was somehow invalid (missing headers or wrong
+    -- security token)
+    | MalformedResponse ResponseHttpPart String
     -- | The request was well-formed, but the library user rejected it.
     -- (e.g. "unknown path")
     | RequestRejected Request String
@@ -136,39 +144,41 @@ decodeRequest isSecure = RequestHttpPart
         <*  newline
 
 -- | Encode an HTTP upgrade response
-encodeResponse :: Response -> Builder.Builder
-encodeResponse (Response code msg headers body) =
+encodeResponseHttpPart :: ResponseHttpPart -> Builder.Builder
+encodeResponseHttpPart (ResponseHttpPart code msg headers) =
     Builder.copyByteString "HTTP/1.1 " `mappend`
     Builder.fromString (show code)     `mappend`
     Builder.fromChar ' '               `mappend`
     Builder.fromByteString msg         `mappend`
     Builder.fromByteString "\r\n"      `mappend`
     mconcat (map header headers)       `mappend`
-    Builder.copyByteString "\r\n"      `mappend`
-    Builder.copyByteString body  -- (body is empty except for version -00)
+    Builder.copyByteString "\r\n"
   where
     header (k, v) = mconcat $ map Builder.copyByteString
         [CI.original k, ": ", v, "\r\n"]
 
+encodeResponseBody :: ResponseBody -> Builder.Builder
+encodeResponseBody (ResponseBody httpPart body) =
+    encodeResponseHttpPart httpPart `mappend` Builder.copyByteString body
+
 -- | An upgrade response
-response101 :: Headers -> B.ByteString -> Response
-response101 headers body = Response 101 "WebSocket Protocol Handshake"
-    (("Upgrade", "websocket") : ("Connection", "Upgrade") : headers)
-    body
+response101 :: Headers -> B.ByteString -> ResponseBody
+response101 headers = ResponseBody
+    (ResponseHttpPart 101 "WebSocket Protocol Handshake"
+        (("Upgrade", "websocket") : ("Connection", "Upgrade") : headers))
 
 -- | Bad request
 --
-response400 :: Headers -> Response
-response400 headers = Response 400 "Bad Request" headers ""
+response400 :: Headers -> ResponseBody
+response400 headers =
+    ResponseBody (ResponseHttpPart 400 "Bad Request" headers) ""
 
 -- | HTTP response parser
-decodeResponse :: (Headers -> Int) -> A.Parser Response
-decodeResponse getContentLength = do
-    code'    <- fmap (read . BC.unpack) code
-    message' <- message
-    headers' <- A.manyTill header newline
-    body     <- A.take (getContentLength headers')
-    return $ Response code' message' headers' body
+decodeResponse :: A.Parser ResponseHttpPart
+decodeResponse = ResponseHttpPart
+    <$> fmap (read . BC.unpack) code
+    <*> message
+    <*> A.manyTill header newline
   where
     space = A.word8 (c2w ' ')
     newline = A.string "\r\n"
@@ -180,3 +190,21 @@ decodeResponse getContentLength = do
         <*  A.string ": "
         <*> A.takeWhile1 (/= c2w '\r')
         <*  newline
+
+getRequestHeader :: Monad m
+                 => RequestHttpPart
+                 -> CI.CI ByteString
+                 -> E.Iteratee ByteString m ByteString
+getRequestHeader rq key = case lookup key (requestHttpHeaders rq) of
+    Just t  -> return t
+    Nothing -> E.throwError $ MalformedRequest rq $ 
+        "Header missing: " ++ BC.unpack (CI.original key)
+
+getResponseHeader :: Monad m
+                  => ResponseHttpPart
+                  -> CI.CI ByteString
+                  -> E.Iteratee ByteString m ByteString
+getResponseHeader rsp key = case lookup key (responseHttpHeaders rsp) of
+    Just t  -> return t
+    Nothing -> E.throwError $ MalformedResponse rsp $ 
+        "Header missing: " ++ BC.unpack (CI.original key)

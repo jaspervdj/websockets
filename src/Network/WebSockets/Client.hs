@@ -79,6 +79,6 @@ runWebSocketsClient :: Protocol p
                     -> Iteratee ByteString IO a
 runWebSocketsClient protocol request ws outIter = do
     liftIO $ makeBuilderSender outIter $ encodeRequestHttpPart request
-    response <- receiveIteratee $ decodeResponse (responseSize protocol)
-    validateResponse protocol request response
+    response <- receiveIteratee decodeResponse
+    _        <- finishResponse protocol request response
     runWebSocketsWith' defaultWebSocketsOptions protocol ws outIter

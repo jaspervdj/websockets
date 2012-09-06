@@ -65,16 +65,10 @@ class Protocol p where
                     => p -> RequestHttpPart
                     -> E.Iteratee B.ByteString m Request
 
-    -- | Size of the challenge response body.
-    responseSize :: p -> (Headers -> Int)
-
     -- | Parse and validate the handshake response received from the server.
-    validateResponse :: Monad m
-                     => p -> RequestHttpPart -> Response
-                     -> E.Iteratee B.ByteString m ()
-
-    -- | Validate handshake response from the websockets server.
-
+    finishResponse :: Monad m
+                   => p -> RequestHttpPart -> ResponseHttpPart
+                   -> E.Iteratee B.ByteString m ResponseBody
 
     -- | Implementations of the specification
     implementations :: [p]

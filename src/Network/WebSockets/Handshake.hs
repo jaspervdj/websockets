@@ -27,7 +27,7 @@ handshake rhp = case find (flip supported rhp) implementations of
 
 -- | Respond to errors encountered during handshake. First argument may be
 -- bottom.
-responseError :: forall p. Protocol p => p -> HandshakeError -> Response
+responseError :: forall p. Protocol p => p -> HandshakeError -> ResponseBody
 responseError _ err = response400 $ case err of
     -- TODO: fix
     NotSupported -> versionHeader  -- Version negotiation

@@ -105,7 +105,7 @@ module Network.WebSockets
     , I.Headers
     , I.RequestHttpPart (..)
     , I.Request (..)
-    , I.Response (..)
+    , I.ResponseHttpPart (..)
     , I.Message (..)
     , I.ControlMessage (..)
     , I.DataMessage (..)
@@ -196,8 +196,8 @@ receiveData = do
         I.Binary x -> return (I.fromLazyByteString x)
 
 -- | Send a 'I.Response' to the socket immediately.
-sendResponse :: I.Protocol p => I.Response -> I.WebSockets p ()
-sendResponse = I.sendBuilder . I.encodeResponse
+sendResponse :: I.Protocol p => I.ResponseBody -> I.WebSockets p ()
+sendResponse = I.sendBuilder . I.encodeResponseBody
 
 -- | Send a text message
 sendTextData :: (I.TextProtocol p, I.WebSocketsData a) => a -> I.WebSockets p ()

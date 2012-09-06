@@ -19,7 +19,6 @@ import qualified Data.Enumerator as E
 
 import Network.WebSockets
 import Network.WebSockets.Handshake.Http
-import Network.WebSockets.Protocol
 import Network.WebSockets.Protocol.Hybi00.Internal
 import Network.WebSockets.Protocol.Hybi10.Internal
 import Network.WebSockets.Tests.Util.Http
@@ -34,8 +33,9 @@ tests = testGroup "Network.WebSockets.Test"
     ]
 
 testHandshake :: forall p. Protocol p
-              => (Request -> WebSockets p ()) -> p -> RequestBody -> IO Response
-testHandshake app proto rq = do
+              => (Request -> WebSockets p ()) -> p -> RequestBody
+              -> IO ResponseBody
+testHandshake app _ rq = do
     ia <- newIterAccum
     -- Encode request
     let bs = B.concat $ BL.toChunks $ Builder.toLazyByteString $
@@ -44,11 +44,11 @@ testHandshake app proto rq = do
     -- TODO: also test secure handshake?
     _ <- E.run $ E.enumList 1 [bs] $$
         runWebSocketsHandshake False app (getIter ia)
-    rsp <- A.parseOnly (decodeResponse $ responseSize proto) . B.concat
-        <$> getAccum ia
+
+    rsp <- A.parseOnly decodeResponseBody . B.concat <$> getAccum ia
     return $ either error id rsp
 
-testHandshakeAccept :: Protocol p => p -> RequestBody -> IO Response
+testHandshakeAccept :: Protocol p => p -> RequestBody -> IO ResponseBody
 testHandshakeAccept = testHandshake acceptRequest
 
 (!) :: Eq a => [(a, b)] -> a -> b
@@ -60,7 +60,7 @@ rq00 = exampleRequest Hybi00_
 
 handshakeHybi00 :: Assertion
 handshakeHybi00 = testHandshakeAccept Hybi00_ rq00 >>=
-    \(Response code message headers body) -> assert $
+    \(ResponseBody (ResponseHttpPart code message headers) body) -> assert $
         code == 101 &&
         message == "WebSocket Protocol Handshake" &&
         headers ! "Sec-WebSocket-Location" == "ws://example.com/demo" &&
@@ -73,7 +73,7 @@ rq10 = exampleRequest Hybi10_
 
 handshakeHybi10 :: Assertion
 handshakeHybi10 = testHandshakeAccept Hybi10_ rq10 >>=
-    \(Response code message headers body) -> assert $
+    \(ResponseBody (ResponseHttpPart code message headers) body) -> assert $
         code == 101 &&
         message == "WebSocket Protocol Handshake" &&
         headers ! "Sec-WebSocket-Accept" == "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=" &&
@@ -97,7 +97,7 @@ rq9000 = RequestBody
 
 handshakeHybi9000 :: Assertion
 handshakeHybi9000 = testHandshakeAccept Hybi10_ rq9000 >>=
-    \(Response code _ headers body) -> assert $
+    \(ResponseBody (ResponseHttpPart code _ headers) body) -> assert $
         code == 400 &&
         headers ! "Sec-WebSocket-Version" == "13, 8, 7" &&
         body == ""
@@ -105,5 +105,5 @@ handshakeHybi9000 = testHandshakeAccept Hybi10_ rq9000 >>=
 handshakeReject :: Assertion
 handshakeReject = testHandshake (flip rejectRequest "YOU SHALL NOT PASS")
     Hybi10_ rq9000 >>=
-        \(Response code _ _ body) -> assert $
+        \(ResponseBody (ResponseHttpPart code _ _) body) -> assert $
             code == 400 && body == ""

@@ -53,10 +53,9 @@ connectWith host port path origin wsProtocols secure app = do
     request <- createRequest protocol bHost bPath bOrigin bWsProtocols secure
 
     -- Connect to server
-    sock     <- S.socket S.AF_INET S.Stream S.defaultProtocol
-    hostAddr <- S.inet_addr host
-    let addr = S.SockAddrInet (fromIntegral port) hostAddr
-    S.connect sock addr
+    sock      <- S.socket S.AF_INET S.Stream S.defaultProtocol
+    addrInfos <- S.getAddrInfo Nothing (Just host) (Just $ show port)
+    S.connect sock (S.addrAddress $ head addrInfos)
     res <- E.run_ $ SE.enumSocket 4096 sock $$ (iter request) $ iterSocket sock
 
     -- Clean up

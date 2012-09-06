@@ -3,6 +3,7 @@
 module Network.WebSockets.Handshake.Http
     ( Headers
     , RequestHttpPart (..)
+    , RequestBody (..)
     , Request (..)
     , Response (..)
     , HandshakeError (..)
@@ -44,6 +45,10 @@ data RequestHttpPart = RequestHttpPart
     , requestHttpSecure  :: Bool
     } deriving (Eq, Show)
 
+-- | A request with a body
+data RequestBody = RequestBody RequestHttpPart B.ByteString
+    deriving (Show)
+
 -- | Full request type
 data Request = Request
     { requestPath     :: !B.ByteString
@@ -59,10 +64,6 @@ data Response = Response
     , responseHeaders :: Headers
     , responseBody    :: B.ByteString
     } deriving (Show)
-
--- | A request with a body
-data RequestBody = RequestBody RequestHttpPart B.ByteString
-    deriving (Show)
 
 -- | Error in case of failed handshake. Will be thrown as an iteratee
 -- exception. ('Error' condition).
@@ -162,11 +163,11 @@ response400 headers = Response 400 "Bad Request" headers ""
 
 -- | HTTP response parser
 decodeResponse :: (Headers -> Int) -> A.Parser Response
-decodeResponse n = do
+decodeResponse getContentLength = do
     code'    <- fmap (read . BC.unpack) code
     message' <- message
     headers' <- A.manyTill header newline
-    body     <- A.take (n headers')
+    body     <- A.take (getContentLength headers')
     return $ Response code' message' headers' body
   where
     space = A.word8 (c2w ' ')

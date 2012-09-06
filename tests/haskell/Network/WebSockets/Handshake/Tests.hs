@@ -18,6 +18,8 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.Enumerator as E
 
 import Network.WebSockets
+import Network.WebSockets.Handshake.Http
+import Network.WebSockets.Protocol
 import Network.WebSockets.Protocol.Hybi00.Internal
 import Network.WebSockets.Protocol.Hybi10.Internal
 import Network.WebSockets.Tests.Util.Http
@@ -33,7 +35,7 @@ tests = testGroup "Network.WebSockets.Test"
 
 testHandshake :: forall p. Protocol p
               => (Request -> WebSockets p ()) -> p -> RequestBody -> IO Response
-testHandshake app _ rq = do
+testHandshake app proto rq = do
     ia <- newIterAccum
     -- Encode request
     let bs = B.concat $ BL.toChunks $ Builder.toLazyByteString $
@@ -42,8 +44,13 @@ testHandshake app _ rq = do
     -- TODO: also test secure handshake?
     _ <- E.run $ E.enumList 1 [bs] $$
         runWebSocketsHandshake False app (getIter ia)
-    Right rsp <- A.parseOnly parseResponse . B.concat <$> getAccum ia
+    Right rsp <- A.parseOnly (decodeResponse clen) . B.concat <$> getAccum ia
     return rsp
+  where
+    -- Pretty dirty internal hack...
+    clen _
+        | version proto == "hybi00" = 16
+        | otherwise                 = 0
 
 testHandshakeAccept :: Protocol p => p -> RequestBody -> IO Response
 testHandshakeAccept = testHandshake acceptRequest

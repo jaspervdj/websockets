@@ -2,22 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.WebSockets.Tests.Util.Http
     ( ExampleRequest (..)
-    , RequestBody (..)
-    , parseResponse
-    , encodeRequestBody
     ) where
-
-import Data.Monoid (mappend, mconcat)
-import Control.Applicative ((<$>), (<*>), (<*), (*>))
-
-import Blaze.ByteString.Builder (Builder)
-import Data.Attoparsec (Parser)
-import Data.ByteString.Internal (c2w)
-import qualified Blaze.ByteString.Builder as Builder
-import qualified Data.Attoparsec as A
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Char8 as BC
-import qualified Data.CaseInsensitive as CI
 
 import Network.WebSockets.Handshake.Http
 import Network.WebSockets.Protocol.Hybi00.Internal

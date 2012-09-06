@@ -180,7 +180,7 @@ createRequestHybi10 hostname path origin protocols secure = do
     versionNumber = head . headerVersions $ Hybi10_
 
 responseSizeHybi10 :: Headers -> Int
-responseSizeHybi10 headers = 0
+responseSizeHybi10 _ = 0
 
 validateResponseHybi10 :: Monad m
                        => RequestHttpPart

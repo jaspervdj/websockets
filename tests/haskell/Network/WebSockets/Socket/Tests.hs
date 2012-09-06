@@ -23,6 +23,7 @@ import qualified Network.Socket as S
 import qualified Network.Socket.Enumerator as SE
 
 import Network.WebSockets
+import Network.WebSockets.Handshake.Http
 import Network.WebSockets.Monad
 import Network.WebSockets.Socket
 import Network.WebSockets.Protocol.Hybi00.Internal

@@ -8,8 +8,8 @@ module Network.WebSockets.Client
 
 
 --------------------------------------------------------------------------------
-import           Control.Monad.Trans               (liftIO)
 import           Control.Monad                     (liftM)
+import           Control.Monad.Trans               (liftIO)
 import           Data.ByteString                   (ByteString)
 import           Data.ByteString.Char8             (pack)
 import           Data.Enumerator                   (Iteratee, ($$))
@@ -23,7 +23,7 @@ import           Network.WebSockets.Handshake.Http
 import           Network.WebSockets.Monad
 import           Network.WebSockets.Protocol
 import           Network.WebSockets.Socket         (iterSocket)
-import           Network.WebSockets.Types          ()
+import           Network.WebSockets.Types
 
 
 --------------------------------------------------------------------------------
@@ -36,7 +36,9 @@ connect :: Protocol p
         -> IO a
 connect host port path ws =
   connectWith host port path Nothing Nothing ws
-        
+
+
+--------------------------------------------------------------------------------
 connectWith :: Protocol p
             => String          -- ^ Host
             -> Int             -- ^ Port
@@ -61,7 +63,6 @@ connectWith host port path origin wsProtocols secure app = do
     -- Clean up
     S.sClose sock
     return res
-
   where
     protocol      = head implementations
     iter request  = runWebSocketsClient protocol request app
@@ -69,6 +70,7 @@ connectWith host port path origin wsProtocols secure app = do
     bPath         = pack path
     bOrigin       = pack `liftM` origin
     bWsProtocols  = (map pack) `liftM` wsProtocols
+
 
 --------------------------------------------------------------------------------
 runWebSocketsClient :: Protocol p
@@ -82,4 +84,3 @@ runWebSocketsClient protocol request ws outIter = do
     response <- receiveIteratee $ decodeResponse (responseSize protocol)
     validateResponse protocol request response
     runWebSocketsWith' defaultWebSocketsOptions protocol ws outIter
-

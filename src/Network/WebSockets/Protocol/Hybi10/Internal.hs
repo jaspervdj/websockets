@@ -186,17 +186,23 @@ validateResponseHybi10 :: Monad m
                        => RequestHttpPart
                        -> Response
                        -> E.Iteratee ByteString m ()
-validateResponseHybi10 request response@(Response s m _ _) = do
-    if s /= 101 || m /= "WebSocket Protocol Handshake"
-      then throw "Wrong response status or message."
-      else do
-          key          <- getRequestHeader  request  "Sec-WebSocket-Key"
-          responseHash <- getResponseHeader response "Sec-WebSocket-Accept"
+validateResponseHybi10 request response@(Response s _ _ _) = do
+    -- Response message should be one of
+    --
+    -- - WebSocket Protocol Handshake
+    -- - Switching Protocols
+    --
+    -- But we don't check it for now
+    if s /= 101
+        then throw "Wrong response status or message."
+        else do
+            key          <- getRequestHeader  request  "Sec-WebSocket-Key"
+            responseHash <- getResponseHeader response "Sec-WebSocket-Accept"
 
-          let challengeHash = B64.encode $ hashKeyHybi10 key
-          if responseHash /= challengeHash
-            then throw "Challenge and response hashes do not match."
-            else return ()
+            let challengeHash = B64.encode $ hashKeyHybi10 key
+            if responseHash /= challengeHash
+                then throw "Challenge and response hashes do not match."
+                else return ()
 
   where
     throw msg = E.throwError $ MalformedResponse response msg

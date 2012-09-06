@@ -44,13 +44,9 @@ testHandshake app proto rq = do
     -- TODO: also test secure handshake?
     _ <- E.run $ E.enumList 1 [bs] $$
         runWebSocketsHandshake False app (getIter ia)
-    Right rsp <- A.parseOnly (decodeResponse clen) . B.concat <$> getAccum ia
-    return rsp
-  where
-    -- Pretty dirty internal hack...
-    clen _
-        | version proto == "hybi00" = 16
-        | otherwise                 = 0
+    rsp <- A.parseOnly (decodeResponse $ responseSize proto) . B.concat
+        <$> getAccum ia
+    return $ either error id rsp
 
 testHandshakeAccept :: Protocol p => p -> RequestBody -> IO Response
 testHandshakeAccept = testHandshake acceptRequest
@@ -63,7 +59,7 @@ rq00 :: RequestBody
 rq00 = exampleRequest Hybi00_
 
 handshakeHybi00 :: Assertion
-handshakeHybi00 = testHandshakeAccept (undefined :: Hybi00) rq00 >>=
+handshakeHybi00 = testHandshakeAccept Hybi00_ rq00 >>=
     \(Response code message headers body) -> assert $
         code == 101 &&
         message == "WebSocket Protocol Handshake" &&
@@ -76,7 +72,7 @@ rq10 :: RequestBody
 rq10 = exampleRequest Hybi10_
 
 handshakeHybi10 :: Assertion
-handshakeHybi10 = testHandshakeAccept (undefined :: Hybi10) rq10 >>=
+handshakeHybi10 = testHandshakeAccept Hybi10_ rq10 >>=
     \(Response code message headers body) -> assert $
         code == 101 &&
         message == "WebSocket Protocol Handshake" &&
@@ -100,7 +96,7 @@ rq9000 = RequestBody
     ""
 
 handshakeHybi9000 :: Assertion
-handshakeHybi9000 = testHandshakeAccept (undefined :: Hybi00) rq9000 >>=
+handshakeHybi9000 = testHandshakeAccept Hybi10_ rq9000 >>=
     \(Response code _ headers body) -> assert $
         code == 400 &&
         headers ! "Sec-WebSocket-Version" == "13, 8, 7" &&
@@ -108,6 +104,6 @@ handshakeHybi9000 = testHandshakeAccept (undefined :: Hybi00) rq9000 >>=
 
 handshakeReject :: Assertion
 handshakeReject = testHandshake (flip rejectRequest "YOU SHALL NOT PASS")
-    (undefined :: Hybi00) rq9000 >>=
+    Hybi10_ rq9000 >>=
         \(Response code _ _ body) -> assert $
             code == 400 && body == ""

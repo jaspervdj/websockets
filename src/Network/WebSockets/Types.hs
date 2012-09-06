@@ -1,7 +1,5 @@
-
-{-# LANGUAGE DeriveDataTypeable #-}
-
 -- | Primary types
+{-# LANGUAGE DeriveDataTypeable #-}
 module Network.WebSockets.Types
     ( Message (..)
     , ControlMessage (..)

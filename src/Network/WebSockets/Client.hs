@@ -23,7 +23,6 @@ import           Network.WebSockets.Handshake.Http
 import           Network.WebSockets.Monad
 import           Network.WebSockets.Protocol
 import           Network.WebSockets.Socket         (iterSocket)
-import           Network.WebSockets.Types
 
 
 --------------------------------------------------------------------------------

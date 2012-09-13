@@ -8,12 +8,14 @@ module Network.WebSockets.Client
 
 
 --------------------------------------------------------------------------------
-import           Control.Monad                     (liftM)
+import           Control.Applicative               ((<$>))
 import           Control.Monad.Trans               (liftIO)
 import           Data.ByteString                   (ByteString)
-import           Data.ByteString.Char8             (pack)
+import qualified Data.ByteString.Char8             as BC
 import           Data.Enumerator                   (Iteratee, ($$))
 import qualified Data.Enumerator                   as E
+import qualified Data.Text                         as T
+import qualified Data.Text.Encoding                as T
 import qualified Network.Socket                    as S
 import qualified Network.Socket.Enumerator         as SE
 
@@ -30,11 +32,10 @@ connect :: Protocol p
         => String          -- ^ Host
         -> Int             -- ^ Port
         -> String          -- ^ Path
-        -> Bool            -- ^ Secure
         -> WebSockets p a  -- ^ Client application
         -> IO a
 connect host port path ws =
-  connectWith host port path Nothing Nothing ws
+    connectWith host port path Nothing Nothing ws
 
 
 --------------------------------------------------------------------------------
@@ -45,12 +46,11 @@ connectWith :: Protocol p
             -> Maybe String    -- ^ Origin, if Nothing then server interprets
                                --   connection as not coming from a browser.
             -> Maybe [String]  -- ^ Protocol List
-            -> Bool            -- ^ Secure
             -> WebSockets p a  -- ^ Client application
             -> IO a
-connectWith host port path origin wsProtocols secure app = do
+connectWith host port path origin wsProtocols app = do
     -- Create the request
-    request <- createRequest protocol bHost bPath bOrigin bWsProtocols secure
+    request <- createRequest protocol bHost bPath bOrigin bWsProtocols False
 
     -- Connect to server
     sock      <- S.socket S.AF_INET S.Stream S.defaultProtocol
@@ -64,10 +64,10 @@ connectWith host port path origin wsProtocols secure app = do
   where
     protocol      = head implementations
     iter request  = runWebSocketsClient protocol request app
-    bHost         = pack host
-    bPath         = pack path
-    bOrigin       = pack `liftM` origin
-    bWsProtocols  = (map pack) `liftM` wsProtocols
+    bHost         = T.encodeUtf8 $ T.pack host
+    bPath         = T.encodeUtf8 $ T.pack path
+    bOrigin       = T.encodeUtf8 . T.pack <$> origin
+    bWsProtocols  = map BC.pack <$> wsProtocols
 
 
 --------------------------------------------------------------------------------

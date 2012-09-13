@@ -101,11 +101,15 @@ module Network.WebSockets
     , I.runServer
     , I.runWithSocket
 
-      -- * Types
+      -- * HTTP Types
     , I.Headers
-    , I.RequestHttpPart (..)
     , I.Request (..)
+    , I.RequestHttpPart (..)
+    , I.RequestBody (..)
     , I.ResponseHttpPart (..)
+    , I.ResponseBody (..)
+
+      -- * WebSockets types
     , I.Message (..)
     , I.ControlMessage (..)
     , I.DataMessage (..)

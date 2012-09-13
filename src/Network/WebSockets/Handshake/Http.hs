@@ -2,9 +2,9 @@
 {-# LANGUAGE DeriveDataTypeable, OverloadedStrings #-}
 module Network.WebSockets.Handshake.Http
     ( Headers
+    , Request (..)
     , RequestHttpPart (..)
     , RequestBody (..)
-    , Request (..)
     , ResponseHttpPart (..)
     , ResponseBody (..)
     , HandshakeError (..)
@@ -45,6 +45,13 @@ import qualified Data.Enumerator as E
 -- | Request headers
 type Headers = [(CI.CI B.ByteString, B.ByteString)]
 
+-- | Full request type, including the response to it
+data Request = Request
+    { requestPath     :: !B.ByteString
+    , requestHeaders  :: Headers
+    , requestResponse :: ResponseBody
+    } deriving (Show)
+
 -- | (Internally used) HTTP headers and requested path.
 data RequestHttpPart = RequestHttpPart
     { requestHttpPath    :: !B.ByteString
@@ -56,13 +63,6 @@ data RequestHttpPart = RequestHttpPart
 data RequestBody = RequestBody RequestHttpPart B.ByteString
     deriving (Show)
 
--- | Full request type
-data Request = Request
-    { requestPath     :: !B.ByteString
-    , requestHeaders  :: Headers
-    , requestResponse :: ResponseBody
-    } deriving (Show)
-
 -- | Response to a 'Request'
 data ResponseHttpPart = ResponseHttpPart
     { responseHttpCode    :: !Int
@@ -70,6 +70,7 @@ data ResponseHttpPart = ResponseHttpPart
     , responseHttpHeaders :: Headers
     } deriving (Show)
 
+-- | A response including a body
 data ResponseBody = ResponseBody ResponseHttpPart B.ByteString
     deriving (Show)
 

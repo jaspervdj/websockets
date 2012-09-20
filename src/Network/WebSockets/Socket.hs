@@ -7,10 +7,8 @@ module Network.WebSockets.Socket
     , iterSocket
     ) where
 
-import Prelude hiding (catch)
-
 import Control.Concurrent (forkIO)
-import Control.Exception (SomeException, catch)
+import Control.Exception (SomeException, handle)
 import Control.Monad (forever)
 import Control.Monad.Trans (liftIO)
 
@@ -41,7 +39,7 @@ runServer host port ws = S.withSocketsDo $ do
     host' <- S.inet_addr host
     S.bindSocket sock (S.SockAddrInet (fromIntegral port) host')
     S.listen sock 5
-    flip catch (closeSock sock) $ forever $ do
+    handle (closeSock sock) $ forever $ do
         (conn, _) <- S.accept sock
         -- Voodoo fix: set this to True as soon as we notice the connection was
         -- closed. Will prevent iterSocket' from even trying to send anything.

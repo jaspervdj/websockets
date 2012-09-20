@@ -5,9 +5,8 @@ module Network.WebSockets.Socket.Tests
 
 import Control.Applicative ((<$>))
 import Control.Concurrent (forkIO, killThread, threadDelay)
-import Control.Exception (SomeException, catch)
+import Control.Exception (SomeException, handle)
 import Control.Monad (forever, forM_, replicateM)
-import Prelude hiding (catch)
 
 import Data.ByteString (ByteString)
 import Data.Enumerator (Iteratee, ($$))
@@ -89,4 +88,4 @@ sendReceive proto = do
     -- The same is true for our client: possibly, the server is not up yet
     -- before we run the client. We also want to retry in that case.
     retry :: IO a -> IO a
-    retry action = action `catch` \(_ :: SomeException) -> action
+    retry action = (\(_ :: SomeException) -> action) `handle` action

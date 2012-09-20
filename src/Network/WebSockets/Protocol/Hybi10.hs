@@ -17,7 +17,9 @@ instance Protocol Hybi10 where
     supported      (Hybi10 p) h = supported p h
     encodeMessages (Hybi10 p)   = (EL.map castMessage =$) . encodeMessages p
     decodeMessages (Hybi10 p)   = (decodeMessages p =$) . EL.map castMessage
+    createRequest  (Hybi10 p)   = createRequest p
     finishRequest  (Hybi10 p)   = finishRequest p
+    finishResponse (Hybi10 p)   = finishResponse p
     implementations             = [Hybi10 Hybi10_]
 
 instance TextProtocol Hybi10

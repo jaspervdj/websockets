@@ -22,6 +22,8 @@ module Network.WebSockets.Monad
     , throwWsError
     , catchWsError
     , spawnPingThread
+    , receiveIteratee
+    , makeBuilderSender
     ) where
 
 import Control.Applicative (Applicative, (<$>))
@@ -122,7 +124,7 @@ runWebSocketsWith :: forall p a. Protocol p
 runWebSocketsWith opts httpReq goWs outIter = E.catchError ok $ \e -> do
     -- If handshake went bad, send response
     forM_ (fromException e) $ \he ->
-        let builder = encodeResponse $ responseError (undefined :: p) he
+        let builder = encodeResponseBody $ responseError (undefined :: p) he
         in liftIO $ makeBuilderSender outIter builder
     -- Re-throw error
     E.throwError e

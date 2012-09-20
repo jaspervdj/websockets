@@ -5,24 +5,23 @@ module Network.WebSockets.Protocol.Hybi10.Internal
     ) where
 
 import Control.Applicative (pure, (<$>))
+import Control.Monad (liftM)
 import Data.Bits ((.&.), (.|.))
 import Data.Maybe (maybeToList)
 import Data.Monoid (mempty, mappend, mconcat)
 
 import Data.Attoparsec (anyWord8)
 import Data.Binary.Get (runGet, getWord16be, getWord64be)
-import Data.ByteString (ByteString)
+import Data.ByteString (ByteString, intercalate)
 import Data.ByteString.Char8 ()
 import Data.Digest.Pure.SHA (bytestringDigest, sha1)
-import Data.Int (Int64)
 import Data.Enumerator ((=$))
+import Data.Int (Int64)
 import qualified Blaze.ByteString.Builder as B
 import qualified Data.Attoparsec as A
 import qualified Data.Attoparsec.Enumerator as A
 import qualified Data.ByteString.Base64 as B64
-import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy as BL
-import qualified Data.CaseInsensitive as CI
 import qualified Data.Enumerator as E
 import qualified Data.Enumerator.List as EL
 
@@ -32,15 +31,19 @@ import Network.WebSockets.Protocol.Hybi10.Demultiplex
 import Network.WebSockets.Protocol.Hybi10.Mask
 import Network.WebSockets.Types
 
+import System.Entropy as R
+
 data Hybi10_ = Hybi10_
 
 instance Protocol Hybi10_ where
-    version         Hybi10_ = "hybi10"
-    headerVersions  Hybi10_ = ["13", "8", "7"]
-    encodeMessages  Hybi10_ = EL.map encodeMessageHybi10
-    decodeMessages  Hybi10_ = decodeMessagesHybi10
-    finishRequest   Hybi10_ = handshakeHybi10
-    implementations         = [Hybi10_]
+    version        Hybi10_ = "hybi10"
+    headerVersions Hybi10_ = ["13", "8", "7"]
+    encodeMessages Hybi10_ = EL.map encodeMessageHybi10
+    decodeMessages Hybi10_ = decodeMessagesHybi10
+    createRequest  Hybi10_ = createRequestHybi10
+    finishRequest  Hybi10_ = handshakeHybi10
+    finishResponse Hybi10_ = finishResponseHybi10
+    implementations        = [Hybi10_]
 
 instance TextProtocol Hybi10_
 instance BinaryProtocol Hybi10_
@@ -142,15 +145,65 @@ handshakeHybi10 :: Monad m
                 => RequestHttpPart
                 -> E.Iteratee ByteString m Request
 handshakeHybi10 reqHttp@(RequestHttpPart path h _) = do
-    key <- getHeader "Sec-WebSocket-Key"
-    let hash = unlazy $ bytestringDigest $ sha1 $ lazy $ key `mappend` guid
+    key <- getRequestHeader reqHttp "Sec-WebSocket-Key"
+    let hash = hashKeyHybi10 key
     let encoded = B64.encode hash
     return $ Request path h $ response101 [("Sec-WebSocket-Accept", encoded)] ""
+
+createRequestHybi10 :: ByteString
+                    -> ByteString
+                    -> Maybe ByteString
+                    -> Maybe [ByteString]
+                    -> Bool
+                    -> IO RequestHttpPart
+createRequestHybi10 hostname path origin protocols secure = do
+    key <- B64.encode `liftM`  getEntropy 16
+    return $ RequestHttpPart path (headers key) secure
+  where
+    headers key = [("Host"                   , hostname     )
+                  ,("Connection"             , "Upgrade"    )
+                  ,("Upgrade"                , "websocket"  )
+                  ,("Sec-WebSocket-Key"      , key          )
+                  ,("Sec-WebSocket-Version"  , versionNumber)
+                  ] ++ protocolHeader protocols
+                    ++ originHeader origin
+
+    originHeader (Just o)    = [("Origin"                , o                  )]
+    originHeader Nothing     = []
+
+    protocolHeader (Just ps) = [("Sec-WebSocket-Protocol", intercalate ", " ps)]
+    protocolHeader Nothing   = []
+
+    versionNumber = head . headerVersions $ Hybi10_
+
+finishResponseHybi10 :: Monad m
+                     => RequestHttpPart
+                     -> ResponseHttpPart
+                     -> E.Iteratee ByteString m ResponseBody
+finishResponseHybi10 request response = do
+    -- Response message should be one of
+    --
+    -- - WebSocket Protocol Handshake
+    -- - Switching Protocols
+    --
+    -- But we don't check it for now
+    if responseHttpCode response /= 101
+        then throw "Wrong response status or message."
+        else do
+            key          <- getRequestHeader  request  "Sec-WebSocket-Key"
+            responseHash <- getResponseHeader response "Sec-WebSocket-Accept"
+
+            let challengeHash = B64.encode $ hashKeyHybi10 key
+            if responseHash /= challengeHash
+                then throw "Challenge and response hashes do not match."
+                else return $ ResponseBody response ""
+  where
+    throw msg = E.throwError $ MalformedResponse response msg
+
+
+hashKeyHybi10 :: ByteString -> ByteString
+hashKeyHybi10 key = unlazy $ bytestringDigest $ sha1 $ lazy $ key `mappend` guid
   where
     guid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
     lazy = BL.fromChunks . return
     unlazy = mconcat . BL.toChunks
-    getHeader k = case lookup k h of
-        Just t  -> return t
-        Nothing -> E.throwError $ MalformedRequest reqHttp $ 
-            "Header missing: " ++ BC.unpack (CI.original k)

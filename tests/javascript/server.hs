@@ -93,7 +93,9 @@ instance WS.Protocol UnsafeProtocol where
         (EL.map WS.Unsafe.castMessage =$) . encodeMessages p
     decodeMessages (UnsafeProtocol p)   =
         (decodeMessages p =$) . EL.map WS.Unsafe.castMessage
+    createRequest  (UnsafeProtocol p)   = createRequest p
     finishRequest  (UnsafeProtocol p)   = finishRequest p
+    finishResponse (UnsafeProtocol p)   = finishResponse p
     implementations                     =
         [UnsafeProtocol WS.Hybi00_, UnsafeProtocol WS.Hybi10_]
 

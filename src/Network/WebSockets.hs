@@ -101,11 +101,15 @@ module Network.WebSockets
     , I.runServer
     , I.runWithSocket
 
-      -- * Types
+      -- * HTTP Types
     , I.Headers
-    , I.RequestHttpPart (..)
     , I.Request (..)
-    , I.Response (..)
+    , I.RequestHttpPart (..)
+    , I.RequestBody (..)
+    , I.ResponseHttpPart (..)
+    , I.ResponseBody (..)
+
+      -- * WebSockets types
     , I.Message (..)
     , I.ControlMessage (..)
     , I.DataMessage (..)
@@ -144,10 +148,15 @@ module Network.WebSockets
     , I.catchWsError
     , I.HandshakeError(..)
     , I.ConnectionError(..)
+
+      -- * WebSockets Client
+    , I.connect
+    , I.connectWith
     ) where
 
 import Control.Monad.Trans (liftIO)
 
+import qualified Network.WebSockets.Client as I
 import qualified Network.WebSockets.Handshake as I
 import qualified Network.WebSockets.Handshake.Http as I
 import qualified Network.WebSockets.Monad as I
@@ -191,8 +200,8 @@ receiveData = do
         I.Binary x -> return (I.fromLazyByteString x)
 
 -- | Send a 'I.Response' to the socket immediately.
-sendResponse :: I.Protocol p => I.Response -> I.WebSockets p ()
-sendResponse = I.sendBuilder . I.encodeResponse
+sendResponse :: I.Protocol p => I.ResponseBody -> I.WebSockets p ()
+sendResponse = I.sendBuilder . I.encodeResponseBody
 
 -- | Send a text message
 sendTextData :: (I.TextProtocol p, I.WebSocketsData a) => a -> I.WebSockets p ()

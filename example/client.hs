@@ -28,4 +28,4 @@ readInput sink = forever $ do
 
 main :: IO ()
 main = do
-    WS.connect "127.0.0.1" 9160 "/chat" False app
+    WS.connect "127.0.0.1" 9160 "/chat" app

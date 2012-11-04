@@ -25,7 +25,7 @@ import Network.WebSockets.Tests.Util.Http
 import Network.WebSockets.Tests.Util.IterAccum
 
 tests :: Test
-tests = testGroup "Network.WebSockets.Test"
+tests = testGroup "Network.WebSockets.Handshake.Test"
     [ testCase "handshakeHybi00"   handshakeHybi00
     , testCase "handshakeHybi10"   handshakeHybi10
     , testCase "handshakeHybi9000" handshakeHybi9000

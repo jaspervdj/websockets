@@ -141,7 +141,7 @@ decodeRequest isSecure = RequestHttpPart
     header = (,)
         <$> (CI.mk <$> A.takeWhile1 (/= c2w ':'))
         <*  A.string ": "
-        <*> A.takeWhile1 (/= c2w '\r')
+        <*> A.takeWhile (/= c2w '\r')
         <*  newline
 
 -- | Encode an HTTP upgrade response
@@ -189,7 +189,7 @@ decodeResponse = ResponseHttpPart
     header = (,)
         <$> (CI.mk <$> A.takeWhile1 (/= c2w ':'))
         <*  A.string ": "
-        <*> A.takeWhile1 (/= c2w '\r')
+        <*> A.takeWhile (/= c2w '\r')
         <*  newline
 
 getRequestHeader :: Monad m

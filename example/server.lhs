@@ -12,7 +12,7 @@ nearby to check out the functions we use.
 > import Data.Monoid (mappend)
 > import Data.Text (Text)
 > import Control.Exception (fromException)
-> import Control.Monad (forM_)
+> import Control.Monad (forM_, forever)
 > import Control.Concurrent (MVar, newMVar, modifyMVar_, readMVar)
 > import Control.Monad.IO.Class (liftIO)
 > import qualified Data.Text as T
@@ -142,11 +142,11 @@ The talk function continues to read messages from a single client until he
 disconnects. All messages are broadcasted to the other clients.
 
 > talk :: WS.Protocol p => MVar ServerState -> Client -> WS.WebSockets p ()
-> talk state client@(user, _) = flip WS.catchWsError catchDisconnect $ do
+> talk state client@(user, _) = flip WS.catchWsError catchDisconnect $ 
+>   forever $ do
 >     msg <- WS.receiveData
 >     liftIO $ readMVar state >>= broadcast
 >         (user `mappend` ": " `mappend` msg)
->     talk state client
 >   where
 >     catchDisconnect e = case fromException e of
 >         Just WS.ConnectionClosed -> liftIO $ modifyMVar_ state $ \s -> do

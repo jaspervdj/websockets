@@ -72,7 +72,7 @@ data WebSocketsEnv p = WebSocketsEnv
 -- | Used for asynchronous sending.
 newtype Sink p = Sink
     { unSink :: MVar (E.Iteratee (Message p) IO ())
-    }
+    } deriving (Eq)
 
 -- | The monad in which you can write WebSocket-capable applications
 newtype WebSockets p a = WebSockets

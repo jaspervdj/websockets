@@ -4,6 +4,7 @@
 module Network.WebSockets.Client
     ( connect
     , connectWith
+    , connectWith'
     ) where
 
 
@@ -49,18 +50,35 @@ connectWith :: Protocol p
             -> WebSockets p a  -- ^ Client application
             -> IO a
 connectWith host port path origin wsProtocols app = do
-    -- Create the request
-    request <- createRequest protocol bHost bPath bOrigin bWsProtocols False
-
-    -- Connect to server
+    -- Create and connect socket
     sock      <- S.socket S.AF_INET S.Stream S.defaultProtocol
     addrInfos <- S.getAddrInfo Nothing (Just host) (Just $ show port)
     S.connect sock (S.addrAddress $ head addrInfos)
-    res <- E.run_ $ SE.enumSocket 4096 sock $$ (iter request) $ iterSocket sock
+
+    -- Connect WebSocket and run client
+    res <- connectWith' sock host path origin wsProtocols app
 
     -- Clean up
     S.sClose sock
     return res
+
+
+--------------------------------------------------------------------------------
+connectWith' :: Protocol p
+             => S.Socket        -- ^ Socket
+             -> String          -- ^ Host
+             -> String          -- ^ Path
+             -> Maybe String    -- ^ Origin, if Nothing then server interprets
+                                --   connection as not coming from a browser.
+             -> Maybe [String]  -- ^ Protocol List
+             -> WebSockets p a  -- ^ Client application
+             -> IO a
+connectWith' sock host path origin wsProtocols app = do
+    -- Create the request
+    request <- createRequest protocol bHost bPath bOrigin bWsProtocols False
+
+    -- Connect to server
+    E.run_ $ SE.enumSocket 4096 sock $$ (iter request) $ iterSocket sock
   where
     protocol      = head implementations
     iter request  = runWebSocketsClient protocol request app

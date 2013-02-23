@@ -36,7 +36,7 @@ instance Protocol Hybi00_ where
     createRequest  Hybi00_   = error "createRequest Hybi00_"
     finishRequest  Hybi00_   = handshakeHybi00
     finishResponse Hybi00_   = error "finishResponse Hybi00_"
-    implementations            = [Hybi00_]
+    implementations          = [Hybi00_]
 
 instance TextProtocol Hybi00_
 

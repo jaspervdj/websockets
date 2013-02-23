@@ -4,7 +4,7 @@
 module Network.WebSockets.Client
     ( connect
     , connectWith
-    , connectWith'
+    , connectWithSocket
     ) where
 
 
@@ -58,7 +58,7 @@ connectWith host port path origin wsProtocols app = do
     S.connect sock (S.addrAddress $ head addrInfos)
 
     -- Connect WebSocket and run client
-    res <- connectWith' sock host path origin wsProtocols app
+    res <- connectWithSocket sock host path origin wsProtocols app
 
     -- Clean up
     S.sClose sock
@@ -66,16 +66,17 @@ connectWith host port path origin wsProtocols app = do
 
 
 --------------------------------------------------------------------------------
-connectWith' :: Protocol p
-             => S.Socket        -- ^ Socket
-             -> String          -- ^ Host
-             -> String          -- ^ Path
-             -> Maybe String    -- ^ Origin, if Nothing then server interprets
-                                --   connection as not coming from a browser.
-             -> Maybe [String]  -- ^ Protocol List
-             -> WebSockets p a  -- ^ Client application
-             -> IO a
-connectWith' sock host path origin wsProtocols app = do
+connectWithSocket :: Protocol p
+                  => S.Socket        -- ^ Socket
+                  -> String          -- ^ Host
+                  -> String          -- ^ Path
+                  -> Maybe String    -- ^ Origin, if Nothing then server
+                                     --   interprets connection as not coming
+                                     --   from a browser.
+                  -> Maybe [String]  -- ^ Protocol List
+                  -> WebSockets p a  -- ^ Client application
+                  -> IO a
+connectWithSocket sock host path origin wsProtocols app = do
     -- Create the request
     request <- createRequest protocol bHost bPath bOrigin bWsProtocols False
 

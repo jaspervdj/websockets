@@ -51,8 +51,10 @@ connectWith :: Protocol p
             -> IO a
 connectWith host port path origin wsProtocols app = do
     -- Create and connect socket
+    let hints = S.defaultHints
+                    {S.addrFamily = S.AF_INET, S.addrSocketType = S.Stream}
     sock      <- S.socket S.AF_INET S.Stream S.defaultProtocol
-    addrInfos <- S.getAddrInfo Nothing (Just host) (Just $ show port)
+    addrInfos <- S.getAddrInfo (Just hints) (Just host) (Just $ show port)
     S.connect sock (S.addrAddress $ head addrInfos)
 
     -- Connect WebSocket and run client

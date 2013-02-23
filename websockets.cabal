@@ -1,5 +1,5 @@
 Name:    websockets
-Version: 0.7.2.1
+Version: 0.7.3.0
 
 Synopsis:
   A sensible and clean way to write WebSocket-capable servers in Haskell.
@@ -23,7 +23,7 @@ Description:
 License:       BSD3
 License-file:  LICENCE
 Copyright:     (c) 2010-2011 Siniša Biđin
-               (c) 2011 Jasper Van der Jeugt
+               (c) 2011-2013 Jasper Van der Jeugt
                (c) 2011 Steffen Schuldenzucker
                (c) 2011 Alex Lang
 Author:        Siniša Biđin <sinisa@bidin.cc>

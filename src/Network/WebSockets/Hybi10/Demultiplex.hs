@@ -1,7 +1,7 @@
 --------------------------------------------------------------------------------
 -- | Demultiplexing of frames into messages
 {-# LANGUAGE DeriveDataTypeable #-}
-module Network.WebSockets.Protocol.Hybi10.Demultiplex
+module Network.WebSockets.Hybi10.Demultiplex
     ( FrameType (..)
     , Frame (..)
     , DemultiplexState
@@ -72,7 +72,7 @@ emptyDemultiplexState = DemultiplexState Nothing
 --------------------------------------------------------------------------------
 demultiplex :: DemultiplexState
             -> Frame
-            -> (Maybe (Message p), DemultiplexState)
+            -> (Maybe Message, DemultiplexState)
 demultiplex state (Frame fin _ _ _ tp pl) = case tp of
     -- Return control messages immediately, they have no influence on the state
     CloseFrame  -> (Just (ControlMessage (Close pl)), state)

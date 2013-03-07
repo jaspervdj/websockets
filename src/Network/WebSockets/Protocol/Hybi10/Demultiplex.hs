@@ -1,4 +1,6 @@
+--------------------------------------------------------------------------------
 -- | Demultiplexing of frames into messages
+{-# LANGUAGE DeriveDataTypeable #-}
 module Network.WebSockets.Protocol.Hybi10.Demultiplex
     ( FrameType (..)
     , Frame (..)
@@ -7,13 +9,21 @@ module Network.WebSockets.Protocol.Hybi10.Demultiplex
     , demultiplex
     ) where
 
-import Blaze.ByteString.Builder (Builder)
-import Data.Monoid (mappend)
+
+--------------------------------------------------------------------------------
+import           Blaze.ByteString.Builder (Builder)
 import qualified Blaze.ByteString.Builder as B
-import qualified Data.ByteString.Lazy as BL
+import           Control.Exception        (Exception, throw)
+import qualified Data.ByteString.Lazy     as BL
+import           Data.Monoid              (mappend)
+import           Data.Typeable            (Typeable)
 
-import Network.WebSockets.Types
 
+--------------------------------------------------------------------------------
+import           Network.WebSockets.Types
+
+
+--------------------------------------------------------------------------------
 -- | A low-level representation of a WebSocket packet
 data Frame = Frame
     { frameFin     :: !Bool
@@ -24,6 +34,8 @@ data Frame = Frame
     , framePayload :: !BL.ByteString
     } deriving (Eq, Show)
 
+
+--------------------------------------------------------------------------------
 -- | The type of a frame. Not all types are allowed for all protocols.
 data FrameType
     = ContinuationFrame
@@ -34,14 +46,30 @@ data FrameType
     | PongFrame
     deriving (Eq, Show)
 
+
+--------------------------------------------------------------------------------
+-- | Thrown if the client sends invalid multiplexed data
+data DemultiplexException = DemultiplexException
+    deriving (Show, Typeable)
+
+
+--------------------------------------------------------------------------------
+instance Exception DemultiplexException
+
+
+--------------------------------------------------------------------------------
 -- | Internal state used by the demultiplexer
 newtype DemultiplexState = DemultiplexState
     { unDemultiplexState :: Maybe (FrameType, Builder)
     }
 
+
+--------------------------------------------------------------------------------
 emptyDemultiplexState :: DemultiplexState
 emptyDemultiplexState = DemultiplexState Nothing
 
+
+--------------------------------------------------------------------------------
 demultiplex :: DemultiplexState
             -> Frame
             -> (Maybe (Message p), DemultiplexState)
@@ -62,7 +90,7 @@ demultiplex state (Frame fin _ _ _ tp pl) = case tp of
             | otherwise -> case amt of
                 TextFrame   -> (Just (DataMessage (Text m)), e)
                 BinaryFrame -> (Just (DataMessage (Binary m)), e)
-                _           -> error "Demultiplex.demultiplex: Internal error"
+                _           -> throw DemultiplexException
           where
             b' = b `mappend` plb
             m = B.toLazyByteString b'

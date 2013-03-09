@@ -1,97 +1,69 @@
+--------------------------------------------------------------------------------
 -- | Wrapper for supporting multiple protocol versions
 {-# LANGUAGE ExistentialQuantification #-}
 module Network.WebSockets.Protocol
     ( Protocol (..)
-    , TextProtocol
-    , BinaryProtocol
-    , close
-    , ping
-    , pong
-    , textData
-    , binaryData
+    , protocols
+    , compatible
+    , finishRequest
+    , finishResponse
+    , encodeMessages
+    , decodeMessages
+    , createRequest
     ) where
 
-import Blaze.ByteString.Builder (Builder)
-import qualified Data.ByteString as B
-import qualified Data.Enumerator as E
 
-import Network.WebSockets.Types
-import Network.WebSockets.Handshake.Http
-import qualified Network.WebSockets.Protocol.Unsafe as Unsafe
+--------------------------------------------------------------------------------
+import qualified Data.ByteString                   as B
+import qualified System.IO.Streams                 as Streams
 
-class Protocol p where
-    -- | Unique identifier for us.
-    version         :: p -> String
 
-    -- | Version accepted in the "Sec-WebSocket-Version " header. This is
-    -- usually not the same, or derivable from "version", e.g. for hybi10, it's
-    -- "7", "8" or "17".
-    headerVersions  :: p -> [B.ByteString]
+--------------------------------------------------------------------------------
+import           Network.WebSockets.Handshake.Http
+import qualified Network.WebSockets.Hybi10         as Hybi10
+import           Network.WebSockets.Types
 
-    -- | Determine if the protocol is compatible with a requested version. A
-    -- default implementation exists which uses the @headerVersions@ of the
-    -- protocol.
-    supported       :: p -> RequestHttpPart -> Bool
-    supported p h   = case getSecWebSocketVersion h of
-        Just v -> v `elem` headerVersions p
-        _      -> False
 
-    -- | Encodes messages to binary 'Builder's. Takes a random source so it is
-    -- able to do masking of frames (needed in some cases).
-    encodeMessages  :: Monad m
-                    => p
-                    -> E.Enumeratee (Message p) Builder m a
+--------------------------------------------------------------------------------
+data Protocol
+    = Hybi10
+    deriving (Show)
 
-    -- | Decodes messages from binary 'B.ByteString's.
-    decodeMessages  :: Monad m => p -> E.Enumeratee B.ByteString (Message p) m a
 
-    -- | Create a @Request@ that can be sent to the websockets server to open
-    -- the connection.
-    createRequest   :: p
-                    -> B.ByteString         -- ^ Hostname of the server.
-                    -> B.ByteString         -- ^ Path
-                    -> Maybe B.ByteString   -- ^ Origin where we are connecting from.
-                    -> Maybe [B.ByteString] -- ^ Protocols list.
-                    -> Bool                 -- ^ Is the connection secure, i.e. wss.
-                    -> IO RequestHttpPart   -- ^ HTTP request that can be sent to the
-                                            --   to the server to initiate the connection.
+--------------------------------------------------------------------------------
+protocols :: [Protocol]
+protocols = [Hybi10]
 
-    -- | Parse and validate the rest of the request. For hybi10, this is just
-    -- validation, but hybi00 also needs to fetch a "security token"
-    --
-    -- In case of failure, this function may throw a 'HandshakeError'.
-    -- be amended with the RequestHttpPart for the user)
-    finishRequest   :: Monad m
-                    => p -> RequestHttpPart
-                    -> E.Iteratee B.ByteString m Request
 
-    -- | Parse and validate the handshake response received from the server.
-    finishResponse :: Monad m
-                   => p -> RequestHttpPart -> ResponseHttpPart
-                   -> E.Iteratee B.ByteString m ResponseBody
+--------------------------------------------------------------------------------
+compatible :: Protocol -> RequestHead -> Bool
+compatible Hybi10 = Hybi10.compatible
 
-    -- | Implementations of the specification
-    implementations :: [p]
 
-class Protocol p => TextProtocol p
-class TextProtocol p => BinaryProtocol p
+--------------------------------------------------------------------------------
+finishRequest :: Protocol -> RequestHead -> Response
+finishRequest Hybi10 = Hybi10.finishRequest
 
--- | Construct a close message
-close :: (TextProtocol p, WebSocketsData a) => a -> Message p
-close = Unsafe.close
 
--- | Construct a ping message
-ping :: (BinaryProtocol p, WebSocketsData a) => a -> Message p
-ping = Unsafe.ping
+--------------------------------------------------------------------------------
+finishResponse :: Protocol -> RequestHead -> ResponseHead -> Response
+finishResponse Hybi10 = Hybi10.finishResponse
 
--- | Construct a pong message
-pong :: (BinaryProtocol p, WebSocketsData a) => a -> Message p
-pong = Unsafe.pong
 
--- | Construct a text message
-textData :: (TextProtocol p, WebSocketsData a) => a -> Message p
-textData = Unsafe.textData
+--------------------------------------------------------------------------------
+encodeMessages :: Protocol -> Streams.OutputStream B.ByteString
+               -> IO (Streams.OutputStream Message)
+encodeMessages Hybi10 = Hybi10.encodeMessages
 
--- | Construct a binary message
-binaryData :: (BinaryProtocol p, WebSocketsData a) => a -> Message p
-binaryData = Unsafe.binaryData
+
+--------------------------------------------------------------------------------
+decodeMessages :: Protocol -> Streams.InputStream B.ByteString
+               -> IO (Streams.InputStream Message)
+decodeMessages Hybi10 = Hybi10.decodeMessages
+
+
+--------------------------------------------------------------------------------
+createRequest :: Protocol -> B.ByteString -> B.ByteString -> Maybe B.ByteString
+              -> Maybe [B.ByteString] -> Bool
+              -> IO RequestHead
+createRequest Hybi10 = Hybi10.createRequest

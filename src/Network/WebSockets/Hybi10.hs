@@ -1,9 +1,8 @@
 --------------------------------------------------------------------------------
 {-# LANGUAGE BangPatterns      #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Network.WebSockets.Hybi10.Internal
-    ( version
-    , headerVersions
+module Network.WebSockets.Hybi10
+    ( compatible
     , finishRequest
     , finishResponse
     , encodeMessages
@@ -45,8 +44,11 @@ import           Network.WebSockets.Types
 
 
 --------------------------------------------------------------------------------
-version :: String
-version = "hybi10"
+compatible :: RequestHead -> Bool
+compatible req = case getRequestSecWebSocketVersion req of
+    Just v -> v `elem` headerVersions
+    _      -> True  -- Whatever?
+  where
 
 
 --------------------------------------------------------------------------------

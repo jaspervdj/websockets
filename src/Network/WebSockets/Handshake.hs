@@ -1,3 +1,4 @@
+--------------------------------------------------------------------------------
 -- | Implementation of the WebSocket handshake
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
 module Network.WebSockets.Handshake
@@ -6,14 +7,19 @@ module Network.WebSockets.Handshake
     , responseError
     ) where
 
-import Data.List (find)
 
+--------------------------------------------------------------------------------
+import Data.List (find)
 import qualified Data.ByteString as B
 import qualified Data.Enumerator as E
 
+
+--------------------------------------------------------------------------------
 import Network.WebSockets.Handshake.Http
 import Network.WebSockets.Protocol
 
+
+--------------------------------------------------------------------------------
 -- | Receives and checks the client handshake. If no suitable protocol is found
 -- (or the client sends garbage), a 'HandshakeError' will be thrown.
 handshake :: (Monad m, Protocol p)
@@ -25,6 +31,8 @@ handshake rhp = case find (flip supported rhp) implementations of
         rq <- finishRequest p rhp
         return (rq, p)
 
+
+--------------------------------------------------------------------------------
 -- | Respond to errors encountered during handshake. First argument may be
 -- bottom.
 responseError :: forall p. Protocol p => p -> HandshakeError -> ResponseBody

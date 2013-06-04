@@ -12,6 +12,7 @@ module Network.WebSockets.Protocol
     ) where
 
 import Blaze.ByteString.Builder (Builder)
+import System.Random (RandomGen)
 import qualified Data.ByteString as B
 import qualified Data.Enumerator as E
 
@@ -38,8 +39,10 @@ class Protocol p where
 
     -- | Encodes messages to binary 'Builder's. Takes a random source so it is
     -- able to do masking of frames (needed in some cases).
-    encodeMessages  :: Monad m
-                    => p
+    encodeMessages  :: (Monad m, RandomGen g)
+                    => p     -- ^ Protocol
+                    -> Bool  -- ^ Mask messages
+                    -> g     -- ^ Random source
                     -> E.Enumeratee (Message p) Builder m a
 
     -- | Decodes messages from binary 'B.ByteString's.

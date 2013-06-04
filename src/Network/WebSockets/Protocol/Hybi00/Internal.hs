@@ -28,15 +28,15 @@ import Network.WebSockets.Types
 data Hybi00_ = Hybi00_
 
 instance Protocol Hybi00_ where
-    version        Hybi00_   = "hybi00"
-    headerVersions Hybi00_   = []  -- The client will elide it
-    supported      Hybi00_ h = getSecWebSocketVersion h == Nothing
-    encodeMessages Hybi00_   = EL.map encodeMessage
-    decodeMessages Hybi00_   = E.sequence (A.iterParser parseMessage)
-    createRequest  Hybi00_   = error "createRequest Hybi00_"
-    finishRequest  Hybi00_   = handshakeHybi00
-    finishResponse Hybi00_   = error "finishResponse Hybi00_"
-    implementations          = [Hybi00_]
+    version        Hybi00_     = "hybi00"
+    headerVersions Hybi00_     = []  -- The client will elide it
+    supported      Hybi00_ h   = getSecWebSocketVersion h == Nothing
+    encodeMessages Hybi00_ _ _ = EL.map encodeMessage
+    decodeMessages Hybi00_     = E.sequence (A.iterParser parseMessage)
+    createRequest  Hybi00_     = error "createRequest Hybi00_"
+    finishRequest  Hybi00_     = handshakeHybi00
+    finishResponse Hybi00_     = error "finishResponse Hybi00_"
+    implementations            = [Hybi00_]
 
 instance TextProtocol Hybi00_
 

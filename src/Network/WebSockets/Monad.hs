@@ -34,6 +34,7 @@ import Control.Monad (forever)
 import Control.Monad.Reader (ReaderT, ask, runReaderT)
 import Control.Monad.Trans (MonadIO, lift, liftIO)
 import Data.Foldable (forM_)
+import System.Random (newStdGen)
 
 import Blaze.ByteString.Builder (Builder)
 import Data.ByteString (ByteString)
@@ -132,17 +133,20 @@ runWebSocketsWith opts httpReq goWs outIter = E.catchError ok $ \e -> do
     -- Perform handshake, call runWebSocketsWith'
     ok = do
         (rq, p) <- handshake httpReq
-        runWebSocketsWith' opts p (goWs rq) outIter
+        runWebSocketsWith' opts p False (goWs rq) outIter
 
 runWebSocketsWith' :: Protocol p
-                   => WebSocketsOptions
-                   -> p
-                   -> WebSockets p a
-                   -> Iteratee ByteString IO ()
-                   -> Iteratee ByteString IO a
-runWebSocketsWith' opts proto ws outIter = do
+                   => WebSocketsOptions          -- ^ Options
+                   -> p                          -- ^ Protocol
+                   -> Bool                       -- ^ Need to mask
+                   -> WebSockets p a             -- ^ App
+                   -> Iteratee ByteString IO ()  -- ^ Out iteratee
+                   -> Iteratee ByteString IO a   -- ^ Resulting iteratee
+runWebSocketsWith' opts proto mask ws outIter = do
     -- Create sink with a random source
-    let sinkIter = encodeMessages proto =$ builderToByteString =$ outIter
+    gen <- liftIO newStdGen
+    let sinkIter =
+            encodeMessages proto mask gen =$ builderToByteString =$ outIter
     sink <- Sink <$> liftIO (newMVar sinkIter)
 
     let sender = makeBuilderSender outIter

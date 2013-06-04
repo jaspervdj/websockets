@@ -47,4 +47,4 @@ pipe proto sending receiving = do
     bs <- getAccum ia
     E.run_ $ E.enumList 1 bs $$ runWS receiving $ return ()
   where
-    runWS = runWebSocketsWith' defaultWebSocketsOptions proto
+    runWS = runWebSocketsWith' defaultWebSocketsOptions proto False

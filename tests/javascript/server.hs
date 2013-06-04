@@ -86,17 +86,17 @@ tests =
 data UnsafeProtocol = forall p. WS.Protocol p => UnsafeProtocol p
 
 instance WS.Protocol UnsafeProtocol where
-    version        (UnsafeProtocol p)   = version p
-    headerVersions (UnsafeProtocol p)   = headerVersions p
-    supported      (UnsafeProtocol p) h = supported p h
-    encodeMessages (UnsafeProtocol p)   =
-        (EL.map WS.Unsafe.castMessage =$) . encodeMessages p
-    decodeMessages (UnsafeProtocol p)   =
+    version        (UnsafeProtocol p)     = version p
+    headerVersions (UnsafeProtocol p)     = headerVersions p
+    supported      (UnsafeProtocol p) h   = supported p h
+    encodeMessages (UnsafeProtocol p) m g =
+        (EL.map WS.Unsafe.castMessage =$) . encodeMessages p m g
+    decodeMessages (UnsafeProtocol p)     =
         (decodeMessages p =$) . EL.map WS.Unsafe.castMessage
-    createRequest  (UnsafeProtocol p)   = createRequest p
-    finishRequest  (UnsafeProtocol p)   = finishRequest p
-    finishResponse (UnsafeProtocol p)   = finishResponse p
-    implementations                     =
+    createRequest  (UnsafeProtocol p)     = createRequest p
+    finishRequest  (UnsafeProtocol p)     = finishRequest p
+    finishResponse (UnsafeProtocol p)     = finishResponse p
+    implementations                       =
         [UnsafeProtocol WS.Hybi00_, UnsafeProtocol WS.Hybi10_]
 
 instance WS.TextProtocol UnsafeProtocol

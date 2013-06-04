@@ -102,4 +102,4 @@ runWebSocketsClient protocol request ws outIter = do
     liftIO $ makeBuilderSender outIter $ encodeRequestHttpPart request
     response <- receiveIteratee decodeResponse
     _        <- finishResponse protocol request response
-    runWebSocketsWith' defaultWebSocketsOptions protocol ws outIter
+    runWebSocketsWith' defaultWebSocketsOptions protocol True ws outIter

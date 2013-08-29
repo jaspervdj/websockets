@@ -3,8 +3,10 @@
 {-# LANGUAGE ExistentialQuantification #-}
 module Network.WebSockets.Protocol
     ( Protocol (..)
+    , defaultProtocol
     , protocols
     , compatible
+    , headerVersions
     , finishRequest
     , finishResponse
     , encodeMessages
@@ -14,13 +16,15 @@ module Network.WebSockets.Protocol
 
 
 --------------------------------------------------------------------------------
-import qualified Data.ByteString                   as B
-import qualified System.IO.Streams                 as Streams
+import           Blaze.ByteString.Builder  (Builder)
+import           Data.ByteString           (ByteString)
+import qualified Data.ByteString           as B
+import qualified System.IO.Streams         as Streams
 
 
 --------------------------------------------------------------------------------
-import           Network.WebSockets.Handshake.Http
-import qualified Network.WebSockets.Hybi10         as Hybi10
+import           Network.WebSockets.Http
+import qualified Network.WebSockets.Hybi10 as Hybi10
 import           Network.WebSockets.Types
 
 
@@ -31,13 +35,25 @@ data Protocol
 
 
 --------------------------------------------------------------------------------
+defaultProtocol :: Protocol
+defaultProtocol = Hybi10
+
+
+--------------------------------------------------------------------------------
 protocols :: [Protocol]
 protocols = [Hybi10]
 
 
 --------------------------------------------------------------------------------
+headerVersions :: Protocol -> [ByteString]
+headerVersions Hybi10 = Hybi10.headerVersions
+
+
+--------------------------------------------------------------------------------
 compatible :: Protocol -> RequestHead -> Bool
-compatible Hybi10 = Hybi10.compatible
+compatible protocol req = case getRequestSecWebSocketVersion req of
+    Just v -> v `elem` headerVersions protocol
+    _      -> True  -- Whatever?
 
 
 --------------------------------------------------------------------------------
@@ -51,7 +67,7 @@ finishResponse Hybi10 = Hybi10.finishResponse
 
 
 --------------------------------------------------------------------------------
-encodeMessages :: Protocol -> Streams.OutputStream B.ByteString
+encodeMessages :: Protocol -> Streams.OutputStream Builder
                -> IO (Streams.OutputStream Message)
 encodeMessages Hybi10 = Hybi10.encodeMessages
 

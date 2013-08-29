@@ -2,7 +2,7 @@
 -- | Module dealing with HTTP: request data types, encoding and decoding...
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings  #-}
-module Network.WebSockets.Handshake.Http
+module Network.WebSockets.Http
     ( Headers
     , RequestHead (..)
     , Request (..)
@@ -187,8 +187,8 @@ response101 headers = Response
 
 --------------------------------------------------------------------------------
 -- | Bad request
-response400 :: Headers -> Response
-response400 headers = Response (ResponseHead 400 "Bad Request" headers) ""
+response400 :: Headers -> B.ByteString -> Response
+response400 headers = Response (ResponseHead 400 "Bad Request" headers)
 
 
 --------------------------------------------------------------------------------

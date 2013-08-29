@@ -2,7 +2,7 @@
 {-# LANGUAGE BangPatterns      #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Network.WebSockets.Hybi10
-    ( compatible
+    ( headerVersions
     , finishRequest
     , finishResponse
     , encodeMessages
@@ -37,18 +37,10 @@ import qualified System.IO.Streams.Attoparsec          as Streams
 
 
 --------------------------------------------------------------------------------
-import           Network.WebSockets.Handshake.Http
+import           Network.WebSockets.Http
 import           Network.WebSockets.Hybi10.Demultiplex
 import           Network.WebSockets.Hybi10.Mask
 import           Network.WebSockets.Types
-
-
---------------------------------------------------------------------------------
-compatible :: RequestHead -> Bool
-compatible req = case getRequestSecWebSocketVersion req of
-    Just v -> v `elem` headerVersions
-    _      -> True  -- Whatever?
-  where
 
 
 --------------------------------------------------------------------------------
@@ -91,7 +83,7 @@ finishResponse request response
 
 --------------------------------------------------------------------------------
 encodeMessage :: Message -> B.Builder
-encodeMessage msg = builder
+encodeMessage msg = builder `mappend` B.flush
   where
     mkFrame = Frame True False False False
     builder = encodeFrame $ case msg of
@@ -103,11 +95,9 @@ encodeMessage msg = builder
 
 
 --------------------------------------------------------------------------------
-encodeMessages :: Streams.OutputStream ByteString
+encodeMessages :: Streams.OutputStream B.Builder
                -> IO (Streams.OutputStream Message)
-encodeMessages bsStream =
-    Streams.builderStream bsStream >>=
-    Streams.contramap encodeMessage
+encodeMessages = Streams.contramap encodeMessage
 
 
 --------------------------------------------------------------------------------
@@ -219,15 +209,15 @@ createRequest hostname path origin protocols secure = do
     key <- B64.encode `liftM`  getEntropy 16
     return $ RequestHead path (headers key) secure
   where
-    headers key = [("Host"                   , hostname     )
-                  ,("Connection"             , "Upgrade"    )
-                  ,("Upgrade"                , "websocket"  )
-                  ,("Sec-WebSocket-Key"      , key          )
-                  ,("Sec-WebSocket-Version"  , versionNumber)
-                  ] ++ protocolHeader protocols
-                    ++ originHeader origin
+    headers key =
+        [ ("Host"                   , hostname     )
+        , ("Connection"             , "Upgrade"    )
+        , ("Upgrade"                , "websocket"  )
+        , ("Sec-WebSocket-Key"      , key          )
+        , ("Sec-WebSocket-Version"  , versionNumber)
+        ] ++ protocolHeader protocols ++ originHeader origin
 
-    originHeader (Just o)    = [("Origin"                , o                  )]
+    originHeader (Just o)    = [("Origin", o)]
     originHeader Nothing     = []
 
     protocolHeader (Just ps) = [("Sec-WebSocket-Protocol", intercalate ", " ps)]

@@ -12,6 +12,7 @@ module Network.WebSockets.Client
 --------------------------------------------------------------------------------
 import qualified Blaze.ByteString.Builder      as Builder
 import           Control.Applicative           ((<$>))
+import           Control.Exception             (finally)
 import qualified Data.ByteString.Char8         as BC
 import qualified Data.Text                     as T
 import qualified Data.Text.Encoding            as T
@@ -60,10 +61,11 @@ runClientWith host port path origin wsProtocols app = do
     S.connect sock (S.addrAddress $ head addrInfos)
 
     -- Connect WebSocket and run client
-    res <- runClientWithSocket sock host path origin wsProtocols app
+    res <- finally
+        (runClientWithSocket sock host path origin wsProtocols app)
+        (S.sClose sock)
 
     -- Clean up
-    S.sClose sock
     return res
 
 
@@ -93,7 +95,6 @@ runClientWithSocket sock host path origin wsProtocols app = do
         { connectionProtocol = protocol
         , connectionIn       = mIn
         , connectionOut      = mOut
-        , connectionClose    = return ()
         }
   where
     protocol      = defaultProtocol  -- TODO

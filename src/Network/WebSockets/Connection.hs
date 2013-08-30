@@ -14,8 +14,6 @@ module Network.WebSockets.Connection
     , sendTextData
     , sendBinaryData
     , sendClose
-
-    , close
     ) where
 
 
@@ -43,8 +41,6 @@ data PendingConnection = PendingConnection
     -- ^ Useful for e.g. inspecting the request path.
     , pendingIn      :: InputStream B.ByteString
     , pendingOut     :: OutputStream Builder
-    , pendingClose   :: IO ()
-    -- ^ Depends on the used server TODO remove this, fuck it
     }
 
 
@@ -61,7 +57,6 @@ acceptRequest :: PendingConnection -> IO Connection
 acceptRequest pc = case find (flip compatible request) protocols of
     Nothing       -> do
         sendResponse pc $ response400 versionHeader ""
-        pendingClose pc
         throw NotSupported
     Just protocol -> do
         let response = finishRequest protocol request
@@ -74,7 +69,6 @@ acceptRequest pc = case find (flip compatible request) protocols of
             { connectionProtocol = protocol
             , connectionIn       = msgIn
             , connectionOut      = msgOut
-            , connectionClose    = pendingClose pc
             }
   where
     request       = pendingRequest pc
@@ -92,7 +86,6 @@ data Connection = Connection
     { connectionProtocol :: Protocol
     , connectionIn       :: InputStream Message
     , connectionOut      :: OutputStream Message
-    , connectionClose    :: IO ()
     }
 
 
@@ -113,10 +106,8 @@ receiveDataMessage conn = do
     case msg of
         DataMessage am    -> return am
         ControlMessage cm -> case cm of
-            Close _   -> do
-                -- TODO: do some 'onPong' callback?
-                connectionClose conn
-                throw ConnectionClosed
+            Close _   -> throw ConnectionClosed
+            -- TODO: do some 'onPong' callback?
             Pong _    -> receiveDataMessage conn
             Ping pl   -> do
                 send conn (ControlMessage (Pong pl))
@@ -157,11 +148,6 @@ sendBinaryData conn = sendDataMessage conn . Binary . toLazyByteString
 
 
 --------------------------------------------------------------------------------
+-- | Send a friendly close message
 sendClose :: WebSocketsData a => Connection -> a -> IO ()
 sendClose conn = send conn . ControlMessage . Close . toLazyByteString
-
-
---------------------------------------------------------------------------------
--- | Close the underlying socket immediately.
-close :: Connection -> IO ()
-close = connectionClose

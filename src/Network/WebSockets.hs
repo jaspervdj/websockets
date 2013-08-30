@@ -98,9 +98,6 @@ module Network.WebSockets
     , sendBinaryData
     , sendClose
 
-      -- * Closing the connection
-    , close
-
       -- * HTTP Types
     , Headers
     , Request (..)

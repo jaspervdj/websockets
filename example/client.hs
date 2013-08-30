@@ -6,11 +6,13 @@ module Main
 
 
 --------------------------------------------------------------------------------
-import Control.Monad (forever)
-import Control.Concurrent (forkIO)
-import Control.Monad.Trans (liftIO)
-import qualified Data.Text.IO as T
-import qualified Network.WebSockets as WS
+import           Control.Concurrent  (forkIO)
+import           Control.Monad       (forever, unless)
+import           Control.Monad.Trans (liftIO)
+import           Data.Text           (Text)
+import qualified Data.Text           as T
+import qualified Data.Text.IO        as T
+import qualified Network.WebSockets  as WS
 
 
 --------------------------------------------------------------------------------
@@ -18,15 +20,18 @@ app :: WS.ClientApp ()
 app conn = do
     putStrLn "Connected!"
 
-    -- Fork off a separate thread that reads from stdin and writes to the WS
+    -- Fork a thread that writes WS data to stdout
     _ <- forkIO $ forever $ do
-        line <- T.getLine
-        WS.sendTextData conn line
-
-    -- In the main thread, keep reading from the WS and write to stdout
-    forever $ do
         msg <- WS.receiveData conn
         liftIO $ T.putStrLn msg
+
+    -- Read from stdin and write to WS
+    let loop = do
+            line <- T.getLine
+            unless (T.null line) $ WS.sendTextData conn line >> loop
+
+    loop
+    WS.sendClose conn ("Bye!" :: Text)
 
 
 --------------------------------------------------------------------------------

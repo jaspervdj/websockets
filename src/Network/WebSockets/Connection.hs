@@ -7,7 +7,15 @@ module Network.WebSockets.Connection
 
     , Connection (..)
     , receive
+    , receiveDataMessage
+    , receiveData
     , send
+    , sendDataMessage
+    , sendTextData
+    , sendBinaryData
+    , sendClose
+
+    , close
     ) where
 
 
@@ -35,6 +43,8 @@ data PendingConnection = PendingConnection
     -- ^ Useful for e.g. inspecting the request path.
     , pendingIn      :: InputStream B.ByteString
     , pendingOut     :: OutputStream Builder
+    , pendingClose   :: IO ()
+    -- ^ Depends on the used server
     }
 
 
@@ -51,6 +61,7 @@ acceptRequest :: PendingConnection -> IO Connection
 acceptRequest pc = case find (flip compatible request) protocols of
     Nothing       -> do
         sendResponse pc $ response400 versionHeader ""
+        pendingClose pc
         throw NotSupported
     Just protocol -> do
         let response = finishRequest protocol request
@@ -63,6 +74,7 @@ acceptRequest pc = case find (flip compatible request) protocols of
             { connectionProtocol = protocol
             , connectionIn       = msgIn
             , connectionOut      = msgOut
+            , connectionClose    = pendingClose pc
             }
   where
     request       = pendingRequest pc
@@ -80,6 +92,7 @@ data Connection = Connection
     { connectionProtocol :: Protocol
     , connectionIn       :: InputStream Message
     , connectionOut      :: OutputStream Message
+    , connectionClose    :: IO ()
     }
 
 
@@ -93,5 +106,62 @@ receive conn = do
 
 
 --------------------------------------------------------------------------------
+-- | Receive an application message. Automatically respond to control messages.
+receiveDataMessage :: Connection -> IO DataMessage
+receiveDataMessage conn = do
+    msg <- receive conn
+    case msg of
+        DataMessage am    -> return am
+        ControlMessage cm -> case cm of
+            Close _   -> do
+                -- TODO: do some 'onPong' callback?
+                connectionClose conn
+                throw ConnectionClosed
+            Pong _    -> receiveDataMessage conn
+            Ping pl   -> do
+                send conn (ControlMessage (Pong pl))
+                receiveDataMessage conn
+
+
+--------------------------------------------------------------------------------
+-- | Receive a message, converting it to whatever format is needed.
+receiveData :: WebSocketsData a => Connection -> IO a
+receiveData conn = do
+    dm <- receiveDataMessage conn
+    case dm of
+        Text x   -> return (fromLazyByteString x)
+        Binary x -> return (fromLazyByteString x)
+
+
+--------------------------------------------------------------------------------
 send :: Connection -> Message -> IO ()
 send conn msg = Streams.write (Just msg) (connectionOut conn)
+
+
+--------------------------------------------------------------------------------
+-- | Send a 'DataMessage'
+sendDataMessage :: Connection -> DataMessage -> IO ()
+sendDataMessage conn = send conn . DataMessage
+
+
+--------------------------------------------------------------------------------
+-- | Send a message as text
+sendTextData :: WebSocketsData a => Connection -> a -> IO ()
+sendTextData conn = sendDataMessage conn . Text . toLazyByteString
+
+
+--------------------------------------------------------------------------------
+-- | Send a message as binary data
+sendBinaryData :: WebSocketsData a => Connection -> a -> IO ()
+sendBinaryData conn = sendDataMessage conn . Binary . toLazyByteString
+
+
+--------------------------------------------------------------------------------
+sendClose :: WebSocketsData a => Connection -> a -> IO ()
+sendClose conn = send conn . ControlMessage . Close . toLazyByteString
+
+
+--------------------------------------------------------------------------------
+-- | Close the underlying socket immediately.
+close :: Connection -> IO ()
+close = connectionClose

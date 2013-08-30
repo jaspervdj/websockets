@@ -10,7 +10,6 @@ module Network.WebSockets.Server
 
 --------------------------------------------------------------------------------
 import           Control.Concurrent            (forkIO)
-import           Control.Exception             (SomeException, bracket, handle)
 import           Control.Monad                 (forever)
 import           Network.Socket                (Socket)
 import qualified Network.Socket                as S
@@ -41,14 +40,13 @@ runServer host port app = S.withSocketsDo $ do
     _ <- forever $ do
         -- TODO: top level handle
         (conn, _) <- S.accept sock
-        _         <- forkIO $ bracket (return conn) S.sClose $ \c ->
-            runApp c app
+        _         <- forkIO $ runApp conn app
         return ()
     S.sClose sock
 
 
 --------------------------------------------------------------------------------
-runApp :: S.Socket
+runApp :: Socket
        -> (PendingConnection -> IO ())
        -> IO ()
 runApp socket app = do
@@ -61,6 +59,7 @@ runApp socket app = do
                 { pendingRequest = request
                 , pendingIn      = sIn
                 , pendingOut     = bOut
+                , pendingClose   = S.sClose socket
                 }
 
     app pc

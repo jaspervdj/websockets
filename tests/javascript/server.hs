@@ -1,124 +1,93 @@
+--------------------------------------------------------------------------------
 -- | The server part of the tests
-{-# LANGUAGE ExistentialQuantification, OverloadedStrings, PatternGuards #-}
-import Control.Concurrent (forkIO)
-import Control.Concurrent.MVar (newMVar, putMVar, readMVar, takeMVar)
-import Control.Monad (forever, forM_)
-import Control.Monad.Trans (liftIO)
-import Data.Monoid (mappend)
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternGuards     #-}
+module Main
+    ( main
+    ) where
 
-import Data.ByteString (ByteString)
-import Data.ByteString.Lazy.Char8 ()
-import Data.Text (Text)
-import Data.Enumerator ((=$))
-import qualified Data.Enumerator.List as EL
-import qualified Data.Text.Lazy as TL
-
-import Network.WebSockets.Protocol (Protocol (..))
-import qualified Network.WebSockets as WS
-import qualified Network.WebSockets.Protocol.Hybi00.Internal as WS
-import qualified Network.WebSockets.Protocol.Hybi10.Internal as WS
-import qualified Network.WebSockets.Protocol.Unsafe as WS.Unsafe
 
 --------------------------------------------------------------------------------
--- Hybi00-compatible tests                                                    --
---------------------------------------------------------------------------------
+import           Control.Monad              (forM_, forever)
+import           Control.Monad.Trans        (liftIO)
+import           Data.ByteString            (ByteString)
+import           Data.ByteString.Lazy.Char8 ()
+import           Data.Text                  (Text)
+import qualified Data.Text.Lazy             as TL
 
-echoText :: WS.TextProtocol p => WS.WebSockets p ()
-echoText = forever $ do
-    msg <- WS.receiveData
+
+--------------------------------------------------------------------------------
+import qualified Network.WebSockets         as WS
+
+
+--------------------------------------------------------------------------------
+echoText :: WS.Connection -> IO ()
+echoText conn = forever $ do
+    msg <- WS.receiveData conn
     liftIO $ putStrLn $ show (msg :: TL.Text)
-    WS.sendTextData msg
+    WS.sendTextData conn msg
 
-closeMe :: WS.TextProtocol p => WS.WebSockets p ()
-closeMe = do
-    msg <- WS.receiveData
+
+--------------------------------------------------------------------------------
+closeMe :: WS.Connection -> IO ()
+closeMe conn = do
+    msg <- WS.receiveData conn
     case (msg :: TL.Text) of
-        "Close me!" -> return ()
+        "Close me!" -> WS.close conn
         _           -> error "closeme: unexpected input"
 
-concurrentSend :: WS.TextProtocol p => WS.WebSockets p ()
-concurrentSend = do
-    sink <- WS.getSink
-    liftIO $ do
-        mvars <- mapM newMVar [1 :: Int .. 100]
-        forM_ mvars $ \mvar -> forkIO $ do
-            i <- readMVar mvar
-            WS.sendSink sink $ WS.textData $
-                "Herp-a-derp " `mappend` TL.pack (show i)
-            _ <- takeMVar mvar
-            return ()
-        forM_ mvars $ flip putMVar 0
 
 --------------------------------------------------------------------------------
--- Hybi10-compatible tests                                                    --
---------------------------------------------------------------------------------
-
-ping :: WS.BinaryProtocol p => WS.WebSockets p ()
-ping = do
+ping :: WS.Connection -> IO ()
+ping conn = do
     forM_ ["Hai", "Come again?", "Right!"] $ \msg -> do
-        WS.send $ WS.ping msg
-        fr <- WS.receive
-        case fr of
+        WS.send conn $ WS.ControlMessage $ WS.Ping msg
+        rsp <- WS.receive conn
+        case rsp of
             WS.ControlMessage (WS.Pong msg')
                 | msg' == msg -> return ()
                 | otherwise   -> error "wrong message from client"
             _ -> error "ping: client closed socket too soon"
 
-    WS.send $ WS.textData ("OK" :: Text)
+    WS.sendTextData conn ("OK" :: Text)
 
-echo :: WS.Protocol p => WS.WebSockets p ()
-echo = forever $ WS.receive >>= WS.send
 
 --------------------------------------------------------------------------------
--- Running...                                                                 --
---------------------------------------------------------------------------------
+echo :: WS.Connection -> IO ()
+echo conn = forever $ WS.receive conn >>= WS.send conn
 
--- | All tests
-tests :: WS.BinaryProtocol p => [(ByteString, WS.WebSockets p ())]
+
+--------------------------------------------------------------------------------
+tests :: [(ByteString, WS.Connection -> IO ())]
 tests =
-    [ ("/echo-text",       echo)
-    , ("/close-me",        closeMe)
-    , ("/concurrent-send", concurrentSend)
-    , ("/ping",            ping)
-    , ("/echo",            echo)
+    [ ("/echo-text", echoText)
+    , ("/close-me",  closeMe)
+    , ("/ping",      ping)
+    , ("/echo",      echo)
     ]
 
-data UnsafeProtocol = forall p. WS.Protocol p => UnsafeProtocol p
 
-instance WS.Protocol UnsafeProtocol where
-    version        (UnsafeProtocol p)   = version p
-    headerVersions (UnsafeProtocol p)   = headerVersions p
-    supported      (UnsafeProtocol p) h = supported p h
-    encodeMessages (UnsafeProtocol p)   =
-        (EL.map WS.Unsafe.castMessage =$) . encodeMessages p
-    decodeMessages (UnsafeProtocol p)   =
-        (decodeMessages p =$) . EL.map WS.Unsafe.castMessage
-    createRequest  (UnsafeProtocol p)   = createRequest p
-    finishRequest  (UnsafeProtocol p)   = finishRequest p
-    finishResponse (UnsafeProtocol p)   = finishResponse p
-    implementations                     =
-        [UnsafeProtocol WS.Hybi00_, UnsafeProtocol WS.Hybi10_]
-
-instance WS.TextProtocol UnsafeProtocol
-instance WS.BinaryProtocol UnsafeProtocol
-
+--------------------------------------------------------------------------------
 -- | Application
-application :: WS.Request -> WS.WebSockets UnsafeProtocol ()
-application rq = do
+application :: WS.PendingConnection -> IO ()
+application pc = do
     -- When a client succesfully connects, lookup the requested test and
     -- run it
-    WS.acceptRequest rq
-    version'' <- WS.getVersion
+    conn <- WS.acceptRequest pc
+    -- version'' <- WS.getVersion
     liftIO $ putStrLn $ "==================================="
     liftIO $ putStrLn $ "Requested client version: " ++ show version'
-    liftIO $ putStrLn $ "Selected version: " ++ version''
+    -- liftIO $ putStrLn $ "Selected version: " ++ version''
     let name = WS.requestPath rq
     liftIO $ putStrLn $ "Starting test " ++ show name
-    let Just test = lookup name tests in test
+    let Just test = lookup name tests in test conn
     liftIO $ putStrLn $ "Test " ++ show name ++ " finished"
   where
+    rq       = WS.pendingRequest pc
     version' = lookup "Sec-WebSocket-Version" (WS.requestHeaders rq)
 
+
+--------------------------------------------------------------------------------
 -- | Accepts clients, spawns a single handler for each one.
 main :: IO ()
 main = WS.runServer "0.0.0.0" 8000 application

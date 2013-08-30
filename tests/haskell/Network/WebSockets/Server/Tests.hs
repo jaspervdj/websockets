@@ -1,6 +1,6 @@
 --------------------------------------------------------------------------------
 {-# LANGUAGE ScopedTypeVariables #-}
-module Network.WebSockets.Socket.Tests
+module Network.WebSockets.Server.Tests
     ( tests
     ) where
 
@@ -36,8 +36,8 @@ import           Network.WebSockets.Tests.Util.Http
 
 --------------------------------------------------------------------------------
 tests :: Test
-tests = testGroup "Network.WebSockets.Socket.Tests"
-    [ testCase "sendReceive-hybi10" (sendReceive Hybi10_)
+tests = testGroup "Network.WebSockets.Server.Tests"
+    [ testCase "sendReceive-hybi10" (sendReceive Hybi10)
     -- TODO: Write client calls for Hybi00?
     -- , testCase "sendReceive-hybi00" (sendReceive Hybi00_)
     ]
@@ -51,8 +51,8 @@ sample = do
 
 
 --------------------------------------------------------------------------------
-sendReceive :: forall p. (ExampleRequest p, TextProtocol p) => p -> Assertion
-sendReceive _ = do
+sendReceive :: Protocol -> Assertion
+sendReceive protocol = do
     serverThread <- forkIO $ retry $ runServer "0.0.0.0" 42940 server
     waitSome
     texts  <- map unArbitraryUtf8 <$> sample

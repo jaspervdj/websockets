@@ -1,12 +1,12 @@
 --------------------------------------------------------------------------------
 {-# LANGUAGE OverloadedStrings #-}
-module Network.WebSockets.Handshake.Http.Tests
+module Network.WebSockets.Http.Tests
     ( tests
     ) where
 
 
 --------------------------------------------------------------------------------
-import qualified Data.Attoparsec as A
+import qualified Data.Attoparsec                as A
 import qualified Data.ByteString.Char8          as BC
 import           Test.Framework                 (Test, testGroup)
 import           Test.Framework.Providers.HUnit (testCase)
@@ -14,19 +14,20 @@ import           Test.HUnit                     (Assertion, assert)
 
 
 --------------------------------------------------------------------------------
-import Network.WebSockets.Handshake.Http
+import           Network.WebSockets.Http
 
 
 --------------------------------------------------------------------------------
 tests :: Test
-tests = testGroup "Network.WebSockets.Handshake.Http.Tests"
+tests = testGroup "Network.WebSockets.Http.Tests"
     [ testCase "jwebsockets response" jWebSocketsResponse
     ]
 
 
 --------------------------------------------------------------------------------
+-- | This is a specific response sent by jwebsockets which caused trouble
 jWebSocketsResponse :: Assertion
-jWebSocketsResponse = assert $ case A.parseOnly decodeResponse input of
+jWebSocketsResponse = assert $ case A.parseOnly decodeResponseHead input of
     Left err -> error err
     Right _  -> True
   where

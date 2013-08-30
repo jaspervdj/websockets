@@ -1,3 +1,4 @@
+--------------------------------------------------------------------------------
 -- | How do you use this library? Here's how:
 --
 -- Get an enumerator/iteratee pair from your favorite web server (or use a
@@ -34,10 +35,10 @@
 -- > import Network.WebSockets
 -- > import qualified Data.ByteString as B
 -- > import qualified Data.Text as T
--- > 
+-- >
 -- > app1 :: TextProtocol p => WebSockets p ()
 -- > app1 = sendTextData (T.pack "Hello world!")
--- > 
+-- >
 -- > app2 :: BinaryProtocol p => WebSockets p ()
 -- > app2 = sendBinaryData (B.pack [0 .. 100])
 --
@@ -47,13 +48,13 @@
 -- of features. . For example, the following application uses only
 -- /features from Hybi00/, and is therefore /compatible with Hybi10/ and later
 -- protocols.
--- 
+--
 -- > app :: Request -> WebSockets Hybi00 ()
 -- > app _ = app1
--- > 
+-- >
 -- > main :: IO ()
 -- > main = runServer "0.0.0.0" 8000 app
--- 
+--
 -- In some cases, you want to escape from the 'I.WebSockets' monad and send data
 -- to the websocket from different threads. To this end, the 'I.getSink' method
 -- is provided. The next example spawns a thread which continuously spams the
@@ -64,7 +65,7 @@
 -- > import Control.Monad.Trans (liftIO)
 -- > import Network.WebSockets
 -- > import qualified Data.Text as T
--- > 
+-- >
 -- > spam :: TextProtocol p => WebSockets p ()
 -- > spam = do
 -- >     sink <- getSink
@@ -80,150 +81,54 @@
 -- <http://jaspervdj.be/websockets/example.html>
 {-# LANGUAGE ScopedTypeVariables #-}
 module Network.WebSockets
-    ( 
-      -- * WebSocket type
-      I.WebSocketsOptions (..)
-    , I.defaultWebSocketsOptions
-    , I.WebSockets
-    , I.runWebSockets
-    , I.runWebSocketsWith
-    , I.runWebSocketsHandshake
-    , I.runWebSocketsWithHandshake
-
-      -- * Protocol versions
-    , I.Protocol
-    , I.TextProtocol
-    , I.BinaryProtocol
-    , I.Hybi00
-    , I.Hybi10
-
-      -- * A simple standalone server
-    , I.runServer
-    , I.runWithSocket
-
-      -- * HTTP Types
-    , I.Headers
-    , I.Request (..)
-    , I.RequestHttpPart (..)
-    , I.RequestBody (..)
-    , I.ResponseHttpPart (..)
-    , I.ResponseBody (..)
-
-      -- * WebSockets types
-    , I.Message (..)
-    , I.ControlMessage (..)
-    , I.DataMessage (..)
-    , I.WebSocketsData (..)
-
-      -- * Handshake
+    ( -- * Incoming connections and handshaking
+      PendingConnection
+    , pendingRequest
     , acceptRequest
     , rejectRequest
 
-      -- * Various
-    , I.getVersion
-
-      -- * Receiving
-    , I.receive
+      -- * Sending and receiving messages
+    , Connection
+    , receive
     , receiveDataMessage
     , receiveData
-
-      -- * Sending
-    , I.send
+    , send
+    , sendDataMessage
     , sendTextData
     , sendBinaryData
+    , sendClose
 
-      -- * Asynchronous sending
-    , I.Sink
-    , I.sendSink
-    , I.getSink
-    , I.close
-    , I.ping
-    , I.pong
-    , I.textData
-    , I.binaryData
-    , I.spawnPingThread
+      -- * Closing the connection
+    , close
 
-      -- * Error Handling
-    , I.throwWsError
-    , I.catchWsError
-    , I.HandshakeError(..)
-    , I.ConnectionError(..)
+      -- * HTTP Types
+    , Headers
+    , Request (..)
+    , RequestHead (..)
+    , Response (..)
+    , ResponseHead (..)
+
+      -- * WebSocket message types
+    , Message (..)
+    , ControlMessage (..)
+    , DataMessage (..)
+    , WebSocketsData (..)
+
+      -- * Exceptions
+    , HandshakeException (..)
+    , ConnectionException (..)
+
+
+      -- * Running a standalone server
+    , runServer
 
       -- * WebSockets Client
-    , I.connect
-    , I.connectWith
+      -- TODO
     ) where
 
-import Control.Monad.Trans (liftIO)
 
-import qualified Network.WebSockets.Client as I
-import qualified Network.WebSockets.Handshake as I
-import qualified Network.WebSockets.Handshake.Http as I
-import qualified Network.WebSockets.Monad as I
-import qualified Network.WebSockets.Protocol as I
-import qualified Network.WebSockets.Protocol.Hybi00 as I
-import qualified Network.WebSockets.Protocol.Hybi10 as I
-import qualified Network.WebSockets.Protocol.Unsafe as Unsafe
-import qualified Network.WebSockets.Socket as I
-import qualified Network.WebSockets.Types as I
-
--- This doesn't work this way any more. As the Protocol first has to be
--- determined by the request, we can't provide this as a WebSockets action. See
--- the various flavours of runWebSockets.
-
--- | Receive an application message. Automatically respond to control messages.
-receiveDataMessage :: I.Protocol p => I.WebSockets p (I.DataMessage p)
-receiveDataMessage = do
-    m <- I.receive
-    case m of
-        (I.DataMessage am) -> return am
-        (I.ControlMessage cm) -> case cm of
-            I.Close _ -> I.throwWsError I.ConnectionClosed
-            I.Pong _  -> do
-                options <- I.getOptions
-                liftIO $ I.onPong options
-                receiveDataMessage
-            I.Ping pl -> do
-                -- Note that we are using an /unsafe/ pong here. If the 
-                -- underlying protocol cannot encode this pong, our thread will
-                -- crash. We assume, however that the protocol /is/ able to
-                -- encode the pong, since it was able to encode a ping.
-                I.send $ Unsafe.pong pl
-                receiveDataMessage
-
--- | Receive a message, treating it as data transparently
-receiveData :: (I.Protocol p, I.WebSocketsData a) => I.WebSockets p a
-receiveData = do
-    dm <- receiveDataMessage
-    case dm of
-        I.Text x   -> return (I.fromLazyByteString x)
-        I.Binary x -> return (I.fromLazyByteString x)
-
--- | Send a 'I.Response' to the socket immediately.
-sendResponse :: I.Protocol p => I.ResponseBody -> I.WebSockets p ()
-sendResponse = I.sendBuilder . I.encodeResponseBody
-
--- | Send a text message
-sendTextData :: (I.TextProtocol p, I.WebSocketsData a) => a -> I.WebSockets p ()
-sendTextData = I.send . I.textData
-
--- | Send some binary data
-sendBinaryData :: (I.BinaryProtocol p, I.WebSocketsData a)
-               => a -> I.WebSockets p ()
-sendBinaryData = I.send . I.binaryData
-
--- | Reject a request, sending a 400 (Bad Request) to the client and throwing a
--- RequestRejected (HandshakeError)
-rejectRequest :: I.Protocol p
-              => I.Request -> String -> I.WebSockets p a
-rejectRequest req reason = failHandshakeWith $ I.RequestRejected req reason
-
-failHandshakeWith :: forall p a. I.Protocol p
-                  => I.HandshakeError -> I.WebSockets p a
-failHandshakeWith err = do
-    sendResponse $ I.responseError (undefined :: p) err
-    I.throwWsError err
-
--- | Accept a request. After this, you can start sending and receiving data.
-acceptRequest :: I.Protocol p => I.Request -> I.WebSockets p ()
-acceptRequest = sendResponse . I.requestResponse
+--------------------------------------------------------------------------------
+import           Network.WebSockets.Connection
+import           Network.WebSockets.Http
+import           Network.WebSockets.Server
+import           Network.WebSockets.Types

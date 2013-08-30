@@ -16,13 +16,9 @@ function createWebSocket(path) {
 * Actual tests                                                                 *
 *******************************************************************************/
 
-module('QUnit');
-
 test('demo', function() {
     ok(true, 'Demo test');
 });
-
-module('Hybi00');
 
 asyncTest('echo-text', function() {
     var ws = createWebSocket('/echo-text');
@@ -55,28 +51,6 @@ asyncTest('close me', function() {
         start();
     };
 });
-
-asyncTest('concurrent send', function() {
-    var ws = createWebSocket('/concurrent-send');
-    var expected = [];
-    for(var i = 1; i <= 100; i++) {
-        expected.push('Herp-a-derp ' + i);
-    }
-
-    ws.onmessage = function(event) {
-        var msg = event.data;
-        var idx = expected.indexOf(msg);
-        expected.splice(idx, 1);
-
-        if(expected.length <= 0) {
-            ws.close();
-            ok(true, 'all received');
-            start();
-        }
-    }
-});
-
-module('Hybi10');
 
 asyncTest('ping', function() {
     var ws = createWebSocket('/ping');

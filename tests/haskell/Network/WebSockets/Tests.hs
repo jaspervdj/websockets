@@ -1,3 +1,4 @@
+--------------------------------------------------------------------------------
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Network.WebSockets.Tests
@@ -5,6 +6,8 @@ module Network.WebSockets.Tests
     , ArbitraryUtf8 (..)
     ) where
 
+
+--------------------------------------------------------------------------------
 import Control.Applicative (pure, (<$>))
 import Control.Exception (fromException)
 import Control.Monad (forM_)
@@ -12,7 +15,6 @@ import Control.Monad.Trans (liftIO)
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 import qualified Data.Set as S
-
 import Test.Framework (Test, testGroup)
 import Test.Framework.Providers.HUnit (testCase)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
@@ -24,6 +26,8 @@ import qualified Test.HUnit as HU
 import qualified Test.QuickCheck as QC
 import qualified Test.QuickCheck.Monadic as QC
 
+
+--------------------------------------------------------------------------------
 import Network.WebSockets
 import Network.WebSockets.Monad
 import Network.WebSockets.Protocol.Hybi00.Internal
@@ -33,6 +37,8 @@ import Network.WebSockets.Tests.Util
 import Network.WebSockets.Tests.Util.IterAccum
 import qualified Network.WebSockets.Protocol.Unsafe as Unsafe
 
+
+--------------------------------------------------------------------------------
 tests :: Test
 tests = testGroup "Network.WebSockets.Test"
     [ testProperty "sendReceive-hybi10"       (sendReceive Hybi10_)

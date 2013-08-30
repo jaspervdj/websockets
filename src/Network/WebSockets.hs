@@ -120,14 +120,19 @@ module Network.WebSockets
 
 
       -- * Running a standalone server
+    , ServerApp
     , runServer
 
-      -- * WebSockets Client
-      -- TODO
+      -- * Running a client
+    , ClientApp
+    , runClient
+    , runClientWith
+    , runClientWithSocket
     ) where
 
 
 --------------------------------------------------------------------------------
+import           Network.WebSockets.Client
 import           Network.WebSockets.Connection
 import           Network.WebSockets.Http
 import           Network.WebSockets.Server

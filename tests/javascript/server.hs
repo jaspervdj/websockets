@@ -69,7 +69,7 @@ tests =
 
 --------------------------------------------------------------------------------
 -- | Application
-application :: WS.PendingConnection -> IO ()
+application :: WS.ServerApp
 application pc = do
     -- When a client succesfully connects, lookup the requested test and
     -- run it

@@ -4,7 +4,8 @@
 -- warp.
 {-# LANGUAGE OverloadedStrings #-}
 module Network.WebSockets.Server
-    ( runServer
+    ( ServerApp
+    , runServer
     ) where
 
 
@@ -24,13 +25,18 @@ import           Network.WebSockets.Http
 
 
 --------------------------------------------------------------------------------
+-- | WebSockets application that can be ran by a server
+type ServerApp = PendingConnection -> IO ()
+
+
+--------------------------------------------------------------------------------
 -- | Provides a simple server. This function blocks forever. Note that this
 -- is merely provided for quick-and-dirty standalone applications, for real
 -- applications, you should use a real server.
-runServer :: String                        -- ^ Address to bind
-          -> Int                           -- ^ Port to listen on
-          -> (PendingConnection -> IO ())  -- ^ Application
-          -> IO ()                         -- ^ Never returns
+runServer :: String     -- ^ Address to bind
+          -> Int        -- ^ Port to listen on
+          -> ServerApp  -- ^ Application
+          -> IO ()      -- ^ Never returns
 runServer host port app = S.withSocketsDo $ do
     sock  <- S.socket S.AF_INET S.Stream S.defaultProtocol
     _     <- S.setSocketOption sock S.ReuseAddr 1
@@ -47,7 +53,7 @@ runServer host port app = S.withSocketsDo $ do
 
 --------------------------------------------------------------------------------
 runApp :: Socket
-       -> (PendingConnection -> IO ())
+       -> ServerApp
        -> IO ()
 runApp socket app = do
     (sIn, sOut) <- Streams.socketToStreams socket

@@ -44,7 +44,7 @@ data PendingConnection = PendingConnection
     , pendingIn      :: InputStream B.ByteString
     , pendingOut     :: OutputStream Builder
     , pendingClose   :: IO ()
-    -- ^ Depends on the used server
+    -- ^ Depends on the used server TODO remove this, fuck it
     }
 
 

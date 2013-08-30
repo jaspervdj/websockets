@@ -2,54 +2,56 @@
 -- | This part of the library provides you with utilities to create WebSockets
 -- clients (in addition to servers).
 module Network.WebSockets.Client
-    ( connect
-    , connectWith
-    , connectWithSocket
+    ( ClientApp
+    , runClient
+    , runClientWith
+    , runClientWithSocket
     ) where
 
 
 --------------------------------------------------------------------------------
-import           Control.Applicative               ((<$>))
-import           Control.Monad.Trans               (liftIO)
-import           Data.ByteString                   (ByteString)
-import qualified Data.ByteString.Char8             as BC
-import           Data.Enumerator                   (Iteratee, ($$))
-import qualified Data.Enumerator                   as E
-import qualified Data.Text                         as T
-import qualified Data.Text.Encoding                as T
-import qualified Network.Socket                    as S
-import qualified Network.Socket.Enumerator         as SE
+import qualified Blaze.ByteString.Builder      as Builder
+import           Control.Applicative           ((<$>))
+import qualified Data.ByteString.Char8         as BC
+import qualified Data.Text                     as T
+import qualified Data.Text.Encoding            as T
+import qualified Network.Socket                as S
+import qualified System.IO.Streams             as Streams
+import qualified System.IO.Streams.Attoparsec  as Streams
 
 
 --------------------------------------------------------------------------------
-import           Network.WebSockets.Handshake.Http
-import           Network.WebSockets.Monad
+import           Network.WebSockets.Connection
+import           Network.WebSockets.Http
 import           Network.WebSockets.Protocol
-import           Network.WebSockets.Socket         (iterSocket)
 
 
 --------------------------------------------------------------------------------
-connect :: Protocol p
-        => String          -- ^ Host
-        -> Int             -- ^ Port
-        -> String          -- ^ Path
-        -> WebSockets p a  -- ^ Client application
-        -> IO a
-connect host port path ws =
-    connectWith host port path Nothing Nothing ws
+type ClientApp a = Connection -> IO a
 
 
 --------------------------------------------------------------------------------
-connectWith :: Protocol p
-            => String          -- ^ Host
-            -> Int             -- ^ Port
-            -> String          -- ^ Path
-            -> Maybe String    -- ^ Origin, if Nothing then server interprets
-                               --   connection as not coming from a browser.
-            -> Maybe [String]  -- ^ Protocol List
-            -> WebSockets p a  -- ^ Client application
-            -> IO a
-connectWith host port path origin wsProtocols app = do
+-- TODO: Maybe this should all be strings
+runClient :: String       -- ^ Host
+          -> Int          -- ^ Port
+          -> String       -- ^ Path
+          -> ClientApp a  -- ^ Client application
+          -> IO a
+runClient host port path ws =
+    runClientWith host port path Nothing Nothing ws
+
+
+--------------------------------------------------------------------------------
+-- TODO: Maybe we should just allow the user to pass headers
+runClientWith :: String          -- ^ Host
+              -> Int             -- ^ Port
+              -> String          -- ^ Path
+              -> Maybe String    -- ^ Origin, if Nothing then server interprets
+                                 --   connection as not coming from a browser.
+              -> Maybe [String]  -- ^ Protocol List
+              -> ClientApp a     -- ^ Client application
+              -> IO a
+runClientWith host port path origin wsProtocols app = do
     -- Create and connect socket
     let hints = S.defaultHints
                     {S.addrFamily = S.AF_INET, S.addrSocketType = S.Stream}
@@ -58,7 +60,7 @@ connectWith host port path origin wsProtocols app = do
     S.connect sock (S.addrAddress $ head addrInfos)
 
     -- Connect WebSocket and run client
-    res <- connectWithSocket sock host path origin wsProtocols app
+    res <- runClientWithSocket sock host path origin wsProtocols app
 
     -- Clean up
     S.sClose sock
@@ -66,40 +68,36 @@ connectWith host port path origin wsProtocols app = do
 
 
 --------------------------------------------------------------------------------
-connectWithSocket :: Protocol p
-                  => S.Socket        -- ^ Socket
-                  -> String          -- ^ Host
-                  -> String          -- ^ Path
-                  -> Maybe String    -- ^ Origin, if Nothing then server
-                                     --   interprets connection as not coming
-                                     --   from a browser.
-                  -> Maybe [String]  -- ^ Protocol List
-                  -> WebSockets p a  -- ^ Client application
-                  -> IO a
-connectWithSocket sock host path origin wsProtocols app = do
-    -- Create the request
-    request <- createRequest protocol bHost bPath bOrigin bWsProtocols False
-
-    -- Connect to server
-    E.run_ $ SE.enumSocket 4096 sock $$ (iter request) $ iterSocket sock
+runClientWithSocket :: S.Socket        -- ^ Socket
+                    -> String          -- ^ Host
+                    -> String          -- ^ Path
+                    -> Maybe String    -- ^ Origin, if Nothing then server
+                                       --   interprets connection as not coming
+                                       --   from a browser.
+                    -> Maybe [String]  -- ^ Protocol List
+                    -> ClientApp a     -- ^ Client application
+                    -> IO a
+runClientWithSocket sock host path origin wsProtocols app = do
+    -- Create the request and send it
+    request     <- createRequest protocol bHost bPath bOrigin bWsProtocols False
+    (sIn, sOut) <- Streams.socketToStreams sock
+    bOut        <- Streams.builderStream sOut
+    Streams.write (Just $ encodeRequestHead request) bOut
+    Streams.write (Just Builder.flush)               bOut
+    response     <- Streams.parseFromStream decodeResponseHead sIn
+    -- Note that we pattern match to evaluate the result here
+    Response _ _ <- return $ finishResponse protocol request response
+    mIn          <- decodeMessages protocol sIn
+    mOut         <- encodeMessages protocol bOut
+    app Connection
+        { connectionProtocol = protocol
+        , connectionIn       = mIn
+        , connectionOut      = mOut
+        , connectionClose    = return ()
+        }
   where
-    protocol      = head implementations
-    iter request  = runWebSocketsClient protocol request app
+    protocol      = defaultProtocol  -- TODO
     bHost         = T.encodeUtf8 $ T.pack host
     bPath         = T.encodeUtf8 $ T.pack path
     bOrigin       = T.encodeUtf8 . T.pack <$> origin
     bWsProtocols  = map BC.pack <$> wsProtocols
-
-
---------------------------------------------------------------------------------
-runWebSocketsClient :: Protocol p
-                    => p
-                    -> RequestHttpPart
-                    -> WebSockets p a
-                    -> Iteratee ByteString IO ()
-                    -> Iteratee ByteString IO a
-runWebSocketsClient protocol request ws outIter = do
-    liftIO $ makeBuilderSender outIter $ encodeRequestHttpPart request
-    response <- receiveIteratee decodeResponse
-    _        <- finishResponse protocol request response
-    runWebSocketsWith' defaultWebSocketsOptions protocol ws outIter

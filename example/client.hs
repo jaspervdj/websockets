@@ -1,5 +1,11 @@
+--------------------------------------------------------------------------------
 {-# LANGUAGE OverloadedStrings #-}
+module Main
+    ( main
+    ) where
 
+
+--------------------------------------------------------------------------------
 import Control.Monad (forever)
 import Control.Concurrent (forkIO)
 import Control.Monad.Trans (liftIO)
@@ -7,25 +13,22 @@ import qualified Data.Text.IO as T
 import qualified Network.WebSockets as WS
 
 
-app :: WS.WebSockets WS.Hybi10 ()
-app = do
-    liftIO $ print "Connected"
+--------------------------------------------------------------------------------
+app :: WS.ClientApp ()
+app conn = do
+    putStrLn "Connected!"
 
-    -- Fork off a separate thread that reads from stdin and writes to the sink.
-    sink <- WS.getSink
-    liftIO $ forkIO $ readInput sink
+    -- Fork off a separate thread that reads from stdin and writes to the WS
+    _ <- forkIO $ forever $ do
+        line <- T.getLine
+        WS.sendTextData conn line
 
-    forever loop
-  where
-    loop = do
-        msg <- WS.receiveData
+    -- In the main thread, keep reading from the WS and write to stdout
+    forever $ do
+        msg <- WS.receiveData conn
         liftIO $ T.putStrLn msg
 
-readInput :: (WS.TextProtocol p) => WS.Sink p -> IO ()
-readInput sink = forever $ do
-    line <- T.getLine
-    WS.sendSink sink $ WS.textData line
 
+--------------------------------------------------------------------------------
 main :: IO ()
-main = do
-    WS.connect "127.0.0.1" 9160 "/chat" app
+main = WS.runClient "echo.websocket.org" 80 "/" app

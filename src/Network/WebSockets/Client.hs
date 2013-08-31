@@ -25,6 +25,7 @@ import qualified System.IO.Streams.Attoparsec  as Streams
 import           Network.WebSockets.Connection
 import           Network.WebSockets.Http
 import           Network.WebSockets.Protocol
+import           Network.WebSockets.Types
 
 
 --------------------------------------------------------------------------------
@@ -90,9 +91,10 @@ runClientWithSocket sock host path origin wsProtocols app = do
     -- Note that we pattern match to evaluate the result here
     Response _ _ <- return $ finishResponse protocol request response
     mIn          <- decodeMessages protocol sIn
-    mOut         <- encodeMessages protocol bOut
+    mOut         <- encodeMessages protocol ClientConnection bOut
     app Connection
-        { connectionProtocol = protocol
+        { connectionType     = ClientConnection
+        , connectionProtocol = protocol
         , connectionIn       = mIn
         , connectionOut      = mOut
         }

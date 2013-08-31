@@ -11,7 +11,7 @@ import qualified Data.Attoparsec as A
 
 import Network.WebSockets.Handshake.Http
 import Network.WebSockets.Protocol.Hybi00.Internal
-import Network.WebSockets.Protocol.Hybi10.Internal
+import Network.WebSockets.Protocol.Hybi13.Internal
 
 class ExampleRequest p where
     exampleRequest :: p -> RequestBody

@@ -46,7 +46,7 @@
 -- prevent ambiguousness. A good rule of thumb is to select the lowest protocol
 -- possible, since higher versions are generally backwards compatible in terms
 -- of features. . For example, the following application uses only
--- /features from Hybi00/, and is therefore /compatible with Hybi10/ and later
+-- /features from Hybi00/, and is therefore /compatible with Hybi13/ and later
 -- protocols.
 --
 -- > app :: Request -> WebSockets Hybi00 ()

@@ -20,14 +20,14 @@ import qualified Data.Enumerator as E
 import Network.WebSockets
 import Network.WebSockets.Handshake.Http
 import Network.WebSockets.Protocol.Hybi00.Internal
-import Network.WebSockets.Protocol.Hybi10.Internal
+import Network.WebSockets.Protocol.Hybi13.Internal
 import Network.WebSockets.Tests.Util.Http
 import Network.WebSockets.Tests.Util.IterAccum
 
 tests :: Test
 tests = testGroup "Network.WebSockets.Handshake.Test"
     [ testCase "handshakeHybi00"   handshakeHybi00
-    , testCase "handshakeHybi10"   handshakeHybi10
+    , testCase "handshakeHybi13"   handshakeHybi13
     , testCase "handshakeHybi9000" handshakeHybi9000
     , testCase "handshakeReject"   handshakeReject
     ]

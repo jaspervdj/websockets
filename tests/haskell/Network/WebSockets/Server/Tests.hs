@@ -29,7 +29,7 @@ import           Test.QuickCheck.Gen                         (Gen (..))
 
 --------------------------------------------------------------------------------
 import           Network.WebSockets
-import           Network.WebSockets.Protocol.Hybi10.Internal
+import           Network.WebSockets.Protocol.Hybi13.Internal
 import           Network.WebSockets.Tests.Util
 import           Network.WebSockets.Tests.Util.Http
 
@@ -37,7 +37,7 @@ import           Network.WebSockets.Tests.Util.Http
 --------------------------------------------------------------------------------
 tests :: Test
 tests = testGroup "Network.WebSockets.Server.Tests"
-    [ testCase "sendReceive-hybi10" (sendReceive Hybi10)
+    [ testCase "sendReceive-hybi10" (sendReceive Hybi13)
     -- TODO: Write client calls for Hybi00?
     -- , testCase "sendReceive-hybi00" (sendReceive Hybi00_)
     ]

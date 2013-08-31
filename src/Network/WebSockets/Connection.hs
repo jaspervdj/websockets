@@ -64,9 +64,10 @@ acceptRequest pc = case find (flip compatible request) protocols of
         sendResponse pc response
         putStrLn "Response sent."  -- DEBUG
         msgIn  <- decodeMessages protocol (pendingIn pc)
-        msgOut <- encodeMessages protocol (pendingOut pc)
+        msgOut <- encodeMessages protocol ServerConnection (pendingOut pc)
         return Connection
-            { connectionProtocol = protocol
+            { connectionType     = ServerConnection
+            , connectionProtocol = protocol
             , connectionIn       = msgIn
             , connectionOut      = msgOut
             }
@@ -83,7 +84,8 @@ rejectRequest pc message = sendResponse pc $ response400 [] message
 
 --------------------------------------------------------------------------------
 data Connection = Connection
-    { connectionProtocol :: Protocol
+    { connectionType     :: ConnectionType
+    , connectionProtocol :: Protocol
     , connectionIn       :: InputStream Message
     , connectionOut      :: OutputStream Message
     }

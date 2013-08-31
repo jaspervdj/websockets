@@ -1,7 +1,7 @@
 --------------------------------------------------------------------------------
 -- | Demultiplexing of frames into messages
 {-# LANGUAGE DeriveDataTypeable #-}
-module Network.WebSockets.Hybi10.Demultiplex
+module Network.WebSockets.Hybi13.Demultiplex
     ( FrameType (..)
     , Frame (..)
     , DemultiplexState

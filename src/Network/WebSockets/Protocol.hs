@@ -24,29 +24,29 @@ import qualified System.IO.Streams         as Streams
 
 --------------------------------------------------------------------------------
 import           Network.WebSockets.Http
-import qualified Network.WebSockets.Hybi10 as Hybi10
+import qualified Network.WebSockets.Hybi13 as Hybi13
 import           Network.WebSockets.Types
 
 
 --------------------------------------------------------------------------------
 data Protocol
-    = Hybi10
+    = Hybi13
     deriving (Show)
 
 
 --------------------------------------------------------------------------------
 defaultProtocol :: Protocol
-defaultProtocol = Hybi10
+defaultProtocol = Hybi13
 
 
 --------------------------------------------------------------------------------
 protocols :: [Protocol]
-protocols = [Hybi10]
+protocols = [Hybi13]
 
 
 --------------------------------------------------------------------------------
 headerVersions :: Protocol -> [ByteString]
-headerVersions Hybi10 = Hybi10.headerVersions
+headerVersions Hybi13 = Hybi13.headerVersions
 
 
 --------------------------------------------------------------------------------
@@ -58,28 +58,29 @@ compatible protocol req = case getRequestSecWebSocketVersion req of
 
 --------------------------------------------------------------------------------
 finishRequest :: Protocol -> RequestHead -> Response
-finishRequest Hybi10 = Hybi10.finishRequest
+finishRequest Hybi13 = Hybi13.finishRequest
 
 
 --------------------------------------------------------------------------------
 finishResponse :: Protocol -> RequestHead -> ResponseHead -> Response
-finishResponse Hybi10 = Hybi10.finishResponse
+finishResponse Hybi13 = Hybi13.finishResponse
 
 
 --------------------------------------------------------------------------------
-encodeMessages :: Protocol -> Streams.OutputStream Builder
+encodeMessages :: Protocol -> ConnectionType
+               -> Streams.OutputStream Builder
                -> IO (Streams.OutputStream Message)
-encodeMessages Hybi10 = Hybi10.encodeMessages
+encodeMessages Hybi13 = Hybi13.encodeMessages
 
 
 --------------------------------------------------------------------------------
 decodeMessages :: Protocol -> Streams.InputStream B.ByteString
                -> IO (Streams.InputStream Message)
-decodeMessages Hybi10 = Hybi10.decodeMessages
+decodeMessages Hybi13 = Hybi13.decodeMessages
 
 
 --------------------------------------------------------------------------------
 createRequest :: Protocol -> B.ByteString -> B.ByteString -> Maybe B.ByteString
               -> Maybe [B.ByteString] -> Bool
               -> IO RequestHead
-createRequest Hybi10 = Hybi10.createRequest
+createRequest Hybi13 = Hybi13.createRequest

@@ -1,7 +1,7 @@
 --------------------------------------------------------------------------------
 {-# LANGUAGE BangPatterns      #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Network.WebSockets.Hybi10
+module Network.WebSockets.Hybi13
     ( headerVersions
     , finishRequest
     , finishResponse
@@ -34,12 +34,13 @@ import           Data.Tuple                            (swap)
 import           System.Entropy                        as R
 import qualified System.IO.Streams                     as Streams
 import qualified System.IO.Streams.Attoparsec          as Streams
+import           System.Random                         (RandomGen, newStdGen)
 
 
 --------------------------------------------------------------------------------
 import           Network.WebSockets.Http
-import           Network.WebSockets.Hybi10.Demultiplex
-import           Network.WebSockets.Hybi10.Mask
+import           Network.WebSockets.Hybi13.Demultiplex
+import           Network.WebSockets.Hybi13.Mask
 import           Network.WebSockets.Types
 
 
@@ -82,11 +83,14 @@ finishResponse request response
 
 
 --------------------------------------------------------------------------------
-encodeMessage :: Message -> B.Builder
-encodeMessage msg = builder `mappend` B.flush
+encodeMessage :: RandomGen g => ConnectionType -> g -> Message -> (g, B.Builder)
+encodeMessage conType gen msg = (gen', builder `mappend` B.flush)
   where
-    mkFrame = Frame True False False False
-    builder = encodeFrame $ case msg of
+    mkFrame      = Frame True False False False
+    (mask, gen') = case conType of
+        ServerConnection -> (Nothing, gen)
+        ClientConnection -> randomMask gen
+    builder      = encodeFrame mask $ case msg of
         (ControlMessage (Close pl)) -> mkFrame CloseFrame  pl
         (ControlMessage (Ping pl))  -> mkFrame PingFrame   pl
         (ControlMessage (Pong pl))  -> mkFrame PongFrame   pl
@@ -95,16 +99,25 @@ encodeMessage msg = builder `mappend` B.flush
 
 
 --------------------------------------------------------------------------------
-encodeMessages :: Streams.OutputStream B.Builder
+encodeMessages :: ConnectionType
+               -> Streams.OutputStream B.Builder
                -> IO (Streams.OutputStream Message)
-encodeMessages = Streams.contramap encodeMessage
+encodeMessages conType bStream = do
+    genRef <- newIORef =<< newStdGen
+    Streams.makeOutputStream $ next genRef
+  where
+    next :: RandomGen g => IORef g -> Maybe Message -> IO ()
+    next _      Nothing    = return ()
+    next genRef (Just msg) = do
+        build <- atomicModifyIORef genRef $ \s -> encodeMessage conType s msg
+        Streams.write (Just build) bStream
 
 
 --------------------------------------------------------------------------------
-encodeFrame :: Frame -> B.Builder
-encodeFrame f = B.fromWord8 byte0 `mappend`
-    B.fromWord8 byte1 `mappend` len `mappend`
-    B.fromLazyByteString (framePayload f)
+encodeFrame :: Mask -> Frame -> B.Builder
+encodeFrame mask f = B.fromWord8 byte0 `mappend`
+    B.fromWord8 byte1 `mappend` len `mappend` maskbytes `mappend`
+    B.fromLazyByteString (maskPayload mask (framePayload f))
   where
     byte0  = fin .|. rsv1 .|. rsv2 .|. rsv3 .|. opcode
     fin    = if frameFin f  then 0x80 else 0x00
@@ -119,7 +132,11 @@ encodeFrame f = B.fromWord8 byte0 `mappend`
         PingFrame         -> 0x09
         PongFrame         -> 0x0a
 
-    byte1 = lenflag
+    (maskflag, maskbytes) = case mask of
+        Nothing -> (0x00, mempty)
+        Just m  -> (0x80, B.fromByteString m)
+
+    byte1 = maskflag .|. lenflag
     len'  = BL.length (framePayload f)
     (lenflag, len)
         | len' < 126     = (fromIntegral len', mempty)

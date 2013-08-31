@@ -9,6 +9,8 @@ module Network.WebSockets.Types
 
     , HandshakeException (..)
     , ConnectionException (..)
+
+    , ConnectionType (..)
     ) where
 
 
@@ -110,3 +112,8 @@ data ConnectionException
 
 --------------------------------------------------------------------------------
 instance Exception ConnectionException
+
+
+--------------------------------------------------------------------------------
+data ConnectionType = ServerConnection | ClientConnection
+    deriving (Eq, Ord, Show)

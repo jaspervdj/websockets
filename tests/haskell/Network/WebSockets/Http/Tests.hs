@@ -21,6 +21,7 @@ import           Network.WebSockets.Http
 tests :: Test
 tests = testGroup "Network.WebSockets.Http.Tests"
     [ testCase "jwebsockets response" jWebSocketsResponse
+    , testCase "chromium response"    chromiumResponse
     ]
 
 
@@ -41,4 +42,20 @@ jWebSocketsResponse = assert $ case A.parseOnly decodeResponseHead input of
         , "Set-Cookie: JWSSESSIONID=2e0690e2e328f327056a5676b6a890e3; HttpOnly"
         , ""
         , ""
+        ]
+
+
+--------------------------------------------------------------------------------
+-- | This is a specific response sent by chromium which caused trouble
+chromiumResponse :: Assertion
+chromiumResponse = assert $ case A.parseOnly decodeResponseHead input of
+    Left err -> error err
+    Right _  -> True
+  where
+    input = BC.intercalate "\r\n"
+        [ "HTTP/1.1 500 Internal Error"
+        , "Content-Type:text/html"
+        , "Content-Length:23"
+        , ""
+        , "No such target id: 20_1"
         ]

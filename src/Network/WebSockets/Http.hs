@@ -47,7 +47,7 @@ import           Data.Monoid                        (mappend, mconcat)
 
 --------------------------------------------------------------------------------
 -- | Request headers
-type Headers = [(CI.CI B.ByteString, B.ByteString)]
+type Headers = [(CI.CI ByteString, ByteString)]
 
 
 --------------------------------------------------------------------------------
@@ -138,7 +138,7 @@ encodeRequest (Request head' body) =
 decodeRequestHead :: Bool -> A.Parser RequestHead
 decodeRequestHead isSecure = RequestHead
     <$> requestLine
-    <*> A.manyTill header newline
+    <*> A.manyTill decodeHeaderLine newline
     <*> pure isSecure
   where
     space   = A.word8 (c2w ' ')
@@ -147,12 +147,6 @@ decodeRequestHead isSecure = RequestHead
     requestLine = A.string "GET" *> space *> A.takeWhile1 (/= c2w ' ')
         <* space
         <* A.string "HTTP/1.1" <* newline
-
-    header = (,)
-        <$> (CI.mk <$> A.takeWhile1 (/= c2w ':'))
-        <*  A.string ": "
-        <*> A.takeWhile (/= c2w '\r')
-        <*  newline
 
 
 --------------------------------------------------------------------------------
@@ -197,18 +191,13 @@ decodeResponseHead :: A.Parser ResponseHead
 decodeResponseHead = ResponseHead
     <$> fmap (read . BC.unpack) code
     <*> message
-    <*> A.manyTill header newline
+    <*> A.manyTill decodeHeaderLine newline
   where
     space = A.word8 (c2w ' ')
     newline = A.string "\r\n"
 
     code = A.string "HTTP/1.1" *> space *> A.takeWhile1 (/= c2w ' ') <* space
     message = A.takeWhile1 (/= c2w '\r') <* newline
-    header = (,)
-        <$> (CI.mk <$> A.takeWhile1 (/= c2w ':'))
-        <*  A.string ": "
-        <*> A.takeWhile (/= c2w '\r')
-        <*  newline
 
 
 --------------------------------------------------------------------------------
@@ -236,3 +225,13 @@ getResponseHeader rsp key = case lookup key (responseHeaders rsp) of
 getRequestSecWebSocketVersion :: RequestHead -> Maybe B.ByteString
 getRequestSecWebSocketVersion p =
     lookup "Sec-WebSocket-Version" (requestHeaders p)
+
+
+--------------------------------------------------------------------------------
+decodeHeaderLine :: A.Parser (CI.CI ByteString, ByteString)
+decodeHeaderLine = (,)
+    <$> (CI.mk <$> A.takeWhile1 (/= c2w ':'))
+    <*  A.word8 (c2w ':')
+    <*  A.option (c2w ' ') (A.word8 (c2w ' '))
+    <*> A.takeWhile (/= c2w '\r')
+    <*  A.string "\r\n"

@@ -1,109 +1,108 @@
-{-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
+--------------------------------------------------------------------------------
+{-# LANGUAGE OverloadedStrings #-}
 module Network.WebSockets.Handshake.Tests
     ( tests
     ) where
 
-import Control.Applicative ((<$>))
 
-import Data.ByteString.Char8 ()
-import Data.Enumerator (($$))
-import Data.Maybe (fromJust)
-import Test.Framework (Test, testGroup)
-import Test.Framework.Providers.HUnit (testCase)
-import Test.HUnit (Assertion, assert)
-import qualified Blaze.ByteString.Builder as Builder
-import qualified Data.Attoparsec as A
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as BL
-import qualified Data.Enumerator as E
+--------------------------------------------------------------------------------
+import           Control.Concurrent             (forkIO)
+import           Control.Exception              (handle)
+import           Data.ByteString.Char8          ()
+import           Data.Maybe                     (fromJust)
+import qualified System.IO.Streams.Attoparsec   as Streams
+import qualified System.IO.Streams.Builder      as Streams
+import           Test.Framework                 (Test, testGroup)
+import           Test.Framework.Providers.HUnit (testCase)
+import           Test.HUnit                     (Assertion, (@?=))
 
-import Network.WebSockets
-import Network.WebSockets.Handshake.Http
-import Network.WebSockets.Protocol.Hybi00.Internal
-import Network.WebSockets.Protocol.Hybi13.Internal
-import Network.WebSockets.Tests.Util.Http
-import Network.WebSockets.Tests.Util.IterAccum
 
+--------------------------------------------------------------------------------
+import           Network.WebSockets
+import           Network.WebSockets.Connection
+import           Network.WebSockets.Http
+import           Network.WebSockets.Tests.Util
+
+
+--------------------------------------------------------------------------------
 tests :: Test
 tests = testGroup "Network.WebSockets.Handshake.Test"
-    [ testCase "handshakeHybi00"   handshakeHybi00
-    , testCase "handshakeHybi13"   handshakeHybi13
-    , testCase "handshakeHybi9000" handshakeHybi9000
-    , testCase "handshakeReject"   handshakeReject
+    [ testCase "handshake Hybi13"   testHandshakeHybi13
+    , testCase "handshake reject"   testHandshakeReject
+    , testCase "handshake Hybi9000" testHandshakeHybi9000
     ]
 
-testHandshake :: forall p. Protocol p
-              => (Request -> WebSockets p ()) -> p -> RequestBody
-              -> IO ResponseBody
-testHandshake app _ rq = do
-    ia <- newIterAccum
-    -- Encode request
-    let bs = B.concat $ BL.toChunks $ Builder.toLazyByteString $
-                encodeRequestBody rq
-    -- Ignore possible error, we can inspect it using the response anyway
-    -- TODO: also test secure handshake?
-    _ <- E.run $ E.enumList 1 [bs] $$
-        runWebSocketsHandshake False app (getIter ia)
 
-    rsp <- A.parseOnly decodeResponseBody . B.concat <$> getAccum ia
-    return $ either error id rsp
+--------------------------------------------------------------------------------
+testHandshake :: RequestHead -> (PendingConnection -> IO a) -> IO ResponseHead
+testHandshake rq app = do
+    (is, os) <- makeChanPipe
+    os'      <- Streams.builderStream os
+    _        <- forkIO $ app (PendingConnection rq is os') >> return ()
+    Streams.parseFromStream decodeResponseHead is
 
-testHandshakeAccept :: Protocol p => p -> RequestBody -> IO ResponseBody
-testHandshakeAccept = testHandshake acceptRequest
 
+--------------------------------------------------------------------------------
 (!) :: Eq a => [(a, b)] -> a -> b
 assoc ! key = fromJust (lookup key assoc)
 
--- The sample from the -00 spec.
-rq00 :: RequestBody
-rq00 = exampleRequest Hybi00_
 
-handshakeHybi00 :: Assertion
-handshakeHybi00 = testHandshakeAccept Hybi00_ rq00 >>=
-    \(ResponseBody (ResponseHttpPart code message headers) body) -> assert $
-        code == 101 &&
-        message == "WebSocket Protocol Handshake" &&
-        headers ! "Sec-WebSocket-Location" == "ws://example.com/demo" &&
-        headers ! "Sec-WebSocket-Origin" == "http://example.com" &&
-        body == "8jKS'y:G*Co,Wxa-"
+--------------------------------------------------------------------------------
+rq13 :: RequestHead
+rq13 = RequestHead "/mychat"
+    [ ("Host", "server.example.com")
+    , ("Upgrade", "websocket")
+    , ("Connection", "Upgrade")
+    , ("Sec-WebSocket-Key", "x3JJHMbDL1EzLkh9GBhXDw==")
+    , ("Sec-WebSocket-Protocol", "chat")
+    , ("Sec-WebSocket-Version", "13")
+    , ("Origin", "http://example.com")
+    ]
+    False
 
--- The sample from the -10 spec.
-rq10 :: RequestBody
-rq10 = exampleRequest Hybi10_
 
-handshakeHybi10 :: Assertion
-handshakeHybi10 = testHandshakeAccept Hybi10_ rq10 >>=
-    \(ResponseBody (ResponseHttpPart code message headers) body) -> assert $
-        code == 101 &&
-        message == "WebSocket Protocol Handshake" &&
-        headers ! "Sec-WebSocket-Accept" == "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=" &&
-        body == ""
+--------------------------------------------------------------------------------
+testHandshakeHybi13 :: Assertion
+testHandshakeHybi13 = do
+    ResponseHead code message headers <- testHandshake rq13 acceptRequest
 
+    code @?= 101
+    message @?= "WebSocket Protocol Handshake"
+    headers ! "Sec-WebSocket-Accept" @?= "HSmrc0sMlYUkAGmm5OPpG2HaGWk="
+    headers ! "Connection"           @?= "Upgrade"
+
+
+--------------------------------------------------------------------------------
+testHandshakeReject :: Assertion
+testHandshakeReject = do
+    ResponseHead code _ _ <- testHandshake rq13 $ \pc ->
+        rejectRequest pc "YOU SHALL NOT PASS"
+
+    code @?= 400
+
+
+--------------------------------------------------------------------------------
 -- I don't believe this one is supported yet
-rq9000 :: RequestBody
-rq9000 = RequestBody
-    ( RequestHttpPart "/chat"
-      [ ("Host", "server.example.com")
-      , ("Upgrade", "websocket")
-      , ("Connection", "Upgrade")
-      , ("Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ==")
-      , ("Sec-WebSocket-Origin", "http://example.com")
-      , ("Sec-WebSocket-Protocol", "chat, superchat")
-      , ("Sec-WebSocket-Version", "9000")
-      ]
-      False
-    )
-    ""
+rq9000 :: RequestHead
+rq9000 = RequestHead "/chat"
+    [ ("Host", "server.example.com")
+    , ("Upgrade", "websocket")
+    , ("Connection", "Upgrade")
+    , ("Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ==")
+    , ("Sec-WebSocket-Origin", "http://example.com")
+    , ("Sec-WebSocket-Protocol", "chat, superchat")
+    , ("Sec-WebSocket-Version", "9000")
+    ]
+    False
 
-handshakeHybi9000 :: Assertion
-handshakeHybi9000 = testHandshakeAccept Hybi10_ rq9000 >>=
-    \(ResponseBody (ResponseHttpPart code _ headers) body) -> assert $
-        code == 400 &&
-        headers ! "Sec-WebSocket-Version" == "13, 8, 7" &&
-        body == ""
 
-handshakeReject :: Assertion
-handshakeReject = testHandshake (flip rejectRequest "YOU SHALL NOT PASS")
-    Hybi10_ rq9000 >>=
-        \(ResponseBody (ResponseHttpPart code _ _) body) -> assert $
-            code == 400 && body == ""
+--------------------------------------------------------------------------------
+testHandshakeHybi9000 :: Assertion
+testHandshakeHybi9000 = do
+    ResponseHead code _ headers <- testHandshake rq9000 $ \pc ->
+        flip handle (acceptRequest pc) $ \e -> case e of
+            NotSupported -> return undefined
+            _            -> error $ "Unexpected Exception: " ++ show e
+
+    code @?= 400
+    headers ! "Sec-WebSocket-Version" @?= "13"

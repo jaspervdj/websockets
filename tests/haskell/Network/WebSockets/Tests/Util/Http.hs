@@ -1,3 +1,4 @@
+--------------------------------------------------------------------------------
 -- | HTTP utilities
 {-# LANGUAGE OverloadedStrings #-}
 module Network.WebSockets.Tests.Util.Http
@@ -5,17 +6,22 @@ module Network.WebSockets.Tests.Util.Http
     , decodeResponseBody
     ) where
 
-import Control.Applicative ((<$>), (<*>))
 
+--------------------------------------------------------------------------------
+import Control.Applicative ((<$>), (<*>))
 import qualified Data.Attoparsec as A
 
-import Network.WebSockets.Handshake.Http
-import Network.WebSockets.Protocol.Hybi00.Internal
-import Network.WebSockets.Protocol.Hybi13.Internal
 
+--------------------------------------------------------------------------------
+import Network.WebSockets.Http
+
+
+--------------------------------------------------------------------------------
 class ExampleRequest p where
     exampleRequest :: p -> RequestBody
 
+
+--------------------------------------------------------------------------------
 instance ExampleRequest Hybi00_ where
     exampleRequest _ = RequestBody
         ( RequestHttpPart "/demo"
@@ -30,24 +36,3 @@ instance ExampleRequest Hybi00_ where
           False
         )
         "^n:ds[4U"
-
-instance ExampleRequest Hybi10_ where
-    exampleRequest _ = RequestBody
-        ( RequestHttpPart "/chat"
-          [ ("Host", "server.example.com")
-          , ("Upgrade", "websocket")
-          , ("Connection", "Upgrade")
-          , ("Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ==")
-          , ("Sec-WebSocket-Origin", "http://example.com")
-          , ("Sec-WebSocket-Protocol", "chat, superchat")
-          , ("Sec-WebSocket-Version", "8")
-          ]
-          False
-        )
-        ""
-
-
-decodeResponseBody :: A.Parser ResponseBody
-decodeResponseBody = ResponseBody
-    <$> decodeResponse
-    <*> A.takeByteString

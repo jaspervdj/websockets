@@ -17,6 +17,7 @@ module Network.WebSockets.Http
     , encodeResponseHead
     , encodeResponse
     , decodeResponseHead
+    , decodeResponse
 
     , response101
     , response400
@@ -198,6 +199,11 @@ decodeResponseHead = ResponseHead
 
     code = A.string "HTTP/1.1" *> space *> A.takeWhile1 (/= c2w ' ') <* space
     message = A.takeWhile1 (/= c2w '\r') <* newline
+
+
+--------------------------------------------------------------------------------
+decodeResponse :: A.Parser Response
+decodeResponse = Response <$> decodeResponseHead <*> A.takeByteString
 
 
 --------------------------------------------------------------------------------

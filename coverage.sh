@@ -1,13 +1,13 @@
 #!/bin/bash
 
 EXCLUDES=$(find tests/haskell -name '*.hs' |
-        xargs sed -n 's/^module //p' |
-        sed 's/^/--exclude=/' |
-        xargs echo)
+    xargs sed -n 's/^module //p' |
+    sed 's/^/--exclude=/' |
+    xargs echo)
 
 TARGET=websockets-tests
 
-cabal configure --enable-tests && cabal build
+cabal configure --enable-tests --ghc-options='-fhpc' && cabal build
 ./dist/build/$TARGET/$TARGET
 
 mkdir -p tests/coverage

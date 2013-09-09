@@ -1,4 +1,5 @@
 --------------------------------------------------------------------------------
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Network.WebSockets.Server.Tests
     ( tests
@@ -6,40 +7,32 @@ module Network.WebSockets.Server.Tests
 
 
 --------------------------------------------------------------------------------
-import           Control.Applicative                         ((<$>))
-import           Control.Concurrent                          (forkIO,
-                                                              killThread,
-                                                              threadDelay)
-import           Control.Exception                           (SomeException,
-                                                              handle)
-import           Control.Monad                               (forM_, forever,
-                                                              replicateM)
+import           Control.Applicative            ((<$>))
+import           Control.Concurrent             (forkIO, killThread,
+                                                 threadDelay)
+import           Control.Exception              (SomeException, handle)
+import           Control.Monad                  (forM_, forever, replicateM)
 
 
 --------------------------------------------------------------------------------
-import qualified Data.ByteString.Lazy                        as BL
-import           System.Random                               (newStdGen)
-import           Test.Framework                              (Test, testGroup)
-import           Test.Framework.Providers.HUnit              (testCase)
-import           Test.HUnit                                  (Assertion, (@=?))
-import           Test.QuickCheck                             (Arbitrary,
-                                                              arbitrary)
-import           Test.QuickCheck.Gen                         (Gen (..))
+import qualified Data.ByteString.Lazy           as BL
+import           System.Random                  (newStdGen)
+import           Test.Framework                 (Test, testGroup)
+import           Test.Framework.Providers.HUnit (testCase)
+import           Test.HUnit                     (Assertion, (@=?))
+import           Test.QuickCheck                (Arbitrary, arbitrary)
+import           Test.QuickCheck.Gen            (Gen (..))
 
 
 --------------------------------------------------------------------------------
 import           Network.WebSockets
-import           Network.WebSockets.Protocol.Hybi13.Internal
 import           Network.WebSockets.Tests.Util
-import           Network.WebSockets.Tests.Util.Http
 
 
 --------------------------------------------------------------------------------
 tests :: Test
 tests = testGroup "Network.WebSockets.Server.Tests"
-    [ testCase "sendReceive-hybi10" (sendReceive Hybi13)
-    -- TODO: Write client calls for Hybi00?
-    -- , testCase "sendReceive-hybi00" (sendReceive Hybi00_)
+    [ testCase "server/client" testServerClient
     ]
 
 
@@ -51,31 +44,31 @@ sample = do
 
 
 --------------------------------------------------------------------------------
-sendReceive :: Protocol -> Assertion
-sendReceive protocol = do
+testServerClient :: Assertion
+testServerClient = do
     serverThread <- forkIO $ retry $ runServer "0.0.0.0" 42940 server
     waitSome
     texts  <- map unArbitraryUtf8 <$> sample
-    texts' <- retry $ connect "127.0.0.1" 42940 "/chat" $ client' texts
+    texts' <- retry $ runClient "127.0.0.1" 42940 "/chat" $ client texts
     waitSome
     killThread serverThread
     texts @=? texts'
   where
     waitSome = threadDelay $ 200 * 1000
 
-    server :: Request -> WebSockets p ()
-    server rq = flip catchWsError (\_ -> return ()) $ do
-        acceptRequest rq
+    server :: ServerApp
+    server pc = do
+        conn <- acceptRequest pc
         forever $ do
-            text <- receiveData
-            sendTextData (text :: BL.ByteString)
+            text <- receiveData conn
+            sendTextData conn (text :: BL.ByteString)
 
-    client' :: [BL.ByteString] -> WebSockets p [BL.ByteString]
-    client' texts = do
-        -- sendBuilder $ encodeRequestBody $ exampleRequest proto
-        forM_ texts sendTextData
-        replicateM (length texts) $ do
-            receiveData
+    client :: [BL.ByteString] -> ClientApp [BL.ByteString]
+    client texts conn = do
+        forM_ texts (sendTextData conn)
+        texts' <- replicateM (length texts) (receiveData conn)
+        sendClose conn ("Bye" :: BL.ByteString)
+        return texts'
 
     -- HOLY SHIT WHAT SORT OF ATROCITY IS THIS?!?!?!
     --

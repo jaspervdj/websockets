@@ -3,7 +3,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Network.WebSockets.Tests
     ( tests
-    , ArbitraryUtf8 (..)
     ) where
 
 

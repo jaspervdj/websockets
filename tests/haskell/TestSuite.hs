@@ -1,14 +1,17 @@
-import Test.Framework (defaultMain)
+--------------------------------------------------------------------------------
+import           Test.Framework                     (defaultMain)
 
-import qualified Network.WebSockets.Tests
-import qualified Network.WebSockets.Handshake.Http.Tests
+
+--------------------------------------------------------------------------------
 import qualified Network.WebSockets.Handshake.Tests
-import qualified Network.WebSockets.Socket.Tests
+import qualified Network.WebSockets.Http.Tests
+import qualified Network.WebSockets.Server.Tests
 
+
+--------------------------------------------------------------------------------
 main :: IO ()
 main = defaultMain
-    [ Network.WebSockets.Tests.tests
-    , Network.WebSockets.Handshake.Http.Tests.tests
-    , Network.WebSockets.Handshake.Tests.tests
-    , Network.WebSockets.Socket.Tests.tests
+    [ Network.WebSockets.Handshake.Tests.tests
+    , Network.WebSockets.Http.Tests.tests
+    , Network.WebSockets.Server.Tests.tests
     ]

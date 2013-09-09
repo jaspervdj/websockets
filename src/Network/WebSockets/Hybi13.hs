@@ -104,7 +104,7 @@ encodeMessages :: ConnectionType
                -> IO (Streams.OutputStream Message)
 encodeMessages conType bStream = do
     genRef <- newIORef =<< newStdGen
-    Streams.makeOutputStream $ next genRef
+    Streams.lockingOutputStream =<< Streams.makeOutputStream (next genRef)
   where
     next :: RandomGen g => IORef g -> Maybe Message -> IO ()
     next _      Nothing    = return ()

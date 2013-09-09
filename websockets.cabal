@@ -45,45 +45,35 @@ Library
 
   Exposed-modules:
     Network.WebSockets
-    Network.WebSockets.Internal
-    Network.WebSockets.Util.PubSub
+    Network.WebSockets.Connection
+    -- Network.WebSockets.Util.PubSub TODO
 
   Other-modules:
     Network.WebSockets.Client
-    Network.WebSockets.Handshake
-    Network.WebSockets.Handshake.Http
-    Network.WebSockets.Monad
+    Network.WebSockets.Http
+    Network.WebSockets.Hybi13
+    Network.WebSockets.Hybi13.Demultiplex
+    Network.WebSockets.Hybi13.Mask
     Network.WebSockets.Protocol
-    Network.WebSockets.Protocol.Hybi00
-    Network.WebSockets.Protocol.Hybi00.Internal
-    Network.WebSockets.Protocol.Hybi13
-    Network.WebSockets.Protocol.Hybi13.Demultiplex
-    Network.WebSockets.Protocol.Hybi13.Internal
-    Network.WebSockets.Protocol.Hybi13.Mask
-    Network.WebSockets.Protocol.Unsafe
-    Network.WebSockets.Socket
+    Network.WebSockets.Server
     Network.WebSockets.Types
 
   Build-depends:
-    attoparsec               >= 0.9    && < 0.11,
-    attoparsec-enumerator    >= 0.2    && < 0.4,
-    base                     >= 4      && < 5,
-    base64-bytestring        >= 0.1    && < 1.1,
-    binary                   >= 0.5    && < 0.7,
-    blaze-builder            >= 0.3    && < 0.4,
-    blaze-builder-enumerator >= 0.2    && < 0.3,
-    bytestring               >= 0.9    && < 0.11,
-    case-insensitive         >= 0.3    && < 1.1,
-    containers               >= 0.3    && < 0.6,
-    enumerator               >= 0.4.13 && < 0.5,
-    mtl                      >= 2.0    && < 2.2,
-    network                  >= 2.3    && < 2.5,
-    network-enumerator       >= 0.1    && < 0.2,
-    random                   >= 1.0    && < 1.1,
-    SHA                      >= 1.5    && < 1.7,
-    text                     >= 0.10   && < 0.12,
-    pureMD5                  >= 0.2.2  && < 2.2,
-    entropy                  >= 0.2.1  && < 0.3
+    attoparsec        >= 0.9    && < 0.11,
+    base              >= 4      && < 5,
+    base64-bytestring >= 0.1    && < 1.1,
+    binary            >= 0.5    && < 0.7,
+    blaze-builder     >= 0.3    && < 0.4,
+    bytestring        >= 0.9    && < 0.11,
+    case-insensitive  >= 0.3    && < 1.1,
+    containers        >= 0.3    && < 0.6,
+    io-streams        >= 1.1    && < 1.2,
+    mtl               >= 2.0    && < 2.2,
+    network           >= 2.3    && < 2.5,
+    random            >= 1.0    && < 1.1,
+    SHA               >= 1.5    && < 1.7,
+    text              >= 0.10   && < 0.12,
+    entropy           >= 0.2.1  && < 0.3
 
 Test-suite websockets-tests
   Type:           exitcode-stdio-1.0
@@ -98,25 +88,21 @@ Test-suite websockets-tests
     test-framework-hunit       >= 0.2 && < 0.4,
     test-framework-quickcheck2 >= 0.2 && < 0.4,
     -- Copied from regular dependencies...
-    attoparsec               >= 0.9    && < 0.11,
-    attoparsec-enumerator    >= 0.2    && < 0.4,
-    base                     >= 4      && < 5,
-    base64-bytestring        >= 0.1    && < 1.1,
-    binary                   >= 0.5    && < 0.7,
-    blaze-builder            >= 0.3    && < 0.4,
-    blaze-builder-enumerator >= 0.2    && < 0.3,
-    bytestring               >= 0.9    && < 0.11,
-    case-insensitive         >= 0.3    && < 1.1,
-    containers               >= 0.3    && < 0.6,
-    enumerator               >= 0.4.13 && < 0.5,
-    mtl                      >= 2.0    && < 2.2,
-    network                  >= 2.3    && < 2.5,
-    network-enumerator       >= 0.1    && < 0.2,
-    random                   >= 1.0    && < 1.1,
-    SHA                      >= 1.5    && < 1.7,
-    text                     >= 0.10   && < 0.12,
-    pureMD5                  >= 0.2.2  && < 2.2,
-    entropy                  >= 0.2.1  && < 0.3
+    attoparsec        >= 0.9    && < 0.11,
+    base              >= 4      && < 5,
+    base64-bytestring >= 0.1    && < 1.1,
+    binary            >= 0.5    && < 0.7,
+    blaze-builder     >= 0.3    && < 0.4,
+    bytestring        >= 0.9    && < 0.11,
+    case-insensitive  >= 0.3    && < 1.1,
+    containers        >= 0.3    && < 0.6,
+    io-streams        >= 1.1    && < 1.2,
+    mtl               >= 2.0    && < 2.2,
+    network           >= 2.3    && < 2.5,
+    random            >= 1.0    && < 1.1,
+    SHA               >= 1.5    && < 1.7,
+    text              >= 0.10   && < 0.12,
+    entropy           >= 0.2.1  && < 0.3
 
 Source-repository head
   Type:     git

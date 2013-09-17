@@ -6,6 +6,7 @@ module Network.WebSockets.Client
     , runClient
     , runClientWith
     , runClientWithSocket
+    , runClientWithStream
     ) where
 
 
@@ -13,6 +14,7 @@ module Network.WebSockets.Client
 import qualified Blaze.ByteString.Builder      as Builder
 import           Control.Applicative           ((<$>))
 import           Control.Exception             (finally)
+import qualified Data.ByteString               as B
 import qualified Data.ByteString.Char8         as BC
 import qualified Data.Text                     as T
 import qualified Data.Text.Encoding            as T
@@ -29,6 +31,7 @@ import           Network.WebSockets.Types
 
 
 --------------------------------------------------------------------------------
+type ByteStream = (Streams.InputStream B.ByteString, Streams.OutputStream B.ByteString)
 type ClientApp a = Connection -> IO a
 
 
@@ -69,9 +72,7 @@ runClientWith host port path origin wsProtocols app = do
     -- Clean up
     return res
 
-
---------------------------------------------------------------------------------
-runClientWithSocket :: S.Socket        -- ^ Socket
+runClientWithStream :: ByteStream      -- ^ Stream
                     -> String          -- ^ Host
                     -> String          -- ^ Path
                     -> Maybe String    -- ^ Origin, if Nothing then server
@@ -80,10 +81,9 @@ runClientWithSocket :: S.Socket        -- ^ Socket
                     -> Maybe [String]  -- ^ Protocol List
                     -> ClientApp a     -- ^ Client application
                     -> IO a
-runClientWithSocket sock host path origin wsProtocols app = do
+runClientWithStream (sIn, sOut) host path origin wsProtocols app = do
     -- Create the request and send it
     request     <- createRequest protocol bHost bPath bOrigin bWsProtocols False
-    (sIn, sOut) <- Streams.socketToStreams sock
     bOut        <- Streams.builderStream sOut
     Streams.write (Just $ encodeRequestHead request) bOut
     Streams.write (Just Builder.flush)               bOut
@@ -104,3 +104,17 @@ runClientWithSocket sock host path origin wsProtocols app = do
     bPath         = T.encodeUtf8 $ T.pack path
     bOrigin       = T.encodeUtf8 . T.pack <$> origin
     bWsProtocols  = map BC.pack <$> wsProtocols
+
+--------------------------------------------------------------------------------
+runClientWithSocket :: S.Socket        -- ^ Socket
+                    -> String          -- ^ Host
+                    -> String          -- ^ Path
+                    -> Maybe String    -- ^ Origin, if Nothing then server
+                                       --   interprets connection as not coming
+                                       --   from a browser.
+                    -> Maybe [String]  -- ^ Protocol List
+                    -> ClientApp a     -- ^ Client application
+                    -> IO a
+runClientWithSocket sock host path origin wsProtocols app = do
+    stream <- Streams.socketToStreams sock
+    runClientWithStream stream host path origin wsProtocols app

@@ -125,6 +125,7 @@ module Network.WebSockets
     , runClient
     , runClientWith
     , runClientWithSocket
+    , runClientWithStream
     ) where
 
 

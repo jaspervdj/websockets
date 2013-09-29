@@ -60,9 +60,7 @@ acceptRequest pc = case find (flip compatible request) protocols of
         throw NotSupported
     Just protocol -> do
         let response = finishRequest protocol request
-        putStrLn "Sending response..."  -- DEBUG
         sendResponse pc response
-        putStrLn "Response sent."  -- DEBUG
         msgIn  <- decodeMessages protocol (pendingIn pc)
         msgOut <- encodeMessages protocol ServerConnection (pendingOut pc)
         return Connection

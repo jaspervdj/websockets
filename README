@@ -9,25 +9,19 @@ Haskell.
 
 The following program echoes messages back after appending `meow`:
 
-    meow :: TextProtocol p => WebSockets p ()
-    meow = forever $ do
-        msg <- receiveData
-        sendTextData $ msg `T.append` ", meow."
+    {-# LANGUAGE OverloadedStrings #-}
+    import           Control.Monad      (forever)
+    import qualified Data.Text          as T
+    import qualified Network.WebSockets as WS
+
+    meow :: WS.Connection -> IO ()
+    meow conn = forever $ do
+        msg <- WS.receiveData conn
+        WS.sendTextData conn $ msg `T.append` ", meow"
 
 Installation is provided using cabal:
 
     cabal install websockets
-
-Compatibility
--------------
-
-The `Hybi00`, `Hybi10` and `Rfc6455` protocols are all supported by the library.
-
-Protocol  Firefox  Chrome  Opera  Safari
---------- -------- ------- ------ ---------
-`Hybi00`  >= 4     >= 6    >= 11  >= 5.0.1
-`Hybi10`  >= 7     >= 14
-`Rfc6455`          >- 16
 
 Authors
 -------

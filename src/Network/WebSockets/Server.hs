@@ -61,7 +61,6 @@ runApp socket app = do
     bOut        <- Streams.builderStream sOut
     -- TODO: we probably want to send a 40x if the request is bad?
     request     <- Streams.parseFromStream (decodeRequestHead False) sIn
-    putStrLn "Parsed request"  -- DEBUG
     let pc = PendingConnection
                 { pendingRequest = request
                 , pendingIn      = sIn

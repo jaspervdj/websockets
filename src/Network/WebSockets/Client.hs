@@ -31,7 +31,6 @@ import           Network.WebSockets.Types
 
 
 --------------------------------------------------------------------------------
-type ByteStream = (Streams.InputStream B.ByteString, Streams.OutputStream B.ByteString)
 type ClientApp a = Connection -> IO a
 
 
@@ -72,15 +71,23 @@ runClientWith host port path origin wsProtocols app = do
     -- Clean up
     return res
 
-runClientWithStream :: ByteStream      -- ^ Stream
-                    -> String          -- ^ Host
-                    -> String          -- ^ Path
-                    -> Maybe String    -- ^ Origin, if Nothing then server
-                                       --   interprets connection as not coming
-                                       --   from a browser.
-                    -> Maybe [String]  -- ^ Protocol List
-                    -> ClientApp a     -- ^ Client application
-                    -> IO a
+
+--------------------------------------------------------------------------------
+runClientWithStream
+    :: (Streams.InputStream B.ByteString, Streams.OutputStream B.ByteString)
+    -- ^ Stream
+    -> String
+    -- ^ Host
+    -> String
+    -- ^ Path
+    -> Maybe String
+    -- ^ Origin, if Nothing then server interprets connection as not coming from
+    -- a browser.
+    -> Maybe [String]
+    -- ^ Protocol List
+    -> ClientApp a
+    -- ^ Client application
+    -> IO a
 runClientWithStream (sIn, sOut) host path origin wsProtocols app = do
     -- Create the request and send it
     request     <- createRequest protocol bHost bPath bOrigin bWsProtocols False
@@ -104,6 +111,7 @@ runClientWithStream (sIn, sOut) host path origin wsProtocols app = do
     bPath         = T.encodeUtf8 $ T.pack path
     bOrigin       = T.encodeUtf8 . T.pack <$> origin
     bWsProtocols  = map BC.pack <$> wsProtocols
+
 
 --------------------------------------------------------------------------------
 runClientWithSocket :: S.Socket        -- ^ Socket

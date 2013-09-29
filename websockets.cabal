@@ -7,10 +7,11 @@ Synopsis:
 Description:
  This library allows you to write WebSocket-capable servers.
  .
- See an example: <http://jaspervdj.be/websockets/example.html>.
+ An example server:
+ <https://github.com/jaspervdj/websockets/blob/master/example/server.lhs>
  .
- The API of the 'Network.WebSockets' module should also contain enough
- information to get you started.
+ An example client:
+ <https://github.com/jaspervdj/websockets/blob/master/example/client.hs>
  .
  See also:
  .

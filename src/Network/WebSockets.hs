@@ -46,6 +46,9 @@ module Network.WebSockets
     , runClientWith
     , runClientWithSocket
     , runClientWithStream
+
+      -- * Closing a connection
+    , close
     ) where
 
 

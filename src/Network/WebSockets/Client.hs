@@ -13,7 +13,6 @@ module Network.WebSockets.Client
 --------------------------------------------------------------------------------
 import qualified Blaze.ByteString.Builder      as Builder
 import           Control.Applicative           ((<$>))
-import           Control.Exception             (finally)
 import qualified Data.ByteString               as B
 import qualified Data.ByteString.Char8         as BC
 import qualified Data.Text                     as T
@@ -25,6 +24,7 @@ import qualified System.IO.Streams.Attoparsec  as Streams
 
 --------------------------------------------------------------------------------
 import           Network.WebSockets.Connection
+import           Network.WebSockets.Finalizer
 import           Network.WebSockets.Http
 import           Network.WebSockets.Protocol
 import           Network.WebSockets.Types
@@ -62,20 +62,18 @@ runClientWith host port path origin wsProtocols app = do
     sock      <- S.socket S.AF_INET S.Stream S.defaultProtocol
     addrInfos <- S.getAddrInfo (Just hints) (Just host) (Just $ show port)
     S.connect sock (S.addrAddress $ head addrInfos)
+    streams   <- Streams.socketToStreams sock
 
     -- Connect WebSocket and run client
-    res <- finally
-        (runClientWithSocket sock host path origin wsProtocols app)
-        (S.sClose sock)
-
-    -- Clean up
-    return res
+    runClientWithStream streams (S.sClose sock) host path origin wsProtocols app
 
 
 --------------------------------------------------------------------------------
 runClientWithStream
     :: (Streams.InputStream B.ByteString, Streams.OutputStream B.ByteString)
     -- ^ Stream
+    -> IO ()
+    -- ^ Close underlying stream
     -> String
     -- ^ Host
     -> String
@@ -88,7 +86,9 @@ runClientWithStream
     -> ClientApp a
     -- ^ Client application
     -> IO a
-runClientWithStream (sIn, sOut) host path origin wsProtocols app = do
+runClientWithStream (sIn, sOut) close' host path origin wsProtocols app = do
+    -- Make finalizer first so we definitely close the socket
+    finalizer    <- mkFinalizer close'
     -- Create the request and send it
     request     <- createRequest protocol bHost bPath bOrigin bWsProtocols False
     bOut        <- Streams.builderStream sOut
@@ -100,10 +100,11 @@ runClientWithStream (sIn, sOut) host path origin wsProtocols app = do
     mIn          <- decodeMessages protocol sIn
     mOut         <- encodeMessages protocol ClientConnection bOut
     app Connection
-        { connectionType     = ClientConnection
-        , connectionProtocol = protocol
-        , connectionIn       = mIn
-        , connectionOut      = mOut
+        { connectionType      = ClientConnection
+        , connectionProtocol  = protocol
+        , connectionIn        = mIn
+        , connectionOut       = mOut
+        , connectionFinalizer = finalizer
         }
   where
     protocol      = defaultProtocol  -- TODO
@@ -114,6 +115,8 @@ runClientWithStream (sIn, sOut) host path origin wsProtocols app = do
 
 
 --------------------------------------------------------------------------------
+-- | Run the client with an existing socket. In this case, you will be
+-- responsible for closing the socket after the client finishes.
 runClientWithSocket :: S.Socket        -- ^ Socket
                     -> String          -- ^ Host
                     -> String          -- ^ Path
@@ -125,4 +128,4 @@ runClientWithSocket :: S.Socket        -- ^ Socket
                     -> IO a
 runClientWithSocket sock host path origin wsProtocols app = do
     stream <- Streams.socketToStreams sock
-    runClientWithStream stream host path origin wsProtocols app
+    runClientWithStream stream (return ()) host path origin wsProtocols app

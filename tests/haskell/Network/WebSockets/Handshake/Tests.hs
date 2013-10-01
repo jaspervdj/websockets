@@ -20,6 +20,7 @@ import           Test.HUnit                     (Assertion, (@?=))
 --------------------------------------------------------------------------------
 import           Network.WebSockets
 import           Network.WebSockets.Connection
+import           Network.WebSockets.Finalizer
 import           Network.WebSockets.Http
 import           Network.WebSockets.Tests.Util
 
@@ -38,7 +39,8 @@ testHandshake :: RequestHead -> (PendingConnection -> IO a) -> IO ResponseHead
 testHandshake rq app = do
     (is, os) <- makeChanPipe
     os'      <- Streams.builderStream os
-    _        <- forkIO $ app (PendingConnection rq is os') >> return ()
+    _        <- forkIO $
+        app (PendingConnection rq is os' emptyFinalizer) >> return ()
     Streams.parseFromStream decodeResponseHead is
 
 

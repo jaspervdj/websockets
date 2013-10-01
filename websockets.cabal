@@ -40,6 +40,10 @@ Cabal-version: >= 1.8
 Homepage:    http://jaspervdj.be/websockets
 Bug-reports: https://github.com/jaspervdj/websockets/issues
 
+Flag debug
+  Default:     False
+  Description: Print debug output
+
 Library
   Hs-source-dirs: src
   Ghc-options:    -Wall
@@ -51,6 +55,8 @@ Library
 
   Other-modules:
     Network.WebSockets.Client
+    Network.WebSockets.Debug
+    Network.WebSockets.Finalizer
     Network.WebSockets.Http
     Network.WebSockets.Hybi13
     Network.WebSockets.Hybi13.Demultiplex

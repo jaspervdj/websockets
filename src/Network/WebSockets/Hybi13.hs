@@ -8,6 +8,9 @@ module Network.WebSockets.Hybi13
     , encodeMessages
     , decodeMessages
     , createRequest
+
+      -- Internal (used for testing)
+    , encodeFrame
     ) where
 
 

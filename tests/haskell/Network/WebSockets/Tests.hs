@@ -7,26 +7,16 @@ module Network.WebSockets.Tests
 
 
 --------------------------------------------------------------------------------
-import           Control.Applicative                   (pure, (<$>))
-import           Control.Concurrent                    (forkIO, threadDelay)
-import           Control.Concurrent.MVar               (newEmptyMVar, putMVar,
-                                                        takeMVar)
-import           Control.Exception                     (fromException)
-import           Control.Monad                         (forM_, replicateM)
-import           Control.Monad.Trans                   (liftIO)
+import qualified Blaze.ByteString.Builder              as Builder
+import           Control.Applicative                   ((<$>))
+import           Control.Monad                         (replicateM)
 import qualified Data.ByteString.Lazy                  as BL
+import           Data.List                             (intersperse)
 import           Data.Maybe                            (catMaybes)
-import qualified Data.Set                              as S
-import qualified Data.Text                             as T
-import qualified Data.Text.Lazy                        as TL
 import qualified System.IO.Streams                     as Streams
-import qualified System.IO.Streams.Builder             as Streams
-import qualified System.IO.Streams.List                as Streams
 import           Test.Framework                        (Test, testGroup)
-import           Test.Framework.Providers.HUnit        (testCase)
 import           Test.Framework.Providers.QuickCheck2  (testProperty)
 import           Test.HUnit                            ((@=?))
-import qualified Test.HUnit                            as HU
 import           Test.QuickCheck                       (Arbitrary (..), Gen,
                                                         Property)
 import qualified Test.QuickCheck                       as QC
@@ -35,6 +25,7 @@ import qualified Test.QuickCheck.Monadic               as QC
 
 --------------------------------------------------------------------------------
 import           Network.WebSockets
+import qualified Network.WebSockets.Hybi13             as Hybi13
 import           Network.WebSockets.Hybi13.Demultiplex
 import           Network.WebSockets.Protocol
 import           Network.WebSockets.Tests.Util
@@ -45,6 +36,7 @@ import           Network.WebSockets.Types
 tests :: Test
 tests = testGroup "Network.WebSockets.Test"
     [ testProperty "simple encode/decode Hybi13" (testSimpleEncodeDecode Hybi13)
+    , testProperty "framgmented Hybi13"          testFragmentedHybi13
     ]
 
 
@@ -60,45 +52,30 @@ testSimpleEncodeDecode protocol = QC.monadicIO $
         msgs' <- catMaybes <$> replicateM (length msgs) (Streams.read is')
         msgs @=? msgs'
 
-{-
-    [ testProperty "sendReceive-hybi10"       (sendReceive Hybi10_)
-    , testProperty "sendReceive-hybi00"       (sendReceiveHybi00 Hybi00_)
-    , testProperty "sendReceiveTextData-hybi10"
-        (sendReceiveTextData Hybi10_)
-    , testProperty "sendReceiveTextData-hybi00"
-        (sendReceiveTextData Hybi00_)
-    , testProperty "sendReceiveFragmented-hybi10" sendReceiveFragmentedHybi10
-    , testProperty "sendReceiveClose-hybi10"  (sendReceiveClose Hybi10_)
-    , testProperty "sendReceiveClose-hybi00"  (sendReceiveClose Hybi00_)
-    , testCase     "pingThread-hybi10"        (pingThread Hybi10_)
-    ]
 
-sendReceiveFragmentedHybi10 :: FragmentedMessage Hybi10_ -> Property
-sendReceiveFragmentedHybi10 (FragmentedMessage msg frames) = QC.monadicIO $ do
-    -- Put some other frames in between
-    let frames' = concatMap addCrap frames
-        client  = mapM_ (sendBuilder . encodeFrameHybi10) frames'
-    msg' <- QC.run $ pipe Hybi10_ client receiveDataMessage
-    QC.assert $ msg == DataMessage msg'
-  where
-    addCrap x =
-        [ Frame True False False False PingFrame "Herp"
-        , Frame True True  True  True  PongFrame "Derp"
-        , x
-        ]
+--------------------------------------------------------------------------------
+testFragmentedHybi13 :: Property
+testFragmentedHybi13 = QC.monadicIO $
+    QC.forAllM QC.arbitrary $ \fragmented -> QC.run $ do
+        (is, os) <- makeChanPipe
+        is'      <- Streams.filter isDataMessage =<< Hybi13.decodeMessages is
+        os'      <- Streams.builderStream os
 
-sendReceiveClose :: Protocol p => p -> Property
-sendReceiveClose proto = QC.monadicIO $ do
-    -- Put some other frames in between
-    let msgs = [ControlMessage (Close ""), (DataMessage (Text "Herp"))]
-    closed <- QC.run $ pipe proto (mapM_ send msgs) receiver
-    QC.assert closed
+        -- Simple hacky encoding of all frames
+        Streams.writeList
+            [ Hybi13.encodeFrame Nothing f
+            | FragmentedMessage _ frames <- fragmented
+            , f                          <- frames
+            ] os'
+        Streams.write (Just Builder.flush) os'
+        Streams.write Nothing os'
+
+        -- Check if we got all data
+        msgs <- catMaybes <$> replicateM (length fragmented) (Streams.read is')
+        [msg | FragmentedMessage msg _ <- fragmented] @=? msgs
   where
-    receiver = catchWsError (receiveDataMessage >> return False) $ \e ->
-        case fromException e of
-            Just ConnectionClosed -> return True
-            _                     -> return False
--}
+    isDataMessage (ControlMessage _) = False
+    isDataMessage (DataMessage _)    = True
 
 
 --------------------------------------------------------------------------------
@@ -148,20 +125,32 @@ data FragmentedMessage = FragmentedMessage Message [Frame]
 --------------------------------------------------------------------------------
 instance Arbitrary FragmentedMessage where
     arbitrary = do
+        -- Pick a frametype and a corresponding random payload
         ft        <- QC.elements [TextFrame, BinaryFrame]
-        payload   <- arbitraryUtf8
+        payload   <- case ft of
+            TextFrame -> arbitraryUtf8
+            _         -> arbitraryByteString
+
         fragments <- arbitraryFragmentation payload
-        let fs = makeFrames $ zip (ft : repeat ContinuationFrame) fragments
+        let fs  = makeFrames $ zip (ft : repeat ContinuationFrame) fragments
             msg = case ft of
                 TextFrame   -> DataMessage (Text payload)
                 BinaryFrame -> DataMessage (Binary payload)
                 _           -> error "Arbitrary FragmentedMessage crashed"
-        return $ FragmentedMessage msg fs
+
+        interleaved <- arbitraryInterleave genControlFrame fs
+        return $ FragmentedMessage msg interleaved
+        -- return $ FragmentedMessage msg fs
       where
         makeFrames []              = []
         makeFrames [(ft, pl)]      = [Frame True False False False ft pl]
         makeFrames ((ft, pl) : fr) =
             Frame False False False False ft pl : makeFrames fr
+
+        genControlFrame = QC.elements
+            [ Frame True False False False PingFrame "Herp"
+            , Frame True True  True  True  PongFrame "Derp"
+            ]
 
 
 --------------------------------------------------------------------------------
@@ -178,3 +167,13 @@ arbitraryFragmentation bs = arbitraryFragmentation' bs
         case r of
             "" -> return [l]
             _  -> (l :) <$> arbitraryFragmentation' r
+
+
+--------------------------------------------------------------------------------
+arbitraryInterleave :: Gen a -> [a] -> Gen [a]
+arbitraryInterleave sep xs = fmap concat $ sequence $
+    [sep'] ++ intersperse sep' [return [x] | x <- xs] ++ [sep']
+  where
+    sep' = QC.sized $ \size -> do
+        num <- QC.choose (1, size)
+        replicateM num sep

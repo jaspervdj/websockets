@@ -2,6 +2,7 @@
 module Network.WebSockets.Tests.Util
     ( ArbitraryUtf8 (..)
     , arbitraryUtf8
+    , arbitraryByteString
     , makeChanPipe
     ) where
 
@@ -34,6 +35,11 @@ instance Arbitrary ArbitraryUtf8 where
 --------------------------------------------------------------------------------
 arbitraryUtf8 :: Gen BL.ByteString
 arbitraryUtf8 = toLazyByteString . TL.encodeUtf8 . TL.pack <$> arbitrary
+
+
+--------------------------------------------------------------------------------
+arbitraryByteString :: Gen BL.ByteString
+arbitraryByteString = BL.pack <$> arbitrary
 
 
 --------------------------------------------------------------------------------

@@ -31,6 +31,8 @@ import           Network.WebSockets.Types
 
 
 --------------------------------------------------------------------------------
+-- | A client application interacting with a single server. Once this 'IO'
+-- action finished, the underlying socket is closed automatically.
 type ClientApp a = Connection -> IO a
 
 

@@ -26,7 +26,8 @@ import           Network.WebSockets.Http
 
 
 --------------------------------------------------------------------------------
--- | WebSockets application that can be ran by a server
+-- | WebSockets application that can be ran by a server. Once this 'IO' action
+-- finishes, the underlying socket is closed automatically.
 type ServerApp = PendingConnection -> IO ()
 
 

@@ -14,7 +14,6 @@ module Network.WebSockets.Connection
     , sendTextData
     , sendBinaryData
     , sendClose
-    , close
     ) where
 
 
@@ -29,7 +28,6 @@ import qualified System.IO.Streams           as Streams
 
 
 --------------------------------------------------------------------------------
-import           Network.WebSockets.Finalizer
 import           Network.WebSockets.Http
 import           Network.WebSockets.Protocol
 import           Network.WebSockets.Types
@@ -39,11 +37,10 @@ import           Network.WebSockets.Types
 -- | A new client connected to the server. We haven't accepted the connection
 -- yet, though.
 data PendingConnection = PendingConnection
-    { pendingRequest   :: RequestHead
+    { pendingRequest :: RequestHead
     -- ^ Useful for e.g. inspecting the request path.
-    , pendingIn        :: InputStream B.ByteString
-    , pendingOut       :: OutputStream Builder
-    , pendingFinalizer :: Finalizer
+    , pendingIn      :: InputStream B.ByteString
+    , pendingOut     :: OutputStream Builder
     }
 
 
@@ -60,15 +57,18 @@ acceptRequest :: PendingConnection -> IO Connection
 acceptRequest pc = case find (flip compatible request) protocols of
     Nothing       -> do
         sendResponse pc $ response400 versionHeader ""
-        finalize (pendingFinalizer pc)
         throw NotSupported
     Just protocol -> do
         let response = finishRequest protocol request
         sendResponse pc response
         msgIn  <- decodeMessages protocol (pendingIn pc)
         msgOut <- encodeMessages protocol ServerConnection (pendingOut pc)
-        return $ Connection
-            ServerConnection protocol msgIn msgOut (pendingFinalizer pc)
+        return Connection
+            { connectionType     = ServerConnection
+            , connectionProtocol = protocol
+            , connectionIn       = msgIn
+            , connectionOut      = msgOut
+            }
   where
     request       = pendingRequest pc
     versionHeader = [("Sec-WebSocket-Version",
@@ -77,18 +77,15 @@ acceptRequest pc = case find (flip compatible request) protocols of
 
 --------------------------------------------------------------------------------
 rejectRequest :: PendingConnection -> B.ByteString -> IO ()
-rejectRequest pc message = do
-    sendResponse pc $ response400 [] message
-    finalize (pendingFinalizer pc)
+rejectRequest pc message = sendResponse pc $ response400 [] message
 
 
 --------------------------------------------------------------------------------
 data Connection = Connection
-    { connectionType      :: ConnectionType
-    , connectionProtocol  :: Protocol
-    , connectionIn        :: InputStream Message
-    , connectionOut       :: OutputStream Message
-    , connectionFinalizer :: Finalizer
+    { connectionType     :: ConnectionType
+    , connectionProtocol :: Protocol
+    , connectionIn       :: InputStream Message
+    , connectionOut      :: OutputStream Message
     }
 
 
@@ -154,11 +151,3 @@ sendBinaryData conn = sendDataMessage conn . Binary . toLazyByteString
 -- | Send a friendly close message
 sendClose :: WebSocketsData a => Connection -> a -> IO ()
 sendClose conn = send conn . ControlMessage . Close . toLazyByteString
-
-
---------------------------------------------------------------------------------
--- | Safely close a 'Connection'. This should not fail, even if the 'Connection'
--- has already been closed. Additionally, this will automatically be called when
--- the connection is finalized.
-close :: Connection -> IO ()
-close conn = finalize (connectionFinalizer conn)

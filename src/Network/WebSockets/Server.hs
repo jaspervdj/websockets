@@ -11,6 +11,7 @@ module Network.WebSockets.Server
 
 --------------------------------------------------------------------------------
 import           Control.Concurrent            (forkIO)
+import           Control.Exception             (finally)
 import           Control.Monad                 (forever)
 import           Network.Socket                (Socket)
 import qualified Network.Socket                as S
@@ -21,7 +22,6 @@ import qualified System.IO.Streams.Network     as Streams
 
 --------------------------------------------------------------------------------
 import           Network.WebSockets.Connection
-import           Network.WebSockets.Finalizer
 import           Network.WebSockets.Http
 
 
@@ -47,7 +47,7 @@ runServer host port app = S.withSocketsDo $ do
     _ <- forever $ do
         -- TODO: top level handle
         (conn, _) <- S.accept sock
-        _         <- forkIO $ runApp conn app
+        _         <- forkIO $ finally (runApp conn app) (S.sClose conn)
         return ()
     S.sClose sock
 
@@ -57,16 +57,14 @@ runApp :: Socket
        -> ServerApp
        -> IO ()
 runApp socket app = do
-    finalizer   <- mkFinalizer (S.sClose socket)
     (sIn, sOut) <- Streams.socketToStreams socket
     bOut        <- Streams.builderStream sOut
     -- TODO: we probably want to send a 40x if the request is bad?
     request     <- Streams.parseFromStream (decodeRequestHead False) sIn
     let pc = PendingConnection
-                { pendingRequest   = request
-                , pendingIn        = sIn
-                , pendingOut       = bOut
-                , pendingFinalizer = finalizer
+                { pendingRequest = request
+                , pendingIn      = sIn
+                , pendingOut     = bOut
                 }
 
     app pc

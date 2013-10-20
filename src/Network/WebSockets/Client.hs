@@ -12,10 +12,8 @@ module Network.WebSockets.Client
 
 --------------------------------------------------------------------------------
 import qualified Blaze.ByteString.Builder      as Builder
-import           Control.Applicative           ((<$>))
 import           Control.Exception             (finally)
 import qualified Data.ByteString               as B
-import qualified Data.ByteString.Char8         as BC
 import qualified Data.Text                     as T
 import qualified Data.Text.Encoding            as T
 import qualified Network.Socket                as S
@@ -44,22 +42,18 @@ runClient :: String       -- ^ Host
           -> ClientApp a  -- ^ Client application
           -> IO a
 runClient host port path ws =
-    runClientWith host port path defaultConnectionOptions Nothing Nothing ws
+    runClientWith host port path defaultConnectionOptions [] ws
 
 
 --------------------------------------------------------------------------------
--- TODO: Maybe we should just allow the user to pass headers
 runClientWith :: String             -- ^ Host
               -> Int                -- ^ Port
               -> String             -- ^ Path
               -> ConnectionOptions  -- ^ Options
-              -> Maybe String       -- ^ Origin, if Nothing then server
-                                    --   interprets connection as not coming
-                                    --   from a browser.
-              -> Maybe [String]     -- ^ Protocol List
+              -> Headers            -- ^ Custom headers to send
               -> ClientApp a        -- ^ Client application
               -> IO a
-runClientWith host port path opts origin wsProtocols app = do
+runClientWith host port path opts customHeaders app = do
     -- Create and connect socket
     let hints = S.defaultHints
                     {S.addrFamily = S.AF_INET, S.addrSocketType = S.Stream}
@@ -69,7 +63,7 @@ runClientWith host port path opts origin wsProtocols app = do
 
     -- Connect WebSocket and run client
     res <- finally
-        (runClientWithSocket sock host path opts origin wsProtocols app)
+        (runClientWithSocket sock host path opts customHeaders app)
         (S.sClose sock)
 
     -- Clean up
@@ -86,17 +80,14 @@ runClientWithStream
     -- ^ Path
     -> ConnectionOptions
     -- ^ Connection options
-    -> Maybe String
-    -- ^ Origin, if Nothing then server interprets connection as not coming from
-    -- a browser.
-    -> Maybe [String]
-    -- ^ Protocol List
+    -> Headers
+    -- ^ Custom headers to send
     -> ClientApp a
     -- ^ Client application
     -> IO a
-runClientWithStream (sIn, sOut) host path opts origin wsProtocols app = do
+runClientWithStream (sIn, sOut) host path opts customHeaders app = do
     -- Create the request and send it
-    request     <- createRequest protocol bHost bPath bOrigin bWsProtocols False
+    request     <- createRequest protocol bHost bPath False customHeaders
     bOut        <- Streams.builderStream sOut
     Streams.write (Just $ encodeRequestHead request) bOut
     Streams.write (Just Builder.flush)               bOut
@@ -113,11 +104,9 @@ runClientWithStream (sIn, sOut) host path opts origin wsProtocols app = do
         , connectionOut      = mOut
         }
   where
-    protocol      = defaultProtocol  -- TODO
-    bHost         = T.encodeUtf8 $ T.pack host
-    bPath         = T.encodeUtf8 $ T.pack path
-    bOrigin       = T.encodeUtf8 . T.pack <$> origin
-    bWsProtocols  = map BC.pack <$> wsProtocols
+    protocol = defaultProtocol  -- TODO
+    bHost    = T.encodeUtf8 $ T.pack host
+    bPath    = T.encodeUtf8 $ T.pack path
 
 
 --------------------------------------------------------------------------------
@@ -125,12 +114,9 @@ runClientWithSocket :: S.Socket           -- ^ Socket
                     -> String             -- ^ Host
                     -> String             -- ^ Path
                     -> ConnectionOptions  -- ^ Options
-                    -> Maybe String       -- ^ Origin, if Nothing then server
-                                          --   interprets connection as not
-                                          --   coming from a browser.
-                    -> Maybe [String]     -- ^ Protocol List
+                    -> Headers            -- ^ Custom headers to send
                     -> ClientApp a        -- ^ Client application
                     -> IO a
-runClientWithSocket sock host path opts origin wsProtocols app = do
+runClientWithSocket sock host path opts customHeaders app = do
     stream <- Streams.socketToStreams sock
-    runClientWithStream stream host path opts origin wsProtocols app
+    runClientWithStream stream host path opts customHeaders app

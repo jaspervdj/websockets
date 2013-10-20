@@ -80,7 +80,6 @@ decodeMessages Hybi13 = Hybi13.decodeMessages
 
 
 --------------------------------------------------------------------------------
-createRequest :: Protocol -> B.ByteString -> B.ByteString -> Maybe B.ByteString
-              -> Maybe [B.ByteString] -> Bool
+createRequest :: Protocol -> B.ByteString -> B.ByteString -> Bool -> Headers
               -> IO RequestHead
 createRequest Hybi13 = Hybi13.createRequest

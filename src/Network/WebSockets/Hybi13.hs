@@ -24,7 +24,7 @@ import qualified Data.Attoparsec                       as A
 import           Data.Binary.Get                       (getWord16be,
                                                         getWord64be, runGet)
 import           Data.Bits                             ((.&.), (.|.))
-import           Data.ByteString                       (ByteString, intercalate)
+import           Data.ByteString                       (ByteString)
 import qualified Data.ByteString.Base64                as B64
 import           Data.ByteString.Char8                 ()
 import qualified Data.ByteString.Lazy                  as BL
@@ -221,13 +221,12 @@ hashKey key = unlazy $ bytestringDigest $ sha1 $ lazy $ key `mappend` guid
 --------------------------------------------------------------------------------
 createRequest :: ByteString
               -> ByteString
-              -> Maybe ByteString
-              -> Maybe [ByteString]
               -> Bool
+              -> Headers
               -> IO RequestHead
-createRequest hostname path origin protocols secure = do
+createRequest hostname path secure customHeaders = do
     key <- B64.encode `liftM`  getEntropy 16
-    return $ RequestHead path (headers key) secure
+    return $ RequestHead path (headers key ++ customHeaders) secure
   where
     headers key =
         [ ("Host"                   , hostname     )
@@ -235,12 +234,6 @@ createRequest hostname path origin protocols secure = do
         , ("Upgrade"                , "websocket"  )
         , ("Sec-WebSocket-Key"      , key          )
         , ("Sec-WebSocket-Version"  , versionNumber)
-        ] ++ protocolHeader protocols ++ originHeader origin
-
-    originHeader (Just o)    = [("Origin", o)]
-    originHeader Nothing     = []
-
-    protocolHeader (Just ps) = [("Sec-WebSocket-Protocol", intercalate ", " ps)]
-    protocolHeader Nothing   = []
+        ]
 
     versionNumber = head headerVersions

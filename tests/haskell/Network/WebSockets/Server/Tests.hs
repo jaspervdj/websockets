@@ -63,7 +63,7 @@ testOnPong = withEchoServer 42941 $ do
                    { connectionOnPong = writeIORef gotPong True
                    }
 
-    rcv <- runClientWith "127.0.0.1" 42941 "/" opts Nothing Nothing client
+    rcv <- runClientWith "127.0.0.1" 42941 "/" opts [] client
     assert rcv
     assert =<< readIORef gotPong
   where

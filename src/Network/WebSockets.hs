@@ -7,8 +7,14 @@ module Network.WebSockets
     , acceptRequest
     , rejectRequest
 
-      -- * Sending and receiving messages
+      -- * Main connection type
     , Connection
+
+      -- * Options for connections
+    , ConnectionOptions (..)
+    , defaultConnectionOptions
+
+      -- * Sending and receiving messages
     , receive
     , receiveDataMessage
     , receiveData
@@ -17,6 +23,7 @@ module Network.WebSockets
     , sendTextData
     , sendBinaryData
     , sendClose
+    , sendPing
 
       -- * HTTP Types
     , Headers

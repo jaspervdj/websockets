@@ -6,6 +6,10 @@ module Network.WebSockets.Connection
     , rejectRequest
 
     , Connection (..)
+
+    , ConnectionOptions (..)
+    , defaultConnectionOptions
+
     , receive
     , receiveDataMessage
     , receiveData
@@ -14,6 +18,7 @@ module Network.WebSockets.Connection
     , sendTextData
     , sendBinaryData
     , sendClose
+    , sendPing
     ) where
 
 
@@ -37,7 +42,8 @@ import           Network.WebSockets.Types
 -- | A new client connected to the server. We haven't accepted the connection
 -- yet, though.
 data PendingConnection = PendingConnection
-    { pendingRequest :: RequestHead
+    { pendingOptions :: ConnectionOptions
+    , pendingRequest :: RequestHead
     -- ^ Useful for e.g. inspecting the request path.
     , pendingIn      :: InputStream B.ByteString
     , pendingOut     :: OutputStream Builder
@@ -64,7 +70,8 @@ acceptRequest pc = case find (flip compatible request) protocols of
         msgIn  <- decodeMessages protocol (pendingIn pc)
         msgOut <- encodeMessages protocol ServerConnection (pendingOut pc)
         return Connection
-            { connectionType     = ServerConnection
+            { connectionOptions  = pendingOptions pc
+            , connectionType     = ServerConnection
             , connectionProtocol = protocol
             , connectionIn       = msgIn
             , connectionOut      = msgOut
@@ -82,10 +89,24 @@ rejectRequest pc message = sendResponse pc $ response400 [] message
 
 --------------------------------------------------------------------------------
 data Connection = Connection
-    { connectionType     :: ConnectionType
+    { connectionOptions  :: ConnectionOptions
+    , connectionType     :: ConnectionType
     , connectionProtocol :: Protocol
     , connectionIn       :: InputStream Message
     , connectionOut      :: OutputStream Message
+    }
+
+
+--------------------------------------------------------------------------------
+data ConnectionOptions = ConnectionOptions
+    { connectionOnPong :: IO ()
+    }
+
+
+--------------------------------------------------------------------------------
+defaultConnectionOptions :: ConnectionOptions
+defaultConnectionOptions = ConnectionOptions
+    { connectionOnPong = return ()
     }
 
 
@@ -107,8 +128,9 @@ receiveDataMessage conn = do
         DataMessage am    -> return am
         ControlMessage cm -> case cm of
             Close _   -> throw ConnectionClosed
-            -- TODO: do some 'onPong' callback?
-            Pong _    -> receiveDataMessage conn
+            Pong _    -> do
+                connectionOnPong (connectionOptions conn)
+                receiveDataMessage conn
             Ping pl   -> do
                 send conn (ControlMessage (Pong pl))
                 receiveDataMessage conn
@@ -151,3 +173,9 @@ sendBinaryData conn = sendDataMessage conn . Binary . toLazyByteString
 -- | Send a friendly close message
 sendClose :: WebSocketsData a => Connection -> a -> IO ()
 sendClose conn = send conn . ControlMessage . Close . toLazyByteString
+
+
+--------------------------------------------------------------------------------
+-- | Send a ping
+sendPing :: WebSocketsData a => Connection -> a -> IO ()
+sendPing conn = send conn . ControlMessage . Ping . toLazyByteString

@@ -6,6 +6,7 @@
 module Network.WebSockets.Server
     ( ServerApp
     , runServer
+    , runServerWith
     ) where
 
 
@@ -39,7 +40,13 @@ runServer :: String     -- ^ Address to bind
           -> Int        -- ^ Port to listen on
           -> ServerApp  -- ^ Application
           -> IO ()      -- ^ Never returns
-runServer host port app = S.withSocketsDo $ do
+runServer host port app = runServerWith host port defaultConnectionOptions app
+
+
+--------------------------------------------------------------------------------
+-- | A version of 'runServer' which allows you to customize some options.
+runServerWith :: String -> Int -> ConnectionOptions -> ServerApp -> IO ()
+runServerWith host port opts app = S.withSocketsDo $ do
     sock  <- S.socket S.AF_INET S.Stream S.defaultProtocol
     _     <- S.setSocketOption sock S.ReuseAddr 1
     host' <- S.inet_addr host
@@ -48,22 +55,24 @@ runServer host port app = S.withSocketsDo $ do
     _ <- forever $ do
         -- TODO: top level handle
         (conn, _) <- S.accept sock
-        _         <- forkIO $ finally (runApp conn app) (S.sClose conn)
+        _         <- forkIO $ finally (runApp conn opts app) (S.sClose conn)
         return ()
     S.sClose sock
 
 
 --------------------------------------------------------------------------------
 runApp :: Socket
+       -> ConnectionOptions
        -> ServerApp
        -> IO ()
-runApp socket app = do
+runApp socket opts app = do
     (sIn, sOut) <- Streams.socketToStreams socket
     bOut        <- Streams.builderStream sOut
     -- TODO: we probably want to send a 40x if the request is bad?
     request     <- Streams.parseFromStream (decodeRequestHead False) sIn
     let pc = PendingConnection
-                { pendingRequest = request
+                { pendingOptions = opts
+                , pendingRequest = request
                 , pendingIn      = sIn
                 , pendingOut     = bOut
                 }

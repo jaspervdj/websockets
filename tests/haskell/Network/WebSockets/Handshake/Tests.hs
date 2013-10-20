@@ -38,7 +38,9 @@ testHandshake :: RequestHead -> (PendingConnection -> IO a) -> IO ResponseHead
 testHandshake rq app = do
     (is, os) <- makeChanPipe
     os'      <- Streams.builderStream os
-    _        <- forkIO $ app (PendingConnection rq is os') >> return ()
+    _        <- forkIO $ do
+        _ <- app (PendingConnection defaultConnectionOptions rq is os')
+        return ()
     Streams.parseFromStream decodeResponseHead is
 
 

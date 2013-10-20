@@ -44,20 +44,22 @@ runClient :: String       -- ^ Host
           -> ClientApp a  -- ^ Client application
           -> IO a
 runClient host port path ws =
-    runClientWith host port path Nothing Nothing ws
+    runClientWith host port path defaultConnectionOptions Nothing Nothing ws
 
 
 --------------------------------------------------------------------------------
 -- TODO: Maybe we should just allow the user to pass headers
-runClientWith :: String          -- ^ Host
-              -> Int             -- ^ Port
-              -> String          -- ^ Path
-              -> Maybe String    -- ^ Origin, if Nothing then server interprets
-                                 --   connection as not coming from a browser.
-              -> Maybe [String]  -- ^ Protocol List
-              -> ClientApp a     -- ^ Client application
+runClientWith :: String             -- ^ Host
+              -> Int                -- ^ Port
+              -> String             -- ^ Path
+              -> ConnectionOptions  -- ^ Options
+              -> Maybe String       -- ^ Origin, if Nothing then server
+                                    --   interprets connection as not coming
+                                    --   from a browser.
+              -> Maybe [String]     -- ^ Protocol List
+              -> ClientApp a        -- ^ Client application
               -> IO a
-runClientWith host port path origin wsProtocols app = do
+runClientWith host port path opts origin wsProtocols app = do
     -- Create and connect socket
     let hints = S.defaultHints
                     {S.addrFamily = S.AF_INET, S.addrSocketType = S.Stream}
@@ -67,7 +69,7 @@ runClientWith host port path origin wsProtocols app = do
 
     -- Connect WebSocket and run client
     res <- finally
-        (runClientWithSocket sock host path origin wsProtocols app)
+        (runClientWithSocket sock host path opts origin wsProtocols app)
         (S.sClose sock)
 
     -- Clean up
@@ -82,6 +84,8 @@ runClientWithStream
     -- ^ Host
     -> String
     -- ^ Path
+    -> ConnectionOptions
+    -- ^ Connection options
     -> Maybe String
     -- ^ Origin, if Nothing then server interprets connection as not coming from
     -- a browser.
@@ -90,7 +94,7 @@ runClientWithStream
     -> ClientApp a
     -- ^ Client application
     -> IO a
-runClientWithStream (sIn, sOut) host path origin wsProtocols app = do
+runClientWithStream (sIn, sOut) host path opts origin wsProtocols app = do
     -- Create the request and send it
     request     <- createRequest protocol bHost bPath bOrigin bWsProtocols False
     bOut        <- Streams.builderStream sOut
@@ -102,7 +106,8 @@ runClientWithStream (sIn, sOut) host path origin wsProtocols app = do
     mIn          <- decodeMessages protocol sIn
     mOut         <- encodeMessages protocol ClientConnection bOut
     app Connection
-        { connectionType     = ClientConnection
+        { connectionOptions  = opts
+        , connectionType     = ClientConnection
         , connectionProtocol = protocol
         , connectionIn       = mIn
         , connectionOut      = mOut
@@ -116,15 +121,16 @@ runClientWithStream (sIn, sOut) host path origin wsProtocols app = do
 
 
 --------------------------------------------------------------------------------
-runClientWithSocket :: S.Socket        -- ^ Socket
-                    -> String          -- ^ Host
-                    -> String          -- ^ Path
-                    -> Maybe String    -- ^ Origin, if Nothing then server
-                                       --   interprets connection as not coming
-                                       --   from a browser.
-                    -> Maybe [String]  -- ^ Protocol List
-                    -> ClientApp a     -- ^ Client application
+runClientWithSocket :: S.Socket           -- ^ Socket
+                    -> String             -- ^ Host
+                    -> String             -- ^ Path
+                    -> ConnectionOptions  -- ^ Options
+                    -> Maybe String       -- ^ Origin, if Nothing then server
+                                          --   interprets connection as not
+                                          --   coming from a browser.
+                    -> Maybe [String]     -- ^ Protocol List
+                    -> ClientApp a        -- ^ Client application
                     -> IO a
-runClientWithSocket sock host path origin wsProtocols app = do
+runClientWithSocket sock host path opts origin wsProtocols app = do
     stream <- Streams.socketToStreams sock
-    runClientWithStream stream host path origin wsProtocols app
+    runClientWithStream stream host path opts origin wsProtocols app

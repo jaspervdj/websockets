@@ -9,12 +9,14 @@ module Network.WebSockets.Handshake.Tests
 import           Control.Concurrent             (forkIO)
 import           Control.Exception              (handle)
 import           Data.ByteString.Char8          ()
+import           Data.IORef                     (newIORef, readIORef,
+                                                 writeIORef)
 import           Data.Maybe                     (fromJust)
 import qualified System.IO.Streams.Attoparsec   as Streams
 import qualified System.IO.Streams.Builder      as Streams
 import           Test.Framework                 (Test, testGroup)
 import           Test.Framework.Providers.HUnit (testCase)
-import           Test.HUnit                     (Assertion, (@?=))
+import           Test.HUnit                     (Assertion, (@?=), assert)
 
 
 --------------------------------------------------------------------------------
@@ -39,9 +41,11 @@ testHandshake rq app = do
     (is, os) <- makeChanPipe
     os'      <- Streams.builderStream os
     _        <- forkIO $ do
-        _ <- app (PendingConnection defaultConnectionOptions rq is os')
+        _ <- app (PendingConnection defaultConnectionOptions rq nullify is os')
         return ()
     Streams.parseFromStream decodeResponseHead is
+  where
+    nullify _ = return ()
 
 
 --------------------------------------------------------------------------------
@@ -66,8 +70,11 @@ rq13 = RequestHead "/mychat"
 --------------------------------------------------------------------------------
 testHandshakeHybi13 :: Assertion
 testHandshakeHybi13 = do
-    ResponseHead code message headers <- testHandshake rq13 acceptRequest
+    onAcceptFired                     <- newIORef False
+    ResponseHead code message headers <- testHandshake rq13 $ \pc ->
+        acceptRequest pc {pendingOnAccept = \_ -> writeIORef onAcceptFired True}
 
+    readIORef onAcceptFired >>= assert
     code @?= 101
     message @?= "WebSocket Protocol Handshake"
     headers ! "Sec-WebSocket-Accept" @?= "HSmrc0sMlYUkAGmm5OPpG2HaGWk="

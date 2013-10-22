@@ -42,11 +42,17 @@ import           Network.WebSockets.Types
 -- | A new client connected to the server. We haven't accepted the connection
 -- yet, though.
 data PendingConnection = PendingConnection
-    { pendingOptions :: ConnectionOptions
-    , pendingRequest :: RequestHead
+    { pendingOptions  :: ConnectionOptions
+    -- ^ Options, passed as-is to the 'Connection'
+    , pendingRequest  :: RequestHead
     -- ^ Useful for e.g. inspecting the request path.
-    , pendingIn      :: InputStream B.ByteString
-    , pendingOut     :: OutputStream Builder
+    , pendingOnAccept :: Connection -> IO ()
+    -- ^ One-shot callback fired when a connection is accepted, i.e., *after*
+    -- the accepting response is sent to the client.
+    , pendingIn       :: InputStream B.ByteString
+    -- ^ Input stream
+    , pendingOut      :: OutputStream Builder
+    -- ^ Output stream
     }
 
 
@@ -69,13 +75,16 @@ acceptRequest pc = case find (flip compatible request) protocols of
         sendResponse pc response
         msgIn  <- decodeMessages protocol (pendingIn pc)
         msgOut <- encodeMessages protocol ServerConnection (pendingOut pc)
-        return Connection
-            { connectionOptions  = pendingOptions pc
-            , connectionType     = ServerConnection
-            , connectionProtocol = protocol
-            , connectionIn       = msgIn
-            , connectionOut      = msgOut
-            }
+        let connection = Connection
+                { connectionOptions  = pendingOptions pc
+                , connectionType     = ServerConnection
+                , connectionProtocol = protocol
+                , connectionIn       = msgIn
+                , connectionOut      = msgOut
+                }
+
+        pendingOnAccept pc connection
+        return connection
   where
     request       = pendingRequest pc
     versionHeader = [("Sec-WebSocket-Version",

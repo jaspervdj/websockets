@@ -71,10 +71,11 @@ runApp socket opts app = do
     -- TODO: we probably want to send a 40x if the request is bad?
     request     <- Streams.parseFromStream (decodeRequestHead False) sIn
     let pc = PendingConnection
-                { pendingOptions = opts
-                , pendingRequest = request
-                , pendingIn      = sIn
-                , pendingOut     = bOut
+                { pendingOptions  = opts
+                , pendingRequest  = request
+                , pendingOnAccept = \_ -> return ()
+                , pendingIn       = sIn
+                , pendingOut      = bOut
                 }
 
     app pc

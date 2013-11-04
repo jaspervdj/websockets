@@ -46,6 +46,7 @@ module Network.WebSockets
       -- * Running a standalone server
     , ServerApp
     , runServer
+    , runServerWith
 
       -- * Running a client
     , ClientApp

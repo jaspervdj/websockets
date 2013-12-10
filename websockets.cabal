@@ -1,5 +1,5 @@
 Name:    websockets
-Version: 0.8.1.0
+Version: 0.8.1.1
 
 Synopsis:
   A sensible and clean way to write WebSocket-capable servers in Haskell.
@@ -81,6 +81,13 @@ Test-suite websockets-tests
   Hs-source-dirs: src tests/haskell
   Main-is:        TestSuite.hs
   Ghc-options:    -Wall
+
+  Other-modules:
+    Network.WebSockets.Handshake.Tests
+    Network.WebSockets.Http.Tests
+    Network.WebSockets.Server.Tests
+    Network.WebSockets.Tests
+    Network.WebSockets.Tests.Util
 
   Build-depends:
     HUnit                      >= 1.2 && < 1.3,

@@ -53,8 +53,7 @@ headerVersions = ["13"]
 
 
 --------------------------------------------------------------------------------
-finishRequest :: RequestHead
-              -> Response
+finishRequest :: RequestHead -> Response
 finishRequest reqHttp =
     let !key     = getRequestHeader reqHttp "Sec-WebSocket-Key"
         !hash    = hashKey key

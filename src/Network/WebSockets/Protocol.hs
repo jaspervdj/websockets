@@ -24,6 +24,7 @@ import qualified System.IO.Streams         as Streams
 
 --------------------------------------------------------------------------------
 import           Network.WebSockets.Http
+import qualified Network.WebSockets.Hybi00 as Hybi00
 import qualified Network.WebSockets.Hybi13 as Hybi13
 import           Network.WebSockets.Types
 
@@ -31,6 +32,7 @@ import           Network.WebSockets.Types
 --------------------------------------------------------------------------------
 data Protocol
     = Hybi13
+    | Hybi00
     deriving (Show)
 
 
@@ -41,12 +43,13 @@ defaultProtocol = Hybi13
 
 --------------------------------------------------------------------------------
 protocols :: [Protocol]
-protocols = [Hybi13]
+protocols = [Hybi13, Hybi00]
 
 
 --------------------------------------------------------------------------------
 headerVersions :: Protocol -> [ByteString]
 headerVersions Hybi13 = Hybi13.headerVersions
+headerVersions Hybi00 = Hybi00.headerVersions
 
 
 --------------------------------------------------------------------------------
@@ -57,8 +60,13 @@ compatible protocol req = case getRequestSecWebSocketVersion req of
 
 
 --------------------------------------------------------------------------------
-finishRequest :: Protocol -> RequestHead -> Response
-finishRequest Hybi13 = Hybi13.finishRequest
+-- | The 'finishRequest' function gets access to the underlying inputstream. The
+-- request head has already been parsed at this point, but the body is not. This
+-- is only used for older version of the protocol (Hybi00)
+finishRequest :: Protocol -> RequestHead -> Streams.InputStream B.ByteString
+              -> IO Response
+finishRequest Hybi13 reqHead _  = return $ Hybi13.finishRequest reqHead
+finishRequest Hybi00 reqHead is = Hybi00.finishRequest reqHead is
 
 
 --------------------------------------------------------------------------------

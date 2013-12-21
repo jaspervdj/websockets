@@ -71,7 +71,7 @@ acceptRequest pc = case find (flip compatible request) protocols of
         sendResponse pc $ response400 versionHeader ""
         throw NotSupported
     Just protocol -> do
-        let response = finishRequest protocol request
+        response <- finishRequest protocol request (pendingIn pc)
         sendResponse pc response
         msgIn  <- decodeMessages protocol (pendingIn pc)
         msgOut <- encodeMessages protocol ServerConnection (pendingOut pc)

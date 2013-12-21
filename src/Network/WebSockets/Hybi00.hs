@@ -3,20 +3,28 @@
 module Network.WebSockets.Hybi00
     ( headerVersions
     , finishRequest
+    , encodeMessages
+    , decodeMessages
     ) where
 
 
 --------------------------------------------------------------------------------
-import           Control.Exception        (throw)
-import qualified Data.Binary              as Binary
-import           Data.ByteString          (ByteString)
-import qualified Data.ByteString          as B
-import qualified Data.ByteString.Char8    as BC
-import qualified Data.ByteString.Lazy     as BL
-import           Data.Char                (isDigit)
-import qualified Data.Digest.Pure.MD5     as Md5
-import           Data.Int                 (Int32)
-import qualified System.IO.Streams        as Streams
+import           Blaze.ByteString.Builder     (Builder)
+import qualified Blaze.ByteString.Builder     as Builder
+import           Control.Applicative          ((<$>), (<|>))
+import           Control.Exception            (throw)
+import qualified Data.Attoparsec              as A
+import qualified Data.Binary                  as Binary
+import           Data.ByteString              (ByteString)
+import qualified Data.ByteString              as B
+import qualified Data.ByteString.Char8        as BC
+import qualified Data.ByteString.Lazy         as BL
+import           Data.Char                    (isDigit)
+import qualified Data.Digest.Pure.MD5         as Md5
+import           Data.Int                     (Int32)
+import           Data.Monoid                  (mappend)
+import qualified System.IO.Streams            as Streams
+import qualified System.IO.Streams.Attoparsec as Streams
 
 
 --------------------------------------------------------------------------------
@@ -64,3 +72,44 @@ divBySpaces str
   where
     number = read $ filter isDigit str :: Integer
     spaces = fromIntegral . length $ filter (== ' ') str
+
+
+--------------------------------------------------------------------------------
+encodeMessage :: Message -> Builder
+encodeMessage (DataMessage (Text pl)) =
+    (Builder.fromLazyByteString $ "\0" `mappend` pl `mappend` "\255") `mappend`
+    Builder.flush
+encodeMessage (ControlMessage (Close _)) =
+    Builder.fromLazyByteString "\255\0" `mappend` Builder.flush
+encodeMessage msg = error $
+    "Network.WebSockets.Hybi00.encodeMessage: unsupported message: " ++
+    show msg
+
+
+--------------------------------------------------------------------------------
+encodeMessages :: Streams.OutputStream Builder
+               -> IO (Streams.OutputStream Message)
+encodeMessages bStream =
+    Streams.lockingOutputStream =<< Streams.contramap encodeMessage bStream
+
+
+--------------------------------------------------------------------------------
+decodeMessages :: Streams.InputStream ByteString
+               -> IO (Streams.InputStream Message)
+decodeMessages bsStream = Streams.makeInputStream $
+    Just <$> Streams.parseFromStream parseMessage bsStream
+
+
+--------------------------------------------------------------------------------
+parseMessage :: A.Parser Message
+parseMessage = parseText <|> parseClose
+  where
+    parseText = do
+        _ <- A.word8 0x00
+        utf8string <- A.manyTill A.anyWord8 (A.try $ A.word8 0xff)
+        return $ DataMessage $ Text $ BL.pack utf8string
+
+    parseClose = do
+        _ <- A.word8 0xff
+        _ <- A.word8 0x00
+        return $ ControlMessage $ Close ""

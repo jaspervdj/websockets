@@ -78,13 +78,15 @@ finishResponse Hybi13 = Hybi13.finishResponse
 encodeMessages :: Protocol -> ConnectionType
                -> Streams.OutputStream Builder
                -> IO (Streams.OutputStream Message)
-encodeMessages Hybi13 = Hybi13.encodeMessages
+encodeMessages Hybi13 cTyp bStream = Hybi13.encodeMessages cTyp bStream
+encodeMessages Hybi00 _    bStream = Hybi00.encodeMessages bStream
 
 
 --------------------------------------------------------------------------------
 decodeMessages :: Protocol -> Streams.InputStream B.ByteString
                -> IO (Streams.InputStream Message)
 decodeMessages Hybi13 = Hybi13.decodeMessages
+decodeMessages Hybi00 = Hybi00.decodeMessages
 
 
 --------------------------------------------------------------------------------

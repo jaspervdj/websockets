@@ -11,9 +11,9 @@ nearby to check out the functions we use.
 > import Data.Char (isPunctuation, isSpace)
 > import Data.Monoid (mappend)
 > import Data.Text (Text)
-> import Control.Exception (fromException, handle)
+> import Control.Exception (finally)
 > import Control.Monad (forM_, forever)
-> import Control.Concurrent (MVar, newMVar, modifyMVar_, readMVar)
+> import Control.Concurrent (MVar, newMVar, modifyMVar_, modifyMVar, readMVar)
 > import Control.Monad.IO.Class (liftIO)
 > import qualified Data.Text as T
 > import qualified Data.Text.IO as T
@@ -112,9 +112,10 @@ Check that the given username is not already taken:
 >             | clientExists client clients ->
 >                 WS.sendTextData conn ("User already exists" :: Text)
 
-All is right!
+All is right! We're going to allow the client, but for safety reasons we *first*
+setup a `disconnect` function that will be run when the exception is closed.
 
->             | otherwise -> do
+>             | otherwise -> flip finally disconnect $ do
 
 We send a "Welcome!", according to our own little protocol. We add the client to
 the list and broadcast the fact that he has joined. Then, we give control to the
@@ -129,22 +130,19 @@ the list and broadcast the fact that he has joined. Then, we give control to the
 >                    return s'
 >                talk conn state client
 >           where
->             prefix = "Hi! I am "
->             client = (T.drop (T.length prefix) msg, conn)
+>             prefix     = "Hi! I am "
+>             client     = (T.drop (T.length prefix) msg, conn)
+>             disconnect = do
+>                 -- Remove client and return new state
+>                 s <- modifyMVar state $ \s ->
+>                     let s' = removeClient client s in return (s', s')
+>                 broadcast (fst client `mappend` " disconnected") s
 
 The talk function continues to read messages from a single client until he
 disconnects. All messages are broadcasted to the other clients.
 
 > talk :: WS.Connection -> MVar ServerState -> Client -> IO ()
-> talk conn state client@(user, _) = handle catchDisconnect $
->     forever $ do
->         msg <- WS.receiveData conn
->         liftIO $ readMVar state >>= broadcast
->             (user `mappend` ": " `mappend` msg)
->   where
->     catchDisconnect e = case fromException e of
->         Just WS.ConnectionClosed -> liftIO $ modifyMVar_ state $ \s -> do
->             let s' = removeClient client s
->             broadcast (user `mappend` " disconnected") s'
->             return s'
->         _ -> return ()
+> talk conn state (user, _) = forever $ do
+>     msg <- WS.receiveData conn
+>     liftIO $ readMVar state >>= broadcast
+>         (user `mappend` ": " `mappend` msg)

@@ -1,5 +1,5 @@
 Name:    websockets
-Version: 0.8.1.3
+Version: 0.8.2.0
 
 Synopsis:
   A sensible and clean way to write WebSocket-capable servers in Haskell.
@@ -39,6 +39,9 @@ Cabal-version: >= 1.8
 
 Homepage:    http://jaspervdj.be/websockets
 Bug-reports: https://github.com/jaspervdj/websockets/issues
+
+Extra-source-files:
+  CHANGELOG
 
 Library
   Hs-source-dirs: src

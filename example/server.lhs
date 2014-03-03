@@ -20,7 +20,7 @@ nearby to check out the functions we use.
 
 > import qualified Network.WebSockets as WS
 
-We represent a client by his username and a `WS.Connection`. We will see how we
+We represent a client by their username and a `WS.Connection`. We will see how we
 obtain this `WS.Connection` later on.
 
 > type Client = (Text, WS.Connection)

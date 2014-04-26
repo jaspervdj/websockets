@@ -1,3 +1,6 @@
+- 0.8.2.2
+    * Bump network dependency
+
 - 0.8.2.1
     * Add benchmark with many open connections
     * Update example to use gender-neutral language

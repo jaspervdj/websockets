@@ -1,5 +1,5 @@
 Name:    websockets
-Version: 0.8.2.3
+Version: 0.8.2.4
 
 Synopsis:
   A sensible and clean way to write WebSocket-capable servers in Haskell.
@@ -77,7 +77,7 @@ Library
     random            >= 1.0    && < 1.1,
     SHA               >= 1.5    && < 1.7,
     text              >= 0.10   && < 1.2,
-    entropy           >= 0.2.1  && < 0.3
+    entropy           >= 0.2.1  && < 0.4
 
 Test-suite websockets-tests
   Type:           exitcode-stdio-1.0
@@ -113,7 +113,7 @@ Test-suite websockets-tests
     random            >= 1.0    && < 1.1,
     SHA               >= 1.5    && < 1.7,
     text              >= 0.10   && < 1.2,
-    entropy           >= 0.2.1  && < 0.3
+    entropy           >= 0.2.1  && < 0.4
 
 Source-repository head
   Type:     git

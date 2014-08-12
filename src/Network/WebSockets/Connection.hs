@@ -21,6 +21,7 @@ module Network.WebSockets.Connection
     , sendTextData
     , sendBinaryData
     , sendClose
+    , sendCloseCode
     , sendPing
     ) where
 
@@ -29,9 +30,12 @@ module Network.WebSockets.Connection
 import           Blaze.ByteString.Builder    (Builder)
 import qualified Blaze.ByteString.Builder    as Builder
 import           Control.Exception           (throw)
+import           Control.Monad               (unless)
 import qualified Data.ByteString             as B
 import qualified Data.ByteString.Char8       as B8
 import           Data.List                   (find)
+import           Data.IORef                  (IORef, newIORef, readIORef, writeIORef)
+import           Data.Word                   (Word16)
 import           System.IO.Streams           (InputStream, OutputStream)
 import qualified System.IO.Streams           as Streams
 
@@ -99,12 +103,14 @@ acceptRequestWith pc ar = case find (flip compatible request) protocols of
         sendResponse pc response
         msgIn  <- decodeMessages protocol (pendingIn pc)
         msgOut <- encodeMessages protocol ServerConnection (pendingOut pc)
+        sentRef <- newIORef False
         let connection = Connection
-                { connectionOptions  = pendingOptions pc
-                , connectionType     = ServerConnection
-                , connectionProtocol = protocol
-                , connectionIn       = msgIn
-                , connectionOut      = msgOut
+                { connectionOptions   = pendingOptions pc
+                , connectionType      = ServerConnection
+                , connectionProtocol  = protocol
+                , connectionIn        = msgIn
+                , connectionOut       = msgOut
+                , connectionSentClose = sentRef
                 }
 
         pendingOnAccept pc connection
@@ -127,6 +133,12 @@ data Connection = Connection
     , connectionProtocol :: Protocol
     , connectionIn       :: InputStream Message
     , connectionOut      :: OutputStream Message
+    , connectionSentClose :: IORef Bool
+    -- ^ According to the RFC, both the client and the server MUST send
+    -- a close control message to each other.  Either party can initiate
+    -- the first close message but then the other party must respond.  Finally,
+    -- the server is in charge of closing the TCP connection.  This IORef tracks
+    -- if we have sent a close message and are waiting for the peer to respond.
     }
 
 
@@ -154,13 +166,25 @@ receive conn = do
 
 --------------------------------------------------------------------------------
 -- | Receive an application message. Automatically respond to control messages.
+--
+-- When the peer sends a close control message, an exception of type 'CloseRequest'
+-- is thrown.  The peer can send a close control message either to initiate a
+-- close or in response to a close message we have sent to the peer.  In either
+-- case the 'CloseRequest' exception will be thrown.  The RFC specifies that
+-- the server is responsible for closing the TCP connection, which should happen
+-- after receiving the 'CloseRequest' exception from this function.
+--
+-- This will throw 'ConnectionClosed' if the TCP connection dies unexpectedly.
 receiveDataMessage :: Connection -> IO DataMessage
 receiveDataMessage conn = do
     msg <- receive conn
     case msg of
         DataMessage am    -> return am
         ControlMessage cm -> case cm of
-            Close _   -> throw ConnectionClosed
+            Close i closeMsg -> do
+                hasSentClose <- readIORef $ connectionSentClose conn
+                unless hasSentClose $ send conn msg
+                throw $ CloseRequest i closeMsg
             Pong _    -> do
                 connectionOnPong (connectionOptions conn)
                 receiveDataMessage conn
@@ -181,7 +205,11 @@ receiveData conn = do
 
 --------------------------------------------------------------------------------
 send :: Connection -> Message -> IO ()
-send conn msg = Streams.write (Just msg) (connectionOut conn)
+send conn msg = do
+    case msg of
+        (ControlMessage (Close _ _)) -> writeIORef (connectionSentClose conn) True
+        _ -> return ()
+    Streams.write (Just msg) (connectionOut conn)
 
 
 --------------------------------------------------------------------------------
@@ -203,9 +231,23 @@ sendBinaryData conn = sendDataMessage conn . Binary . toLazyByteString
 
 
 --------------------------------------------------------------------------------
--- | Send a friendly close message
+-- | Send a friendly close message.  Note that after sending this message,
+-- you should still continue calling 'receiveDataMessage' to process any
+-- in-flight messages.  The peer will eventually respond with a close control
+-- message of its own which will cause 'receiveDataMessage' to throw the
+-- 'CloseRequest' exception.  This exception is when you can finally consider
+-- the connection closed.
 sendClose :: WebSocketsData a => Connection -> a -> IO ()
-sendClose conn = send conn . ControlMessage . Close . toLazyByteString
+sendClose conn = sendCloseCode conn 1000
+
+
+--------------------------------------------------------------------------------
+-- | Send a friendly close message and close code.  Similar to 'sendClose', you should
+-- continue calling 'receiveDataMessage' until you receive a 'CloseRequest' exception.
+-- See <http://tools.ietf.org/html/rfc6455#section-7.4> for a list of close
+-- codes.
+sendCloseCode :: WebSocketsData a => Connection -> Word16 -> a -> IO ()
+sendCloseCode conn code = send conn . ControlMessage . Close code . toLazyByteString
 
 
 --------------------------------------------------------------------------------

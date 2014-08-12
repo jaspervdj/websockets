@@ -14,6 +14,7 @@ module Network.WebSockets.Client
 import qualified Blaze.ByteString.Builder      as Builder
 import           Control.Exception             (finally)
 import qualified Data.ByteString               as B
+import           Data.IORef                    (newIORef)
 import qualified Data.Text                     as T
 import qualified Data.Text.Encoding            as T
 import qualified Network.Socket                as S
@@ -96,12 +97,14 @@ runClientWithStream (sIn, sOut) host path opts customHeaders app = do
     Response _ _ <- return $ finishResponse protocol request response
     mIn          <- decodeMessages protocol sIn
     mOut         <- encodeMessages protocol ClientConnection bOut
+    sentRef      <- newIORef False
     app Connection
-        { connectionOptions  = opts
-        , connectionType     = ClientConnection
-        , connectionProtocol = protocol
-        , connectionIn       = mIn
-        , connectionOut      = mOut
+        { connectionOptions   = opts
+        , connectionType      = ClientConnection
+        , connectionProtocol  = protocol
+        , connectionIn        = mIn
+        , connectionOut       = mOut
+        , connectionSentClose = sentRef
         }
   where
     protocol = defaultProtocol  -- TODO

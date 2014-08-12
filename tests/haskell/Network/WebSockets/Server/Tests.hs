@@ -25,6 +25,7 @@ import           Test.Framework.Providers.HUnit (testCase)
 import           Test.HUnit                     (Assertion, assert, (@=?))
 import           Test.QuickCheck                (Arbitrary, arbitrary)
 import           Test.QuickCheck.Gen            (Gen (..))
+import           Test.QuickCheck.Random         (newQCGen)
 
 
 --------------------------------------------------------------------------------
@@ -78,7 +79,7 @@ testOnPong = withEchoServer 42941 $ do
 --------------------------------------------------------------------------------
 sample :: Arbitrary a => IO [a]
 sample = do
-    gen <- newStdGen
+    gen <- newQCGen
     return $ (unGen arbitrary) gen 512
 
 

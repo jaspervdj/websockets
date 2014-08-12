@@ -2,7 +2,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.WebSockets.Connection
     ( PendingConnection (..)
+    , pendingSubprotocols
+    , AcceptRequest(..)
     , acceptRequest
+    , acceptRequestWith
     , rejectRequest
 
     , Connection (..)
@@ -27,6 +30,7 @@ import           Blaze.ByteString.Builder    (Builder)
 import qualified Blaze.ByteString.Builder    as Builder
 import           Control.Exception           (throw)
 import qualified Data.ByteString             as B
+import qualified Data.ByteString.Char8       as B8
 import           Data.List                   (find)
 import           System.IO.Streams           (InputStream, OutputStream)
 import qualified System.IO.Streams           as Streams
@@ -55,6 +59,22 @@ data PendingConnection = PendingConnection
     -- ^ Output stream
     }
 
+--------------------------------------------------------------------------------
+-- | List of subprotocols specified by the client, in order of preference.
+-- If the client did not specify a list of subprotocols, this will be the
+-- empty list.
+pendingSubprotocols :: PendingConnection -> [B.ByteString]
+pendingSubprotocols pc = maybe [] parse mproto
+    where
+        mproto = lookup "Sec-WebSocket-Protocol" $ requestHeaders $ pendingRequest pc
+        parse = filter (not . B.null) . B8.splitWith (\o -> o == ',' || o == ' ')
+
+--------------------------------------------------------------------------------
+data AcceptRequest = AcceptRequest
+    { acceptSubprotocol :: Maybe B.ByteString
+    -- ^ The subprotocol to speak with the client.  If 'pendingSubprotcols' is
+    -- non-empty, 'acceptSubprotocol' must be one of the subprotocols from the list.
+    }
 
 --------------------------------------------------------------------------------
 -- | Utility
@@ -63,15 +83,19 @@ sendResponse pc rsp = do
     Streams.write (Just (encodeResponse rsp)) (pendingOut pc)
     Streams.write (Just Builder.flush)        (pendingOut pc)
 
-
 --------------------------------------------------------------------------------
 acceptRequest :: PendingConnection -> IO Connection
-acceptRequest pc = case find (flip compatible request) protocols of
+acceptRequest pc = acceptRequestWith pc $ AcceptRequest Nothing
+
+--------------------------------------------------------------------------------
+acceptRequestWith :: PendingConnection -> AcceptRequest -> IO Connection
+acceptRequestWith pc ar = case find (flip compatible request) protocols of
     Nothing       -> do
         sendResponse pc $ response400 versionHeader ""
         throw NotSupported
     Just protocol -> do
-        let response = finishRequest protocol request
+        let subproto = maybe [] (\p -> [("Sec-WebSocket-Protocol", p)]) $ acceptSubprotocol ar
+            response = finishRequest protocol request subproto
         sendResponse pc response
         msgIn  <- decodeMessages protocol (pendingIn pc)
         msgOut <- encodeMessages protocol ServerConnection (pendingOut pc)

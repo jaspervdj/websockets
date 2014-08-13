@@ -108,8 +108,9 @@ instance Arbitrary Frame where
 instance Arbitrary Message where
     arbitrary = do
         payload <- BL.pack <$> arbitrary
+        closecode <- arbitrary
         QC.elements
-            [ ControlMessage (Close payload)
+            [ ControlMessage (Close closecode payload)
             , ControlMessage (Ping payload)
             , ControlMessage (Pong payload)
             , DataMessage (Text payload)

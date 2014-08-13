@@ -1,6 +1,6 @@
 --------------------------------------------------------------------------------
 -- | Demultiplexing of frames into messages
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveDataTypeable, OverloadedStrings #-}
 module Network.WebSockets.Hybi13.Demultiplex
     ( FrameType (..)
     , Frame (..)
@@ -14,6 +14,7 @@ module Network.WebSockets.Hybi13.Demultiplex
 import           Blaze.ByteString.Builder (Builder)
 import qualified Blaze.ByteString.Builder as B
 import           Control.Exception        (Exception, throw)
+import           Data.Binary.Get          (runGet, getWord16be)
 import qualified Data.ByteString.Lazy     as BL
 import           Data.Monoid              (mappend)
 import           Data.Typeable            (Typeable)
@@ -75,7 +76,7 @@ demultiplex :: DemultiplexState
             -> (Maybe Message, DemultiplexState)
 demultiplex state (Frame fin _ _ _ tp pl) = case tp of
     -- Return control messages immediately, they have no influence on the state
-    CloseFrame  -> (Just (ControlMessage (Close pl)), state)
+    CloseFrame  -> (Just (ControlMessage (uncurry Close parsedClose)), state)
     PingFrame   -> (Just (ControlMessage (Ping pl)), state)
     PongFrame   -> (Just (ControlMessage (Pong pl)), state)
     -- If we're dealing with a continuation...
@@ -103,3 +104,7 @@ demultiplex state (Frame fin _ _ _ tp pl) = case tp of
   where
     e = emptyDemultiplexState
     plb = B.fromLazyByteString pl
+    parsedClose =
+        if BL.null pl
+            then (1000, "")
+            else ((runGet getWord16be) pl, BL.drop 2 pl)

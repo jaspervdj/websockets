@@ -10,11 +10,10 @@ module Network.WebSockets.Server.Tests
 import           Control.Applicative            ((<$>))
 import           Control.Concurrent             (forkIO, killThread,
                                                  threadDelay)
-import           Control.Exception              (SomeException, handle)
-import           Control.Monad                  (forM_, forever, replicateM)
-import           Data.IORef                     (newIORef, readIORef,
-                                                 writeIORef)
-
+import           Control.Exception              (SomeException, handle, catch)
+import           Control.Monad                  (forM_, forever, replicateM, unless)
+import           Data.IORef                     (newIORef, readIORef, IORef,
+                                                 writeIORef) 
 
 --------------------------------------------------------------------------------
 import qualified Data.ByteString.Lazy           as BL
@@ -25,10 +24,12 @@ import           Test.Framework.Providers.HUnit (testCase)
 import           Test.HUnit                     (Assertion, assert, (@=?))
 import           Test.QuickCheck                (Arbitrary, arbitrary)
 import           Test.QuickCheck.Gen            (Gen (..))
+import           Test.QuickCheck.Random         (newQCGen)
 
 
 --------------------------------------------------------------------------------
 import           Network.WebSockets
+import           Network.WebSockets.Connection
 import           Network.WebSockets.Tests.Util
 
 
@@ -42,7 +43,7 @@ tests = testGroup "Network.WebSockets.Server.Tests"
 
 --------------------------------------------------------------------------------
 testSimpleServerClient :: Assertion
-testSimpleServerClient = withEchoServer 42940 $ do
+testSimpleServerClient = withEchoServer 42940 "Bye" $ do
     texts  <- map unArbitraryUtf8 <$> sample
     texts' <- retry $ runClient "127.0.0.1" 42940 "/chat" $ client texts
     texts @=? texts'
@@ -52,12 +53,13 @@ testSimpleServerClient = withEchoServer 42940 $ do
         forM_ texts (sendTextData conn)
         texts' <- replicateM (length texts) (receiveData conn)
         sendClose conn ("Bye" :: BL.ByteString)
+        expectCloseException conn "Bye"
         return texts'
 
 
 --------------------------------------------------------------------------------
 testOnPong :: Assertion
-testOnPong = withEchoServer 42941 $ do
+testOnPong = withEchoServer 42941 "Bye" $ do
     gotPong <- newIORef False
     let opts = defaultConnectionOptions
                    { connectionOnPong = writeIORef gotPong True
@@ -72,13 +74,15 @@ testOnPong = withEchoServer 42941 $ do
         sendPing conn ("What's a fish without an eye?" :: Text)
         sendTextData conn ("A fsh!" :: Text)
         msg <- receiveData conn
+        sendCloseCode conn 1000 ("Bye" :: BL.ByteString)
+        expectCloseException conn "Bye"
         return $ "A fsh!" == (msg :: Text)
 
 
 --------------------------------------------------------------------------------
 sample :: Arbitrary a => IO [a]
 sample = do
-    gen <- newStdGen
+    gen <- newQCGen
     return $ (unGen arbitrary) gen 512
 
 
@@ -101,13 +105,16 @@ retry action = (\(_ :: SomeException) -> waitSome >> action) `handle` action
 
 
 --------------------------------------------------------------------------------
-withEchoServer :: Int -> IO a -> IO a
-withEchoServer port action = do
-    serverThread <- forkIO $ retry $ runServer "0.0.0.0" port server
+withEchoServer :: Int -> BL.ByteString -> IO a -> IO a
+withEchoServer port expectedClose action = do
+    cRef <- newIORef False
+    serverThread <- forkIO $ retry $ runServer "0.0.0.0" port (\c -> server c `catch` handleClose cRef)
     waitSome
     result <- action
     waitSome
     killThread serverThread
+    closeCalled <- readIORef cRef
+    unless closeCalled $ error "Expecting the CloseRequest exception"
     return result
   where
     server :: ServerApp
@@ -116,3 +123,21 @@ withEchoServer port action = do
         forever $ do
             msg <- receiveDataMessage conn
             sendDataMessage conn msg
+
+    handleClose :: IORef Bool -> ConnectionException -> IO ()
+    handleClose cRef (CloseRequest i msg) = do
+        i @=? 1000
+        msg @=? expectedClose
+        writeIORef cRef True
+    handleClose _ ConnectionClosed = error "Unexpected connection closed exception"
+
+
+--------------------------------------------------------------------------------
+expectCloseException :: Connection -> BL.ByteString -> IO ()
+expectCloseException conn msg = act `catch` handler
+    where
+        act = receiveDataMessage conn >> error "Expecting CloseRequest exception"
+        handler (CloseRequest i msg') = do
+            i @=? 1000
+            msg' @=? msg
+        handler ConnectionClosed = error "Unexpected connection closed"

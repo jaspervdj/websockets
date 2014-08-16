@@ -57,7 +57,7 @@ compatible protocol req = case getRequestSecWebSocketVersion req of
 
 
 --------------------------------------------------------------------------------
-finishRequest :: Protocol -> RequestHead -> Response
+finishRequest :: Protocol -> RequestHead -> Headers -> Response
 finishRequest Hybi13 = Hybi13.finishRequest
 
 

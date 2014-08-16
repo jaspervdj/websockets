@@ -2,7 +2,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.WebSockets.Connection
     ( PendingConnection (..)
+    , AcceptRequest(..)
     , acceptRequest
+    , acceptRequestWith
     , rejectRequest
 
     , Connection (..)
@@ -57,6 +59,14 @@ data PendingConnection = PendingConnection
 
 
 --------------------------------------------------------------------------------
+data AcceptRequest = AcceptRequest
+    { acceptSubprotocol :: Maybe B.ByteString
+    -- ^ The subprotocol to speak with the client.  If 'pendingSubprotcols' is
+    -- non-empty, 'acceptSubprotocol' must be one of the subprotocols from the list.
+    }
+
+
+--------------------------------------------------------------------------------
 -- | Utility
 sendResponse :: PendingConnection -> Response -> IO ()
 sendResponse pc rsp = do
@@ -66,12 +76,18 @@ sendResponse pc rsp = do
 
 --------------------------------------------------------------------------------
 acceptRequest :: PendingConnection -> IO Connection
-acceptRequest pc = case find (flip compatible request) protocols of
+acceptRequest pc = acceptRequestWith pc $ AcceptRequest Nothing
+
+
+--------------------------------------------------------------------------------
+acceptRequestWith :: PendingConnection -> AcceptRequest -> IO Connection
+acceptRequestWith pc ar = case find (flip compatible request) protocols of
     Nothing       -> do
         sendResponse pc $ response400 versionHeader ""
         throw NotSupported
     Just protocol -> do
-        let response = finishRequest protocol request
+        let subproto = maybe [] (\p -> [("Sec-WebSocket-Protocol", p)]) $ acceptSubprotocol ar
+            response = finishRequest protocol request subproto
         sendResponse pc response
         msgIn  <- decodeMessages protocol (pendingIn pc)
         msgOut <- encodeMessages protocol ServerConnection (pendingOut pc)

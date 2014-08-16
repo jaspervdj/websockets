@@ -8,8 +8,9 @@ module Main
 
 
 --------------------------------------------------------------------------------
-import           Control.Monad              (forM_, forever)
+import           Control.Monad              (forM_, forever, void)
 import           Control.Monad.Trans        (liftIO)
+import           Control.Exception          (catch)
 import           Data.ByteString            (ByteString)
 import           Data.ByteString.Lazy.Char8 ()
 import           Data.Text                  (Text)
@@ -33,7 +34,10 @@ closeMe :: WS.Connection -> IO ()
 closeMe conn = do
     msg <- WS.receiveData conn
     case (msg :: TL.Text) of
-        "Close me!" -> WS.close conn
+        "Close me!" -> do
+            WS.sendClose conn ("Closing" :: ByteString)
+            void $ WS.receiveDataMessage conn
+            error "Expecting receiveDataMessage to throw CloseRequest exception"
         _           -> error "closeme: unexpected input"
 
 
@@ -84,11 +88,15 @@ application pc = do
     -- liftIO $ putStrLn $ "Selected version: " ++ version''
     liftIO $ putStrLn $ "Requested subprotocols: " ++ show (WS.getRequestSubprotocols rq)
     liftIO $ putStrLn $ "Starting test " ++ show name
-    let Just test = lookup name tests in test conn
+    let Just test = lookup name tests in test conn `catch` handleClose
     liftIO $ putStrLn $ "Test " ++ show name ++ " finished"
   where
     rq       = WS.pendingRequest pc
     version' = lookup "Sec-WebSocket-Version" (WS.requestHeaders rq)
+    handleClose (WS.CloseRequest i msg) =
+        putStrLn $ "Recevied close request " ++ show i ++ " : " ++ show msg
+    handleClose WS.ConnectionClosed =
+        putStrLn "Unexpected connection closed exception"
 
 
 --------------------------------------------------------------------------------

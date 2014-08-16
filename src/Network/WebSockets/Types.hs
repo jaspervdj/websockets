@@ -22,6 +22,7 @@ import qualified Data.Text               as T
 import qualified Data.Text.Lazy          as TL
 import qualified Data.Text.Lazy.Encoding as TL
 import           Data.Typeable           (Typeable)
+import           Data.Word               (Word16)
 
 
 --------------------------------------------------------------------------------
@@ -39,7 +40,7 @@ data Message
 --------------------------------------------------------------------------------
 -- | Different control messages
 data ControlMessage
-    = Close BL.ByteString
+    = Close Word16 BL.ByteString
     | Ping BL.ByteString
     | Pong BL.ByteString
     deriving (Eq, Show)
@@ -99,14 +100,23 @@ instance WebSocketsData T.Text where
 
 
 --------------------------------------------------------------------------------
--- | The connection couldn't be established or broke down unexpectedly. thrown
--- as an iteratee exception.
+-- | Various exceptions that can occur while receiving or transmitting messages
 data ConnectionException
-    -- | the client unexpectedly closed the connection while we were trying to
-    -- receive some data.
+    -- | The peer has requested that the connection be closed, and included
+    -- a close code and a reason for closing.  When receiving this exception,
+    -- no more messages can be sent.  Also, the server is responsible for
+    -- closing the TCP connection once this exception is received.
     --
-    -- todo: Also want this for sending.
-    = ConnectionClosed
+    -- See <http://tools.ietf.org/html/rfc6455#section-7.4> for a list of close
+    -- codes.
+    = CloseRequest Word16 BL.ByteString
+
+    -- | The peer unexpectedly closed the connection while we were trying to
+    -- receive some data.  This is a violation of the websocket RFC since the
+    -- TCP connection should only be closed after sending and receiving close
+    -- control messages.
+    | ConnectionClosed
+
     deriving (Show, Typeable)
 
 

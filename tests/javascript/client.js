@@ -39,9 +39,14 @@ asyncTest('echo-text', function() {
         if(messages.length > 0) {
             ws.send(messages[0]);
         } else {
-            ws.close();
-            start();
+            ws.close(4002, "Goodbye");
         }
+    };
+
+    ws.onclose = function(event) {
+        equal(event.code, 4002);
+        equal(event.reason, "Goodbye");
+        start();
     };
 });
 
@@ -50,8 +55,9 @@ asyncTest('close me', function() {
     ws.onopen = function() {
         ws.send('Close me!');
     };
-    ws.onclose = function() {
-        ok(true, 'closed');
+    ws.onclose = function(event) {
+        equal(event.code, 1000);
+        equal(event.reason, "Closing");
         start();
     };
 });
@@ -80,6 +86,13 @@ asyncTest('blob', function() {
     ws.onmessage = function(event){
         console.log(event.data)
         console.log(event.data.type)
+        ws.close();
+    };
+
+    ws.onclose = function(event) {
+        equal(event.code, 1000);
+        equal(event.reason, "");
+        start();
     };
 });
 

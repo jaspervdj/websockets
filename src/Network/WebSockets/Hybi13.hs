@@ -23,6 +23,7 @@ import           Data.Attoparsec                       (anyWord8)
 import qualified Data.Attoparsec                       as A
 import           Data.Binary.Get                       (getWord16be,
                                                         getWord64be, runGet)
+import           Data.Binary.Put                       (runPut, putWord16be)
 import           Data.Bits                             ((.&.), (.|.))
 import           Data.ByteString                       (ByteString)
 import qualified Data.ByteString.Base64                as B64
@@ -94,11 +95,11 @@ encodeMessage conType gen msg = (gen', builder `mappend` B.flush)
         ServerConnection -> (Nothing, gen)
         ClientConnection -> randomMask gen
     builder      = encodeFrame mask $ case msg of
-        (ControlMessage (Close pl)) -> mkFrame CloseFrame  pl
-        (ControlMessage (Ping pl))  -> mkFrame PingFrame   pl
-        (ControlMessage (Pong pl))  -> mkFrame PongFrame   pl
-        (DataMessage (Text pl))     -> mkFrame TextFrame   pl
-        (DataMessage (Binary pl))   -> mkFrame BinaryFrame pl
+        (ControlMessage (Close code pl)) -> mkFrame CloseFrame (runPut (putWord16be code) `mappend` pl)
+        (ControlMessage (Ping pl))       -> mkFrame PingFrame   pl
+        (ControlMessage (Pong pl))       -> mkFrame PongFrame   pl
+        (DataMessage (Text pl))          -> mkFrame TextFrame   pl
+        (DataMessage (Binary pl))        -> mkFrame BinaryFrame pl
 
 
 --------------------------------------------------------------------------------

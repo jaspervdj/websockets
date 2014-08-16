@@ -25,6 +25,7 @@ module Network.WebSockets.Http
     , getRequestHeader
     , getResponseHeader
     , getRequestSecWebSocketVersion
+    , getRequestSubprotocols
     ) where
 
 
@@ -231,6 +232,17 @@ getResponseHeader rsp key = case lookup key (responseHeaders rsp) of
 getRequestSecWebSocketVersion :: RequestHead -> Maybe B.ByteString
 getRequestSecWebSocketVersion p =
     lookup "Sec-WebSocket-Version" (requestHeaders p)
+
+
+--------------------------------------------------------------------------------
+-- | List of subprotocols specified by the client, in order of preference.
+-- If the client did not specify a list of subprotocols, this will be the
+-- empty list.
+getRequestSubprotocols :: RequestHead -> [B.ByteString]
+getRequestSubprotocols rh = maybe [] parse mproto
+    where
+        mproto = lookup "Sec-WebSocket-Protocol" $ requestHeaders rh
+        parse = filter (not . B.null) . BC.splitWith (\o -> o == ',' || o == ' ')
 
 
 --------------------------------------------------------------------------------

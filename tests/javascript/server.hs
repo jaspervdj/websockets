@@ -60,10 +60,11 @@ echo conn = forever $ WS.receive conn >>= WS.send conn
 --------------------------------------------------------------------------------
 tests :: [(ByteString, WS.Connection -> IO ())]
 tests =
-    [ ("/echo-text", echoText)
-    , ("/close-me",  closeMe)
-    , ("/ping",      ping)
-    , ("/echo",      echo)
+    [ ("/echo-text",   echoText)
+    , ("/close-me",    closeMe)
+    , ("/ping",        ping)
+    , ("/echo",        echo)
+    , ("/subprotocol", echoText)
     ]
 
 
@@ -71,14 +72,17 @@ tests =
 -- | Application
 application :: WS.ServerApp
 application pc = do
+    let name = WS.requestPath rq
     -- When a client succesfully connects, lookup the requested test and
     -- run it
-    conn <- WS.acceptRequest pc
+    conn <- case name of
+        "/subprotocol" -> WS.acceptRequestWith pc $ WS.AcceptRequest $ Just "abc"
+        _ -> WS.acceptRequest pc
     -- version'' <- WS.getVersion
     liftIO $ putStrLn $ "==================================="
     liftIO $ putStrLn $ "Requested client version: " ++ show version'
     -- liftIO $ putStrLn $ "Selected version: " ++ version''
-    let name = WS.requestPath rq
+    liftIO $ putStrLn $ "Requested subprotocols: " ++ show (WS.getRequestSubprotocols rq)
     liftIO $ putStrLn $ "Starting test " ++ show name
     let Just test = lookup name tests in test conn
     liftIO $ putStrLn $ "Test " ++ show name ++ " finished"

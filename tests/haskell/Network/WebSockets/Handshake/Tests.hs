@@ -29,9 +29,10 @@ import           Network.WebSockets.Tests.Util
 --------------------------------------------------------------------------------
 tests :: Test
 tests = testGroup "Network.WebSockets.Handshake.Test"
-    [ testCase "handshake Hybi13"   testHandshakeHybi13
-    , testCase "handshake reject"   testHandshakeReject
-    , testCase "handshake Hybi9000" testHandshakeHybi9000
+    [ testCase "handshake Hybi13"                   testHandshakeHybi13
+    , testCase "handshake Hybi13 with subprotocols" testHandshakeHybi13WithProto
+    , testCase "handshake reject"                   testHandshakeReject
+    , testCase "handshake Hybi9000"                 testHandshakeHybi9000
     ]
 
 
@@ -60,7 +61,7 @@ rq13 = RequestHead "/mychat"
     , ("Upgrade", "websocket")
     , ("Connection", "Upgrade")
     , ("Sec-WebSocket-Key", "x3JJHMbDL1EzLkh9GBhXDw==")
-    , ("Sec-WebSocket-Protocol", "chat")
+    , ("Sec-WebSocket-Protocol", "chat, superchat")
     , ("Sec-WebSocket-Version", "13")
     , ("Origin", "http://example.com")
     ]
@@ -79,7 +80,23 @@ testHandshakeHybi13 = do
     message @?= "WebSocket Protocol Handshake"
     headers ! "Sec-WebSocket-Accept" @?= "HSmrc0sMlYUkAGmm5OPpG2HaGWk="
     headers ! "Connection"           @?= "Upgrade"
+    lookup "Sec-WebSocket-Protocol" headers @?= Nothing
 
+--------------------------------------------------------------------------------
+testHandshakeHybi13WithProto :: Assertion
+testHandshakeHybi13WithProto = do
+    onAcceptFired                     <- newIORef False
+    ResponseHead code message headers <- testHandshake rq13 $ \pc -> do
+        getRequestSubprotocols (pendingRequest pc) @?= ["chat", "superchat"]
+        acceptRequestWith pc {pendingOnAccept = \_ -> writeIORef onAcceptFired True}
+                          (AcceptRequest $ Just "superchat")
+
+    readIORef onAcceptFired >>= assert
+    code @?= 101
+    message @?= "WebSocket Protocol Handshake"
+    headers ! "Sec-WebSocket-Accept" @?= "HSmrc0sMlYUkAGmm5OPpG2HaGWk="
+    headers ! "Connection"           @?= "Upgrade"
+    headers ! "Sec-WebSocket-Protocol" @?= "superchat"
 
 --------------------------------------------------------------------------------
 testHandshakeReject :: Assertion

@@ -54,12 +54,13 @@ headerVersions = ["13"]
 
 --------------------------------------------------------------------------------
 finishRequest :: RequestHead
+              -> Headers
               -> Response
-finishRequest reqHttp =
+finishRequest reqHttp headers =
     let !key     = getRequestHeader reqHttp "Sec-WebSocket-Key"
         !hash    = hashKey key
         !encoded = B64.encode hash
-    in response101 [("Sec-WebSocket-Accept", encoded)] ""
+    in response101 (("Sec-WebSocket-Accept", encoded):headers) ""
 
 
 --------------------------------------------------------------------------------

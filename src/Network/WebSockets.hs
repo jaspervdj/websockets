@@ -4,7 +4,9 @@ module Network.WebSockets
     ( -- * Incoming connections and handshaking
       PendingConnection
     , pendingRequest
+    , AcceptRequest(..)
     , acceptRequest
+    , acceptRequestWith
     , rejectRequest
 
       -- * Main connection type
@@ -29,6 +31,7 @@ module Network.WebSockets
     , Headers
     , Request (..)
     , RequestHead (..)
+    , getRequestSubprotocols
     , Response (..)
     , ResponseHead (..)
 

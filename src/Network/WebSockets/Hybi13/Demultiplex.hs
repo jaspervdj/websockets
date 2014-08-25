@@ -102,9 +102,16 @@ demultiplex state (Frame fin _ _ _ tp pl) = case tp of
         | fin       -> (Just (DataMessage (Binary pl)), e)
         | otherwise -> (Nothing, DemultiplexState (Just (BinaryFrame, plb)))
   where
-    e = emptyDemultiplexState
+    e   = emptyDemultiplexState
     plb = B.fromLazyByteString pl
-    parsedClose =
-        if BL.null pl
-            then (1000, "")
-            else (runGet getWord16be pl, BL.drop 2 pl)
+
+    -- The Close frame MAY contain a body (the "Application data" portion of the
+    -- frame) that indicates a reason for closing, such as an endpoint shutting
+    -- down, an endpoint having received a frame too large, or an endpoint
+    -- having received a frame that does not conform to the format expected by
+    -- the endpoint. If there is a body, the first two bytes of the body MUST
+    -- be a 2-byte unsigned integer (in network byte order) representing a
+    -- status code with value /code/ defined in Section 7.4.
+    parsedClose
+        | BL.length pl >= 2 = (runGet getWord16be pl, BL.drop 2 pl)
+        | otherwise         = (1000, "")

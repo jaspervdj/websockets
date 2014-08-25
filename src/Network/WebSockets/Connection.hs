@@ -239,7 +239,8 @@ sendClose conn = sendCloseCode conn 1000
 -- See <http://tools.ietf.org/html/rfc6455#section-7.4> for a list of close
 -- codes.
 sendCloseCode :: WebSocketsData a => Connection -> Word16 -> a -> IO ()
-sendCloseCode conn code = send conn . ControlMessage . Close code . toLazyByteString
+sendCloseCode conn code =
+    send conn . ControlMessage . Close code . toLazyByteString
 
 
 --------------------------------------------------------------------------------

@@ -19,8 +19,7 @@ import qualified Blaze.ByteString.Builder              as B
 import           Control.Applicative                   (pure, (<$>))
 import           Control.Exception                     (throw)
 import           Control.Monad                         (liftM)
-import           Data.Attoparsec                       (anyWord8)
-import qualified Data.Attoparsec                       as A
+import qualified Data.Attoparsec.ByteString            as A
 import           Data.Binary.Get                       (getWord16be,
                                                         getWord64be, runGet)
 import           Data.Binary.Put                       (runPut, putWord16be)
@@ -96,7 +95,8 @@ encodeMessage conType gen msg = (gen', builder `mappend` B.flush)
         ServerConnection -> (Nothing, gen)
         ClientConnection -> randomMask gen
     builder      = encodeFrame mask $ case msg of
-        (ControlMessage (Close code pl)) -> mkFrame CloseFrame (runPut (putWord16be code) `mappend` pl)
+        (ControlMessage (Close code pl)) -> mkFrame CloseFrame $
+            runPut (putWord16be code) `mappend` pl
         (ControlMessage (Ping pl))       -> mkFrame PingFrame   pl
         (ControlMessage (Pong pl))       -> mkFrame PongFrame   pl
         (DataMessage (Text pl))          -> mkFrame TextFrame   pl
@@ -166,23 +166,23 @@ decodeMessages bsStream = do
 -- | Parse a frame
 parseFrame :: A.Parser Frame
 parseFrame = do
-    byte0 <- anyWord8
+    byte0 <- A.anyWord8
     let fin    = byte0 .&. 0x80 == 0x80
         rsv1   = byte0 .&. 0x40 == 0x40
         rsv2   = byte0 .&. 0x20 == 0x20
         rsv3   = byte0 .&. 0x10 == 0x10
         opcode = byte0 .&. 0x0f
 
-    let ft = case opcode of
-            0x00 -> ContinuationFrame
-            0x01 -> TextFrame
-            0x02 -> BinaryFrame
-            0x08 -> CloseFrame
-            0x09 -> PingFrame
-            0x0a -> PongFrame
-            _    -> error "Unknown opcode"
+    ft <- case opcode of
+            0x00 -> return ContinuationFrame
+            0x01 -> return TextFrame
+            0x02 -> return BinaryFrame
+            0x08 -> return CloseFrame
+            0x09 -> return PingFrame
+            0x0a -> return PongFrame
+            _    -> fail $ "Unknown opcode: " ++ show opcode
 
-    byte1 <- anyWord8
+    byte1 <- A.anyWord8
     let mask = byte1 .&. 0x80 == 0x80
         lenflag = fromIntegral (byte1 .&. 0x7f)
 

@@ -73,7 +73,7 @@ Library
     containers        >= 0.3    && < 0.6,
     io-streams        >= 1.1    && < 1.2,
     mtl               >= 2.0    && < 2.3,
-    network           >= 2.3    && < 2.6,
+    network           >= 2.3    && < 2.7,
     random            >= 1.0    && < 1.1,
     SHA               >= 1.5    && < 1.7,
     text              >= 0.10   && < 1.2,

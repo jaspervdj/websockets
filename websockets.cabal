@@ -50,6 +50,7 @@ Library
   Exposed-modules:
     Network.WebSockets
     Network.WebSockets.Connection
+    Network.WebSockets.Stream
     -- Network.WebSockets.Util.PubSub TODO
 
   Other-modules:

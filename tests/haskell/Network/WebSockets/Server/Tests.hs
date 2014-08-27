@@ -13,12 +13,11 @@ import           Control.Concurrent             (forkIO, killThread,
 import           Control.Exception              (SomeException, handle, catch)
 import           Control.Monad                  (forM_, forever, replicateM, unless)
 import           Data.IORef                     (newIORef, readIORef, IORef,
-                                                 writeIORef) 
+                                                 writeIORef)
 
 --------------------------------------------------------------------------------
 import qualified Data.ByteString.Lazy           as BL
 import           Data.Text                      (Text)
-import           System.Random                  (newStdGen)
 import           Test.Framework                 (Test, testGroup)
 import           Test.Framework.Providers.HUnit (testCase)
 import           Test.HUnit                     (Assertion, assert, (@=?))

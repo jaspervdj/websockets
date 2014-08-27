@@ -9,11 +9,10 @@ module Network.WebSockets.Tests
 --------------------------------------------------------------------------------
 import qualified Blaze.ByteString.Builder              as Builder
 import           Control.Applicative                   ((<$>))
-import           Control.Monad                         (replicateM)
+import           Control.Monad                         (replicateM, forM_)
 import qualified Data.ByteString.Lazy                  as BL
 import           Data.List                             (intersperse)
 import           Data.Maybe                            (catMaybes)
-import qualified System.IO.Streams                     as Streams
 import           Test.Framework                        (Test, testGroup)
 import           Test.Framework.Providers.QuickCheck2  (testProperty)
 import           Test.HUnit                            ((@=?))
@@ -28,6 +27,7 @@ import           Network.WebSockets
 import qualified Network.WebSockets.Hybi13             as Hybi13
 import           Network.WebSockets.Hybi13.Demultiplex
 import           Network.WebSockets.Protocol
+import qualified Network.WebSockets.Stream             as Stream
 import           Network.WebSockets.Tests.Util
 import           Network.WebSockets.Types
 
@@ -44,12 +44,11 @@ tests = testGroup "Network.WebSockets.Test"
 testSimpleEncodeDecode :: Protocol -> Property
 testSimpleEncodeDecode protocol = QC.monadicIO $
     QC.forAllM QC.arbitrary $ \msgs -> QC.run $ do
-        (is, os) <- makeChanPipe
-        is'      <- decodeMessages protocol is
-        os'      <- encodeMessages protocol ClientConnection =<<
-            Streams.builderStream os
-        Streams.writeList msgs os'
-        msgs' <- catMaybes <$> replicateM (length msgs) (Streams.read is')
+        echo  <- Stream.makeEchoStream
+        parse <- decodeMessages protocol echo
+        write <- encodeMessages protocol ClientConnection echo
+        forM_ msgs write
+        msgs' <- catMaybes <$> replicateM (length msgs) parse
         msgs @=? msgs'
 
 
@@ -57,25 +56,30 @@ testSimpleEncodeDecode protocol = QC.monadicIO $
 testFragmentedHybi13 :: Property
 testFragmentedHybi13 = QC.monadicIO $
     QC.forAllM QC.arbitrary $ \fragmented -> QC.run $ do
-        (is, os) <- makeChanPipe
-        is'      <- Streams.filter isDataMessage =<< Hybi13.decodeMessages is
-        os'      <- Streams.builderStream os
+        echo     <- Stream.makeEchoStream
+        parse    <- Hybi13.decodeMessages echo
+        -- is'      <- Streams.filter isDataMessage =<< Hybi13.decodeMessages is
 
         -- Simple hacky encoding of all frames
-        Streams.writeList
-            [ Hybi13.encodeFrame Nothing f
+        mapM_ (Stream.write echo)
+            [ Builder.toLazyByteString (Hybi13.encodeFrame Nothing f)
             | FragmentedMessage _ frames <- fragmented
             , f                          <- frames
-            ] os'
-        Streams.write (Just Builder.flush) os'
-        Streams.write Nothing os'
+            ]
+        Stream.close echo
 
         -- Check if we got all data
-        msgs <- catMaybes <$> replicateM (length fragmented) (Streams.read is')
+        msgs <- filter isDataMessage <$> parseAll parse
         [msg | FragmentedMessage msg _ <- fragmented] @=? msgs
   where
     isDataMessage (ControlMessage _) = False
     isDataMessage (DataMessage _)    = True
+
+    parseAll parse = do
+        mbMsg <- parse
+        case mbMsg of
+            Just msg -> (msg :) <$> parseAll parse
+            Nothing  -> return []
 
 
 --------------------------------------------------------------------------------

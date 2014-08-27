@@ -16,13 +16,14 @@ import qualified System.IO.Streams.Attoparsec   as Streams
 import qualified System.IO.Streams.Builder      as Streams
 import           Test.Framework                 (Test, testGroup)
 import           Test.Framework.Providers.HUnit (testCase)
-import           Test.HUnit                     (Assertion, (@?=), assert)
+import           Test.HUnit                     (Assertion, assert, (@?=))
 
 
 --------------------------------------------------------------------------------
 import           Network.WebSockets
 import           Network.WebSockets.Connection
 import           Network.WebSockets.Http
+import qualified Network.WebSockets.Stream      as Stream
 import           Network.WebSockets.Tests.Util
 
 
@@ -39,12 +40,14 @@ tests = testGroup "Network.WebSockets.Handshake.Test"
 --------------------------------------------------------------------------------
 testHandshake :: RequestHead -> (PendingConnection -> IO a) -> IO ResponseHead
 testHandshake rq app = do
-    (is, os) <- makeChanPipe
-    os'      <- Streams.builderStream os
-    _        <- forkIO $ do
-        _ <- app (PendingConnection defaultConnectionOptions rq nullify is os')
+    echo <- Stream.makeEchoStream
+    _    <- forkIO $ do
+        _ <- app (PendingConnection defaultConnectionOptions rq nullify echo)
         return ()
-    Streams.parseFromStream decodeResponseHead is
+    mbRh <- Stream.parse echo decodeResponseHead
+    case mbRh of
+        Nothing -> fail "testHandshake: No response"
+        Just rh -> return rh
   where
     nullify _ = return ()
 

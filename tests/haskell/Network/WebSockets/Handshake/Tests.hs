@@ -12,8 +12,6 @@ import           Data.ByteString.Char8          ()
 import           Data.IORef                     (newIORef, readIORef,
                                                  writeIORef)
 import           Data.Maybe                     (fromJust)
-import qualified System.IO.Streams.Attoparsec   as Streams
-import qualified System.IO.Streams.Builder      as Streams
 import           Test.Framework                 (Test, testGroup)
 import           Test.Framework.Providers.HUnit (testCase)
 import           Test.HUnit                     (Assertion, assert, (@?=))

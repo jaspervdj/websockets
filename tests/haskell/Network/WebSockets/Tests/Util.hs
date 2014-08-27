@@ -3,7 +3,6 @@ module Network.WebSockets.Tests.Util
     ( ArbitraryUtf8 (..)
     , arbitraryUtf8
     , arbitraryByteString
-    , makeChanPipe
     ) where
 
 
@@ -13,8 +12,6 @@ import           Control.Concurrent.Chan      (newChan)
 import qualified Data.ByteString.Lazy         as BL
 import qualified Data.Text.Lazy               as TL
 import qualified Data.Text.Lazy.Encoding      as TL
-import           System.IO.Streams            (InputStream, OutputStream)
-import qualified System.IO.Streams.Concurrent as Streams
 import           Test.QuickCheck              (Arbitrary (..), Gen)
 
 
@@ -40,12 +37,3 @@ arbitraryUtf8 = toLazyByteString . TL.encodeUtf8 . TL.pack <$> arbitrary
 --------------------------------------------------------------------------------
 arbitraryByteString :: Gen BL.ByteString
 arbitraryByteString = BL.pack <$> arbitrary
-
-
---------------------------------------------------------------------------------
--- | TODO: I added this function to the io-streams library but it isn't released
--- yet, at some point we should be able to remove it here.
-makeChanPipe :: IO (InputStream a, OutputStream a)
-makeChanPipe = do
-    chan <- newChan
-    (,) <$> Streams.chanToInput chan <*> Streams.chanToOutput chan

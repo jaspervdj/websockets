@@ -60,14 +60,14 @@ instance Exception DemultiplexException
 
 --------------------------------------------------------------------------------
 -- | Internal state used by the demultiplexer
-newtype DemultiplexState = DemultiplexState
-    { unDemultiplexState :: Maybe (FrameType, Builder)
-    }
+data DemultiplexState
+    = EmptyDemultiplexState
+    | DemultiplexState !FrameType !Builder
 
 
 --------------------------------------------------------------------------------
 emptyDemultiplexState :: DemultiplexState
-emptyDemultiplexState = DemultiplexState Nothing
+emptyDemultiplexState = EmptyDemultiplexState
 
 
 --------------------------------------------------------------------------------
@@ -80,14 +80,14 @@ demultiplex state (Frame fin _ _ _ tp pl) = case tp of
     PingFrame   -> (Just (ControlMessage (Ping pl)), state)
     PongFrame   -> (Just (ControlMessage (Pong pl)), state)
     -- If we're dealing with a continuation...
-    ContinuationFrame -> case unDemultiplexState state of
+    ContinuationFrame -> case state of
         -- We received a continuation but we don't have any state. Let's ignore
         -- this fragment...
-        Nothing -> (Nothing, DemultiplexState Nothing)
+        EmptyDemultiplexState -> (Nothing, EmptyDemultiplexState)
         -- Append the payload to the state
         -- TODO: protect against overflows
-        Just (amt, b)
-            | not fin   -> (Nothing, DemultiplexState (Just (amt, b')))
+        DemultiplexState amt b
+            | not fin   -> (Nothing, DemultiplexState amt b')
             | otherwise -> case amt of
                 TextFrame   -> (Just (DataMessage (Text m)), e)
                 BinaryFrame -> (Just (DataMessage (Binary m)), e)
@@ -97,10 +97,10 @@ demultiplex state (Frame fin _ _ _ tp pl) = case tp of
             m = B.toLazyByteString b'
     TextFrame
         | fin       -> (Just (DataMessage (Text pl)), e)
-        | otherwise -> (Nothing, DemultiplexState (Just (TextFrame, plb)))
+        | otherwise -> (Nothing, DemultiplexState TextFrame plb)
     BinaryFrame
         | fin       -> (Just (DataMessage (Binary pl)), e)
-        | otherwise -> (Nothing, DemultiplexState (Just (BinaryFrame, plb)))
+        | otherwise -> (Nothing, DemultiplexState BinaryFrame plb)
   where
     e   = emptyDemultiplexState
     plb = B.fromLazyByteString pl

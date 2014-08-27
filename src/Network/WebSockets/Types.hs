@@ -117,6 +117,8 @@ data ConnectionException
     -- control messages.
     | ConnectionClosed
 
+    -- | The client sent garbage, i.e. we could not parse the WebSockets stream.
+    | ParseException String
     deriving (Show, Typeable)
 
 

@@ -22,7 +22,7 @@ import           Control.Monad                         (liftM)
 import qualified Data.Attoparsec.ByteString            as A
 import           Data.Binary.Get                       (getWord16be,
                                                         getWord64be, runGet)
-import           Data.Binary.Put                       (runPut, putWord16be)
+import           Data.Binary.Put                       (putWord16be, runPut)
 import           Data.Bits                             ((.&.), (.|.))
 import           Data.ByteString                       (ByteString)
 import qualified Data.ByteString.Base64                as B64
@@ -35,8 +35,6 @@ import           Data.Monoid                           (mappend, mconcat,
                                                         mempty)
 import           Data.Tuple                            (swap)
 import           System.Entropy                        as R
-import qualified System.IO.Streams                     as Streams
-import qualified System.IO.Streams.Attoparsec          as Streams
 import           System.Random                         (RandomGen, newStdGen)
 
 
@@ -44,6 +42,8 @@ import           System.Random                         (RandomGen, newStdGen)
 import           Network.WebSockets.Http
 import           Network.WebSockets.Hybi13.Demultiplex
 import           Network.WebSockets.Hybi13.Mask
+import           Network.WebSockets.Stream             (Stream)
+import qualified Network.WebSockets.Stream             as Stream
 import           Network.WebSockets.Types
 
 
@@ -104,18 +104,15 @@ encodeMessage conType gen msg = (gen', builder `mappend` B.flush)
 
 
 --------------------------------------------------------------------------------
-encodeMessages :: ConnectionType
-               -> Streams.OutputStream B.Builder
-               -> IO (Streams.OutputStream Message)
-encodeMessages conType bStream = do
+encodeMessages
+    :: ConnectionType
+    -> Stream
+    -> IO (Message -> IO ())
+encodeMessages conType stream = do
     genRef <- newIORef =<< newStdGen
-    Streams.lockingOutputStream =<< Streams.makeOutputStream (next genRef)
-  where
-    next :: RandomGen g => IORef g -> Maybe Message -> IO ()
-    next _      Nothing    = return ()
-    next genRef (Just msg) = do
-        build <- atomicModifyIORef genRef $ \s -> encodeMessage conType s msg
-        Streams.write (Just build) bStream
+    return $ \msg -> do
+        builder <- atomicModifyIORef genRef $ \s -> encodeMessage conType s msg
+        Stream.write stream (B.toLazyByteString builder)
 
 
 --------------------------------------------------------------------------------
@@ -150,16 +147,23 @@ encodeFrame mask f = B.fromWord8 byte0 `mappend`
 
 
 --------------------------------------------------------------------------------
-decodeMessages :: Streams.InputStream ByteString
-               -> IO (Streams.InputStream Message)
-decodeMessages bsStream = do
+decodeMessages
+    :: Stream
+    -> IO (IO (Maybe Message))
+decodeMessages stream = do
     dmRef <- newIORef emptyDemultiplexState
-    Streams.makeInputStream $ next dmRef
+    return $ go dmRef
   where
-    next dmRef = do
-        frame <- Streams.parseFromStream parseFrame bsStream
-        m     <- atomicModifyIORef dmRef $ \s -> swap $ demultiplex s frame
-        maybe (next dmRef) (return . Just) m
+    go dmRef = do
+        mbFrame <- Stream.parse stream parseFrame
+        case mbFrame of
+            Nothing    -> return Nothing
+            Just frame -> do
+                mbMsg <- atomicModifyIORef dmRef $
+                    \s -> swap $ demultiplex s frame
+                case mbMsg of
+                    Nothing  -> go dmRef
+                    Just msg -> return (Just msg)
 
 
 --------------------------------------------------------------------------------

@@ -16,15 +16,14 @@ module Network.WebSockets.Protocol
 
 
 --------------------------------------------------------------------------------
-import           Blaze.ByteString.Builder  (Builder)
 import           Data.ByteString           (ByteString)
 import qualified Data.ByteString           as B
-import qualified System.IO.Streams         as Streams
 
 
 --------------------------------------------------------------------------------
 import           Network.WebSockets.Http
 import qualified Network.WebSockets.Hybi13 as Hybi13
+import           Network.WebSockets.Stream (Stream)
 import           Network.WebSockets.Types
 
 
@@ -67,19 +66,21 @@ finishResponse Hybi13 = Hybi13.finishResponse
 
 
 --------------------------------------------------------------------------------
-encodeMessages :: Protocol -> ConnectionType
-               -> Streams.OutputStream Builder
-               -> IO (Streams.OutputStream Message)
+encodeMessages
+    :: Protocol -> ConnectionType -> Stream
+    -> IO (Message -> IO ())
 encodeMessages Hybi13 = Hybi13.encodeMessages
 
 
 --------------------------------------------------------------------------------
-decodeMessages :: Protocol -> Streams.InputStream B.ByteString
-               -> IO (Streams.InputStream Message)
+decodeMessages
+    :: Protocol -> Stream
+    -> IO (IO (Maybe Message))
 decodeMessages Hybi13 = Hybi13.decodeMessages
 
 
 --------------------------------------------------------------------------------
-createRequest :: Protocol -> B.ByteString -> B.ByteString -> Bool -> Headers
-              -> IO RequestHead
+createRequest
+    :: Protocol -> B.ByteString -> B.ByteString -> Bool -> Headers
+    -> IO RequestHead
 createRequest Hybi13 = Hybi13.createRequest

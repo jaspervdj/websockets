@@ -26,21 +26,21 @@ module Network.WebSockets.Connection
 
 
 --------------------------------------------------------------------------------
-import           Blaze.ByteString.Builder    (Builder)
 import qualified Blaze.ByteString.Builder    as Builder
 import           Control.Exception           (throw)
 import           Control.Monad               (unless)
 import qualified Data.ByteString             as B
+import           Data.IORef                  (IORef, newIORef, readIORef,
+                                              writeIORef)
 import           Data.List                   (find)
-import           Data.IORef                  (IORef, newIORef, readIORef, writeIORef)
 import           Data.Word                   (Word16)
-import           System.IO.Streams           (InputStream, OutputStream)
-import qualified System.IO.Streams           as Streams
 
 
 --------------------------------------------------------------------------------
 import           Network.WebSockets.Http
 import           Network.WebSockets.Protocol
+import           Network.WebSockets.Stream   (Stream)
+import qualified Network.WebSockets.Stream   as Stream
 import           Network.WebSockets.Types
 
 
@@ -48,23 +48,21 @@ import           Network.WebSockets.Types
 -- | A new client connected to the server. We haven't accepted the connection
 -- yet, though.
 data PendingConnection = PendingConnection
-    { pendingOptions  :: ConnectionOptions
+    { pendingOptions  :: !ConnectionOptions
     -- ^ Options, passed as-is to the 'Connection'
-    , pendingRequest  :: RequestHead
+    , pendingRequest  :: !RequestHead
     -- ^ Useful for e.g. inspecting the request path.
-    , pendingOnAccept :: Connection -> IO ()
+    , pendingOnAccept :: !(Connection -> IO ())
     -- ^ One-shot callback fired when a connection is accepted, i.e., *after*
     -- the accepting response is sent to the client.
-    , pendingIn       :: InputStream B.ByteString
-    -- ^ Input stream
-    , pendingOut      :: OutputStream Builder
-    -- ^ Output stream
+    , pendingStream   :: !Stream
+    -- ^ Input/output stream
     }
 
 
 --------------------------------------------------------------------------------
 data AcceptRequest = AcceptRequest
-    { acceptSubprotocol :: Maybe B.ByteString
+    { acceptSubprotocol :: !(Maybe B.ByteString)
     -- ^ The subprotocol to speak with the client.  If 'pendingSubprotcols' is
     -- non-empty, 'acceptSubprotocol' must be one of the subprotocols from the list.
     }
@@ -73,9 +71,8 @@ data AcceptRequest = AcceptRequest
 --------------------------------------------------------------------------------
 -- | Utility
 sendResponse :: PendingConnection -> Response -> IO ()
-sendResponse pc rsp = do
-    Streams.write (Just (encodeResponse rsp)) (pendingOut pc)
-    Streams.write (Just Builder.flush)        (pendingOut pc)
+sendResponse pc rsp = Stream.write (pendingStream pc)
+    (Builder.toLazyByteString (encodeResponse rsp))
 
 
 --------------------------------------------------------------------------------
@@ -93,15 +90,15 @@ acceptRequestWith pc ar = case find (flip compatible request) protocols of
         let subproto = maybe [] (\p -> [("Sec-WebSocket-Protocol", p)]) $ acceptSubprotocol ar
             response = finishRequest protocol request subproto
         sendResponse pc response
-        msgIn  <- decodeMessages protocol (pendingIn pc)
-        msgOut <- encodeMessages protocol ServerConnection (pendingOut pc)
+        parse   <- decodeMessages protocol (pendingStream pc)
+        write   <- encodeMessages protocol ServerConnection (pendingStream pc)
         sentRef <- newIORef False
         let connection = Connection
                 { connectionOptions   = pendingOptions pc
                 , connectionType      = ServerConnection
                 , connectionProtocol  = protocol
-                , connectionIn        = msgIn
-                , connectionOut       = msgOut
+                , connectionParse     = parse
+                , connectionWrite     = write
                 , connectionSentClose = sentRef
                 }
 
@@ -120,12 +117,12 @@ rejectRequest pc message = sendResponse pc $ response400 [] message
 
 --------------------------------------------------------------------------------
 data Connection = Connection
-    { connectionOptions  :: ConnectionOptions
-    , connectionType     :: ConnectionType
-    , connectionProtocol :: Protocol
-    , connectionIn       :: InputStream Message
-    , connectionOut      :: OutputStream Message
-    , connectionSentClose :: IORef Bool
+    { connectionOptions   :: !ConnectionOptions
+    , connectionType      :: !ConnectionType
+    , connectionProtocol  :: !Protocol
+    , connectionParse     :: !(IO (Maybe Message))
+    , connectionWrite     :: !(Message -> IO ())
+    , connectionSentClose :: !(IORef Bool)
     -- ^ According to the RFC, both the client and the server MUST send
     -- a close control message to each other.  Either party can initiate
     -- the first close message but then the other party must respond.  Finally,
@@ -136,7 +133,7 @@ data Connection = Connection
 
 --------------------------------------------------------------------------------
 data ConnectionOptions = ConnectionOptions
-    { connectionOnPong :: IO ()
+    { connectionOnPong :: !(IO ())
     }
 
 
@@ -150,8 +147,8 @@ defaultConnectionOptions = ConnectionOptions
 --------------------------------------------------------------------------------
 receive :: Connection -> IO Message
 receive conn = do
-    mmsg <- Streams.read (connectionIn conn)
-    case mmsg of
+    mbMsg <- connectionParse conn
+    case mbMsg of
         Nothing  -> throw ConnectionClosed
         Just msg -> return msg
 
@@ -201,7 +198,7 @@ send conn msg = do
     case msg of
         (ControlMessage (Close _ _)) -> writeIORef (connectionSentClose conn) True
         _ -> return ()
-    Streams.write (Just msg) (connectionOut conn)
+    connectionWrite conn msg
 
 
 --------------------------------------------------------------------------------

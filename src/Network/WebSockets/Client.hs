@@ -12,20 +12,19 @@ module Network.WebSockets.Client
 
 --------------------------------------------------------------------------------
 import qualified Blaze.ByteString.Builder      as Builder
-import           Control.Exception             (finally)
-import qualified Data.ByteString               as B
+import           Control.Exception             (finally, throw)
 import           Data.IORef                    (newIORef)
 import qualified Data.Text                     as T
 import qualified Data.Text.Encoding            as T
 import qualified Network.Socket                as S
-import qualified System.IO.Streams             as Streams
-import qualified System.IO.Streams.Attoparsec  as Streams
 
 
 --------------------------------------------------------------------------------
 import           Network.WebSockets.Connection
 import           Network.WebSockets.Http
 import           Network.WebSockets.Protocol
+import           Network.WebSockets.Stream     (Stream)
+import qualified Network.WebSockets.Stream     as Stream
 import           Network.WebSockets.Types
 
 
@@ -73,7 +72,7 @@ runClientWith host port path opts customHeaders app = do
 
 --------------------------------------------------------------------------------
 runClientWithStream
-    :: (Streams.InputStream B.ByteString, Streams.OutputStream B.ByteString)
+    :: Stream
     -- ^ Stream
     -> String
     -- ^ Host
@@ -86,24 +85,27 @@ runClientWithStream
     -> ClientApp a
     -- ^ Client application
     -> IO a
-runClientWithStream (sIn, sOut) host path opts customHeaders app = do
+runClientWithStream stream host path opts customHeaders app = do
     -- Create the request and send it
-    request     <- createRequest protocol bHost bPath False customHeaders
-    bOut        <- Streams.builderStream sOut
-    Streams.write (Just $ encodeRequestHead request) bOut
-    Streams.write (Just Builder.flush)               bOut
-    response     <- Streams.parseFromStream decodeResponseHead sIn
+    request    <- createRequest protocol bHost bPath False customHeaders
+    Stream.write stream (Builder.toLazyByteString $ encodeRequestHead request)
+    mbResponse <- Stream.parse stream decodeResponseHead
+    response   <- case mbResponse of
+        Just response -> return response
+        Nothing       -> throw $ OtherHandshakeException $
+            "Network.WebSockets.Client.runClientWithStream: no handshake " ++
+            "response from server"
     -- Note that we pattern match to evaluate the result here
     Response _ _ <- return $ finishResponse protocol request response
-    mIn          <- decodeMessages protocol sIn
-    mOut         <- encodeMessages protocol ClientConnection bOut
+    parse        <- decodeMessages protocol stream
+    write        <- encodeMessages protocol ClientConnection stream
     sentRef      <- newIORef False
     app Connection
         { connectionOptions   = opts
         , connectionType      = ClientConnection
         , connectionProtocol  = protocol
-        , connectionIn        = mIn
-        , connectionOut       = mOut
+        , connectionParse     = parse
+        , connectionWrite     = write
         , connectionSentClose = sentRef
         }
   where
@@ -121,5 +123,5 @@ runClientWithSocket :: S.Socket           -- ^ Socket
                     -> ClientApp a        -- ^ Client application
                     -> IO a
 runClientWithSocket sock host path opts customHeaders app = do
-    stream <- Streams.socketToStreams sock
+    stream <- Stream.makeSocketStream sock
     runClientWithStream stream host path opts customHeaders app

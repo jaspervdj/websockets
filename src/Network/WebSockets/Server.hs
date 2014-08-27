@@ -16,14 +16,12 @@ import           Control.Exception             (finally)
 import           Control.Monad                 (forever)
 import           Network.Socket                (Socket)
 import qualified Network.Socket                as S
-import qualified System.IO.Streams.Attoparsec  as Streams
-import qualified System.IO.Streams.Builder     as Streams
-import qualified System.IO.Streams.Network     as Streams
 
 
 --------------------------------------------------------------------------------
 import           Network.WebSockets.Connection
 import           Network.WebSockets.Http
+import qualified Network.WebSockets.Stream     as Stream
 
 
 --------------------------------------------------------------------------------
@@ -66,16 +64,14 @@ runApp :: Socket
        -> ServerApp
        -> IO ()
 runApp socket opts app = do
-    (sIn, sOut) <- Streams.socketToStreams socket
-    bOut        <- Streams.builderStream sOut
+    stream  <- Stream.makeSocketStream socket
     -- TODO: we probably want to send a 40x if the request is bad?
-    request     <- Streams.parseFromStream (decodeRequestHead False) sIn
-    let pc = PendingConnection
-                { pendingOptions  = opts
-                , pendingRequest  = request
-                , pendingOnAccept = \_ -> return ()
-                , pendingIn       = sIn
-                , pendingOut      = bOut
-                }
-
-    app pc
+    mbRequest <- Stream.parse stream (decodeRequestHead False)
+    case mbRequest of
+        Nothing      -> return ()
+        Just request -> app PendingConnection
+            { pendingOptions  = opts
+            , pendingRequest  = request
+            , pendingOnAccept = \_ -> return ()
+            , pendingStream   = stream
+            }

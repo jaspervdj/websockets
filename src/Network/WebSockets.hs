@@ -2,7 +2,10 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Network.WebSockets
     ( -- * Incoming connections and handshaking
-      PendingConnection
+      makeSocket
+    , closeSocket
+    , PendingConnection
+    , makePendingConnection
     , pendingRequest
     , AcceptRequest(..)
     , acceptRequest

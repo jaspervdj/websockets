@@ -1,7 +1,10 @@
 --------------------------------------------------------------------------------
 {-# LANGUAGE OverloadedStrings #-}
 module Network.WebSockets.Connection
-    ( PendingConnection (..)
+    ( makeSocket
+    , closeSocket
+    , PendingConnection (..)
+    , makePendingConnection
     , AcceptRequest(..)
     , acceptRequest
     , acceptRequestWith
@@ -35,7 +38,10 @@ import           Data.List                   (find)
 import           Data.IORef                  (IORef, newIORef, readIORef, writeIORef)
 import           Data.Word                   (Word16)
 import           System.IO.Streams           (InputStream, OutputStream)
-import qualified System.IO.Streams           as Streams
+import qualified System.IO.Streams             as Streams
+import qualified System.IO.Streams.Attoparsec  as Streams
+import           Network.Socket                (Socket)
+import qualified Network.Socket              as S
 
 
 --------------------------------------------------------------------------------
@@ -44,6 +50,26 @@ import           Network.WebSockets.Protocol
 import           Network.WebSockets.Types
 
 
+
+--------------------------------------------------------------------------------
+-- | Create a standardized socket. Should only be used for a quick and dirty solution!
+-- Should be preceded by the call Network.Socket.withSocketsDo
+
+makeSocket :: String -> Int -> IO Socket
+makeSocket host port = do
+    sock  <- S.socket S.AF_INET S.Stream S.defaultProtocol
+    _     <- S.setSocketOption sock S.ReuseAddr 1
+    host' <- S.inet_addr host
+    S.bindSocket sock (S.SockAddrInet (fromIntegral port) host')
+    S.listen sock 5
+    return sock
+
+--------------------------------------------------------------------------------
+-- | Closes a socket. This function serves as a quick utility to close a socket and
+-- as a reminder that you need to close sockets made by makeSocket.    
+closeSocket :: Socket -> IO ()
+closeSocket sock = S.sClose sock
+    
 --------------------------------------------------------------------------------
 -- | A new client connected to the server. We haven't accepted the connection
 -- yet, though.
@@ -61,6 +87,26 @@ data PendingConnection = PendingConnection
     -- ^ Output stream
     }
 
+--------------------------------------------------------------------------------
+-- | Use data from the socket to create a Pending Connection. This is a blocking
+-- function. It tries to first accept a connection before creating a pending
+-- connection. Then you are able to choose if you want to accept the connection
+-- or not.
+makePendingConnection :: Socket -> IO PendingConnection    
+makePendingConnection sock = do
+    (conn, _) <- S.accept sock
+    (sIn, sOut) <- Streams.socketToStreams conn
+    bOut        <- Streams.builderStream sOut
+    -- TODO: we probably want to send a 40x if the request is bad?
+    request     <- Streams.parseFromStream (decodeRequestHead False) sIn
+    let pc = PendingConnection
+                { pendingOptions  = defaultConnectionOptions
+                , pendingRequest  = request
+                , pendingOnAccept = \_ -> return ()
+                , pendingIn       = sIn
+                , pendingOut      = bOut
+                }
+    return pc
 
 --------------------------------------------------------------------------------
 data AcceptRequest = AcceptRequest

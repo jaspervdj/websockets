@@ -35,8 +35,7 @@ import qualified Blaze.ByteString.Builder.Char.Utf8 as Builder
 import           Control.Applicative                (pure, (*>), (<$>), (<*),
                                                      (<*>))
 import           Control.Exception                  (Exception, throw)
-import           Control.Monad.Error                (Error (..))
-import qualified Data.Attoparsec                    as A
+import qualified Data.Attoparsec.ByteString         as A
 import           Data.ByteString                    (ByteString)
 import qualified Data.ByteString                    as B
 import           Data.ByteString.Char8              ()
@@ -104,11 +103,6 @@ data HandshakeException
     -- or for your own errors. (like "unknown path"?)
     | OtherHandshakeException String
     deriving (Show, Typeable)
-
-
---------------------------------------------------------------------------------
-instance Error HandshakeException where
-    strMsg = OtherHandshakeException
 
 
 --------------------------------------------------------------------------------

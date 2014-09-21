@@ -7,12 +7,11 @@ module Network.WebSockets.Tests.Util
 
 
 --------------------------------------------------------------------------------
-import           Control.Applicative          ((<$>), (<*>))
-import           Control.Concurrent.Chan      (newChan)
-import qualified Data.ByteString.Lazy         as BL
-import qualified Data.Text.Lazy               as TL
-import qualified Data.Text.Lazy.Encoding      as TL
-import           Test.QuickCheck              (Arbitrary (..), Gen)
+import           Control.Applicative      ((<$>))
+import qualified Data.ByteString.Lazy     as BL
+import qualified Data.Text.Lazy           as TL
+import qualified Data.Text.Lazy.Encoding  as TL
+import           Test.QuickCheck          (Arbitrary (..), Gen)
 
 
 --------------------------------------------------------------------------------

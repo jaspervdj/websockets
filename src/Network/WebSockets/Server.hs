@@ -7,12 +7,14 @@ module Network.WebSockets.Server
     ( ServerApp
     , runServer
     , runServerWith
+    , makeListenSocket
+    , makePendingConnection
     ) where
 
 
 --------------------------------------------------------------------------------
 import           Control.Concurrent            (forkIO)
-import           Control.Exception             (finally)
+import           Control.Exception             (finally, throw)
 import           Control.Monad                 (forever)
 import           Network.Socket                (Socket)
 import qualified Network.Socket                as S
@@ -22,6 +24,7 @@ import qualified Network.Socket                as S
 import           Network.WebSockets.Connection
 import           Network.WebSockets.Http
 import qualified Network.WebSockets.Stream     as Stream
+import           Network.WebSockets.Types
 
 
 --------------------------------------------------------------------------------
@@ -45,12 +48,8 @@ runServer host port app = runServerWith host port defaultConnectionOptions app
 -- | A version of 'runServer' which allows you to customize some options.
 runServerWith :: String -> Int -> ConnectionOptions -> ServerApp -> IO ()
 runServerWith host port opts app = S.withSocketsDo $ do
-    sock  <- S.socket S.AF_INET S.Stream S.defaultProtocol
-    _     <- S.setSocketOption sock S.ReuseAddr 1
-    host' <- S.inet_addr host
-    S.bindSocket sock (S.SockAddrInet (fromIntegral port) host')
-    S.listen sock 5
-    _ <- forever $ do
+    sock <- makeListenSocket host port
+    _    <- forever $ do
         -- TODO: top level handle
         (conn, _) <- S.accept sock
         _         <- forkIO $ finally (runApp conn opts app) (S.sClose conn)
@@ -59,17 +58,40 @@ runServerWith host port opts app = S.withSocketsDo $ do
 
 
 --------------------------------------------------------------------------------
+-- | Create a standardized socket on which you can listen for incomming
+-- connections. Should only be used for a quick and dirty solution! Should be
+-- preceded by the call 'Network.Socket.withSocketsDo'.
+makeListenSocket :: String -> Int -> IO Socket
+makeListenSocket host port = do
+    sock  <- S.socket S.AF_INET S.Stream S.defaultProtocol
+    _     <- S.setSocketOption sock S.ReuseAddr 1
+    host' <- S.inet_addr host
+    S.bindSocket sock (S.SockAddrInet (fromIntegral port) host')
+    S.listen sock 5
+    return sock
+
+
+--------------------------------------------------------------------------------
 runApp :: Socket
        -> ConnectionOptions
        -> ServerApp
        -> IO ()
 runApp socket opts app = do
-    stream  <- Stream.makeSocketStream socket
+    pending <- makePendingConnection socket opts
+    app pending
+
+
+--------------------------------------------------------------------------------
+-- | Turns a socket, connected to some client, into a 'PendingConnection'.
+makePendingConnection
+    :: Socket -> ConnectionOptions -> IO PendingConnection
+makePendingConnection sock opts = do
+    stream   <- Stream.makeSocketStream sock
     -- TODO: we probably want to send a 40x if the request is bad?
     mbRequest <- Stream.parse stream (decodeRequestHead False)
     case mbRequest of
-        Nothing      -> return ()
-        Just request -> app PendingConnection
+        Nothing      -> throw ConnectionClosed
+        Just request -> return PendingConnection
             { pendingOptions  = opts
             , pendingRequest  = request
             , pendingOnAccept = \_ -> return ()

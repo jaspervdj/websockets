@@ -6,7 +6,7 @@ module Network.WebSockets.Http.Tests
 
 
 --------------------------------------------------------------------------------
-import qualified Data.Attoparsec                as A
+import qualified Data.Attoparsec.ByteString     as A
 import qualified Data.ByteString.Char8          as BC
 import           Test.Framework                 (Test, testGroup)
 import           Test.Framework.Providers.HUnit (testCase)

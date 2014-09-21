@@ -128,7 +128,10 @@ withEchoServer port expectedClose action = do
         i @=? 1000
         msg @=? expectedClose
         writeIORef cRef True
-    handleClose _ ConnectionClosed = error "Unexpected connection closed exception"
+    handleClose _ ConnectionClosed =
+        error "Unexpected connection closed exception"
+    handleClose _ (ParseException _) =
+        error "Unexpected parse exception"
 
 
 --------------------------------------------------------------------------------
@@ -140,3 +143,4 @@ expectCloseException conn msg = act `catch` handler
             i @=? 1000
             msg' @=? msg
         handler ConnectionClosed = error "Unexpected connection closed"
+        handler (ParseException _) = error "Unexpected parse exception"

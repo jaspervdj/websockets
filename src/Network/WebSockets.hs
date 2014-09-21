@@ -51,6 +51,10 @@ module Network.WebSockets
     , runServer
     , runServerWith
 
+      -- * Utilities for writing your own server
+    , makeListenSocket
+    , makePendingConnection
+
       -- * Running a client
     , ClientApp
     , runClient

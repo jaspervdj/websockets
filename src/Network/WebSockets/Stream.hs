@@ -20,7 +20,7 @@ import qualified Data.ByteString.Lazy           as BL
 import           Data.IORef                     (IORef, newIORef, readIORef,
                                                  writeIORef)
 import qualified Network.Socket                 as S
-import qualified Network.Socket.ByteString      as SB (recv, sendAll)
+import qualified Network.Socket.ByteString      as SB (recv)
 import qualified Network.Socket.ByteString.Lazy as SBL (sendAll)
 
 import           Network.WebSockets.Types

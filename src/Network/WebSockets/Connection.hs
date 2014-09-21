@@ -64,7 +64,8 @@ data PendingConnection = PendingConnection
 data AcceptRequest = AcceptRequest
     { acceptSubprotocol :: !(Maybe B.ByteString)
     -- ^ The subprotocol to speak with the client.  If 'pendingSubprotcols' is
-    -- non-empty, 'acceptSubprotocol' must be one of the subprotocols from the list.
+    -- non-empty, 'acceptSubprotocol' must be one of the subprotocols from the
+    -- list.
     }
 
 
@@ -231,8 +232,10 @@ sendClose conn = sendCloseCode conn 1000
 
 
 --------------------------------------------------------------------------------
--- | Send a friendly close message and close code.  Similar to 'sendClose', you should
--- continue calling 'receiveDataMessage' until you receive a 'CloseRequest' exception.
+-- | Send a friendly close message and close code.  Similar to 'sendClose',
+-- you should continue calling 'receiveDataMessage' until you receive a
+-- 'CloseRequest' exception.
+--
 -- See <http://tools.ietf.org/html/rfc6455#section-7.4> for a list of close
 -- codes.
 sendCloseCode :: WebSocketsData a => Connection -> Word16 -> a -> IO ()

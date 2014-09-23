@@ -114,4 +114,4 @@ demultiplex state (Frame fin _ _ _ tp pl) = case tp of
     -- status code with value /code/ defined in Section 7.4.
     parsedClose
         | BL.length pl >= 2 = (runGet getWord16be pl, BL.drop 2 pl)
-        | otherwise         = (1000, "")
+        | otherwise         = (1000, BL.empty)

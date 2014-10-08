@@ -1,3 +1,5 @@
+    * Don't use Network.ByteString.Lazy.sendAll on Windows
+
 - 0.9.0.1
     * Allow compilation with older bytestring versions
     * Bump text dependency

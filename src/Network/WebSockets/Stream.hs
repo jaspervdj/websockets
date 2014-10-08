@@ -1,5 +1,6 @@
 --------------------------------------------------------------------------------
 -- | Lightweight abstraction over an input/output stream.
+{-# LANGUAGE CPP #-}
 module Network.WebSockets.Stream
     ( Stream
     , makeStream
@@ -21,7 +22,12 @@ import           Data.IORef                     (IORef, newIORef, readIORef,
                                                  writeIORef)
 import qualified Network.Socket                 as S
 import qualified Network.Socket.ByteString      as SB (recv)
+
+#if !defined(mingw32_HOST_OS)
 import qualified Network.Socket.ByteString.Lazy as SBL (sendAll)
+#else
+import qualified Network.Socket.ByteString      as SB (sendAll)
+#endif
 
 import           Network.WebSockets.Types
 
@@ -59,7 +65,12 @@ makeSocketStream socket = makeStream receive send
         return $ if B.null bs then Nothing else Just bs
 
     send Nothing   = return ()
-    send (Just bs) = SBL.sendAll socket bs
+    send (Just bs) =
+#if !defined(mingw32_HOST_OS)
+        SBL.sendAll socket bs
+#else
+        forM_ (BL.toChunks bs) (SB.sendAll socket)
+#endif
 
 
 --------------------------------------------------------------------------------

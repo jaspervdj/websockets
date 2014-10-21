@@ -9,6 +9,7 @@ module Main
 import           Control.Concurrent  (forkIO)
 import           Control.Monad       (forever, unless)
 import           Control.Monad.Trans (liftIO)
+import           Network.Socket      (withSocketsDo)
 import           Data.Text           (Text)
 import qualified Data.Text           as T
 import qualified Data.Text.IO        as T
@@ -36,4 +37,4 @@ app conn = do
 
 --------------------------------------------------------------------------------
 main :: IO ()
-main = WS.runClient "echo.websocket.org" 80 "/" app
+main = withSocketsDo $ WS.runClient "echo.websocket.org" 80 "/" app

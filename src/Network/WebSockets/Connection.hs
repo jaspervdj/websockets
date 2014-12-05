@@ -35,7 +35,7 @@ import qualified Blaze.ByteString.Builder    as Builder
 import           Control.Concurrent          (forkIO, threadDelay)
 import           Control.Concurrent.MVar     (MVar, newMVar, putMVar, takeMVar)
 import           Control.Exception           (AsyncException, fromException,
-                                              handle, mask, onException, throw)
+                                              handle, mask, onException, throwIO)
 import           Control.Monad               (unless)
 import qualified Data.ByteString             as B
 import           Data.IORef                  (IORef, newIORef, readIORef,
@@ -95,7 +95,7 @@ acceptRequestWith :: PendingConnection -> AcceptRequest -> IO Connection
 acceptRequestWith pc ar = case find (flip compatible request) protocols of
     Nothing       -> do
         sendResponse pc $ response400 versionHeader ""
-        throw NotSupported
+        throwIO NotSupported
     Just protocol -> do
         let subproto = maybe [] (\p -> [("Sec-WebSocket-Protocol", p)]) $ acceptSubprotocol ar
             response = finishRequest protocol request subproto
@@ -171,11 +171,11 @@ defaultConnectionOptions = ConnectionOptions
 receive :: Connection -> IO Message
 receive conn = withMVarEx m Unavailable $ \state ->
     case state of
-        Unavailable     -> throw ConnectionClosed
+        Unavailable     -> throwIO ConnectionClosed
         Available parse -> do
             mbMsg <- parse
             case mbMsg of
-                Nothing  -> throw ConnectionClosed
+                Nothing  -> throwIO ConnectionClosed
                 Just msg -> return msg
   where
     m = connectionParse conn
@@ -201,7 +201,7 @@ receiveDataMessage conn = do
             Close i closeMsg -> do
                 hasSentClose <- readIORef $ connectionSentClose conn
                 unless hasSentClose $ send conn msg
-                throw $ CloseRequest i closeMsg
+                throwIO $ CloseRequest i closeMsg
             Pong _    -> do
                 connectionOnPong (connectionOptions conn)
                 receiveDataMessage conn
@@ -227,7 +227,7 @@ send conn msg = withMVarEx m Unavailable $ \state -> do
         (ControlMessage (Close _ _)) -> writeIORef (connectionSentClose conn) True
         _ -> return ()
     case state of
-        Unavailable     -> throw ConnectionClosed
+        Unavailable     -> throwIO ConnectionClosed
         Available write -> write msg
   where
     m = connectionWrite conn
@@ -297,7 +297,7 @@ forkPingThread conn n
         go (i + 1)
 
     ignore e = case fromException e of
-        Just async -> throw (async :: AsyncException)
+        Just async -> throwIO (async :: AsyncException)
         Nothing    -> return ()
 
 

@@ -13,7 +13,7 @@ module Network.WebSockets.Stream
 
 import           Control.Applicative            ((<$>))
 import qualified Control.Concurrent.Chan        as Chan
-import           Control.Exception              (throw)
+import           Control.Exception              (throwIO)
 import           Control.Monad                  (forM_)
 import qualified Data.Attoparsec.ByteString     as Atto
 import qualified Data.ByteString                as B
@@ -112,7 +112,7 @@ parse stream parser = do
             case mbBs of
                 Nothing -> go (f B.empty) True
                 Just bs -> go (f bs) False
-    go (Atto.Fail _ _ err) _ = throw (ParseException err)
+    go (Atto.Fail _ _ err) _ = throwIO (ParseException err)
 
 
 --------------------------------------------------------------------------------

@@ -12,6 +12,7 @@ module Network.WebSockets.Client
 
 --------------------------------------------------------------------------------
 import qualified Blaze.ByteString.Builder      as Builder
+import           Control.Concurrent.MVar       (newMVar)
 import           Control.Exception             (finally, throw)
 import           Data.IORef                    (newIORef)
 import qualified Data.Text                     as T
@@ -99,13 +100,16 @@ runClientWithStream stream host path opts customHeaders app = do
     Response _ _ <- return $ finishResponse protocol request response
     parse        <- decodeMessages protocol stream
     write        <- encodeMessages protocol ClientConnection stream
-    sentRef      <- newIORef False
+
+    parseState <- newMVar (Available parse)
+    writeState <- newMVar (Available write)
+    sentRef    <- newIORef False
     app Connection
         { connectionOptions   = opts
         , connectionType      = ClientConnection
         , connectionProtocol  = protocol
-        , connectionParse     = parse
-        , connectionWrite     = write
+        , connectionParse     = parseState
+        , connectionWrite     = writeState
         , connectionSentClose = sentRef
         }
   where

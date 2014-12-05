@@ -1,3 +1,8 @@
+- 0.9.2.0
+    * Make sending and receiving messages thread-safe by default
+    * Export `forkPingThread`
+    * Fix Windows `withSocketsDo` issue
+
 - 0.9.1.0
     * Don't use Network.ByteString.Lazy.sendAll on Windows
 

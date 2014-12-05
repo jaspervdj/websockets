@@ -45,7 +45,6 @@ module Network.WebSockets
     , HandshakeException (..)
     , ConnectionException (..)
 
-
       -- * Running a standalone server
     , ServerApp
     , runServer
@@ -61,6 +60,9 @@ module Network.WebSockets
     , runClientWith
     , runClientWithSocket
     , runClientWithStream
+
+      -- * Utilities
+    , forkPingThread
     ) where
 
 

@@ -84,8 +84,12 @@ Our application starts by accepting the connection. In a more realistic
 application, you probably want to check the path and headers provided by the
 pending request.
 
+We also fork a pinging thread in the background. This will ensure the connection
+stays alive on some browsers.
+
 > application state pending = do
 >     conn <- WS.acceptRequest pending
+>     WS.forkPingThread conn 30
 
 When a client is succesfully connected, we read the first message. This should
 be in the format of "Hi, I am Jasper", where Jasper is the requested username.

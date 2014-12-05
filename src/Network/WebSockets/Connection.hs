@@ -1,4 +1,6 @@
 --------------------------------------------------------------------------------
+-- | This module exposes connection internals and should only be used if you
+-- really know what you are doing.
 {-# LANGUAGE OverloadedStrings #-}
 module Network.WebSockets.Connection
     ( PendingConnection (..)
@@ -7,6 +9,7 @@ module Network.WebSockets.Connection
     , acceptRequestWith
     , rejectRequest
 
+    , Available (..)
     , Connection (..)
 
     , ConnectionOptions (..)
@@ -22,17 +25,23 @@ module Network.WebSockets.Connection
     , sendClose
     , sendCloseCode
     , sendPing
+
+    , forkPingThread
     ) where
 
 
 --------------------------------------------------------------------------------
 import qualified Blaze.ByteString.Builder    as Builder
-import           Control.Exception           (throw)
+import           Control.Concurrent          (forkIO, threadDelay)
+import           Control.Concurrent.MVar     (MVar, newMVar, putMVar, takeMVar)
+import           Control.Exception           (AsyncException, fromException,
+                                              handle, onException, throw)
 import           Control.Monad               (unless)
 import qualified Data.ByteString             as B
 import           Data.IORef                  (IORef, newIORef, readIORef,
                                               writeIORef)
 import           Data.List                   (find)
+import qualified Data.Text                   as T
 import           Data.Word                   (Word16)
 
 
@@ -91,15 +100,18 @@ acceptRequestWith pc ar = case find (flip compatible request) protocols of
         let subproto = maybe [] (\p -> [("Sec-WebSocket-Protocol", p)]) $ acceptSubprotocol ar
             response = finishRequest protocol request subproto
         sendResponse pc response
-        parse   <- decodeMessages protocol (pendingStream pc)
-        write   <- encodeMessages protocol ServerConnection (pendingStream pc)
-        sentRef <- newIORef False
+        parse <- decodeMessages protocol (pendingStream pc)
+        write <- encodeMessages protocol ServerConnection (pendingStream pc)
+
+        parseState <- newMVar (Available parse)
+        writeState <- newMVar (Available write)
+        sentRef    <- newIORef False
         let connection = Connection
                 { connectionOptions   = pendingOptions pc
                 , connectionType      = ServerConnection
                 , connectionProtocol  = protocol
-                , connectionParse     = parse
-                , connectionWrite     = write
+                , connectionParse     = parseState
+                , connectionWrite     = writeState
                 , connectionSentClose = sentRef
                 }
 
@@ -117,12 +129,19 @@ rejectRequest pc message = sendResponse pc $ response400 [] message
 
 
 --------------------------------------------------------------------------------
+-- | Type protecting the 'connectionParse' and 'connectionWrite' IO actions. By
+-- using this inside an 'MVar' we can protect from concurrent writes/reads, and
+-- writes/reads to closed channels.
+data Available a = Available !a | Unavailable
+
+
+--------------------------------------------------------------------------------
 data Connection = Connection
     { connectionOptions   :: !ConnectionOptions
     , connectionType      :: !ConnectionType
     , connectionProtocol  :: !Protocol
-    , connectionParse     :: !(IO (Maybe Message))
-    , connectionWrite     :: !(Message -> IO ())
+    , connectionParse     :: !(MVar (Available (IO (Maybe Message))))
+    , connectionWrite     :: !(MVar (Available (Message -> IO ())))
     , connectionSentClose :: !(IORef Bool)
     -- ^ According to the RFC, both the client and the server MUST send
     -- a close control message to each other.  Either party can initiate
@@ -133,8 +152,11 @@ data Connection = Connection
 
 
 --------------------------------------------------------------------------------
+-- | Set options for a 'Connection'.
 data ConnectionOptions = ConnectionOptions
     { connectionOnPong :: !(IO ())
+      -- ^ Whenever a 'pong' is received, this IO action is executed. It can be
+      -- used to tickle connections or fire missiles.
     }
 
 
@@ -148,10 +170,16 @@ defaultConnectionOptions = ConnectionOptions
 --------------------------------------------------------------------------------
 receive :: Connection -> IO Message
 receive conn = do
-    mbMsg <- connectionParse conn
-    case mbMsg of
-        Nothing  -> throw ConnectionClosed
-        Just msg -> return msg
+    state <- takeMVar m
+    case state of
+        Unavailable     -> putMVar m Unavailable >> throw ConnectionClosed
+        Available parse -> do
+            mbMsg <- parse `onException` putMVar m Unavailable
+            case mbMsg of
+                Nothing  -> putMVar m Unavailable >> throw ConnectionClosed
+                Just msg -> putMVar m (Available parse) >> return msg
+  where
+    m = connectionParse conn
 
 
 --------------------------------------------------------------------------------
@@ -196,10 +224,17 @@ receiveData conn = do
 --------------------------------------------------------------------------------
 send :: Connection -> Message -> IO ()
 send conn msg = do
+    state <- takeMVar m
     case msg of
         (ControlMessage (Close _ _)) -> writeIORef (connectionSentClose conn) True
         _ -> return ()
-    connectionWrite conn msg
+    case state of
+        Unavailable     -> putMVar m Unavailable >> throw ConnectionClosed
+        Available write -> do
+            write msg `onException` putMVar m Unavailable
+            putMVar m (Available write)
+  where
+    m = connectionWrite conn
 
 
 --------------------------------------------------------------------------------
@@ -247,3 +282,24 @@ sendCloseCode conn code =
 -- | Send a ping
 sendPing :: WebSocketsData a => Connection -> a -> IO ()
 sendPing conn = send conn . ControlMessage . Ping . toLazyByteString
+
+
+--------------------------------------------------------------------------------
+-- | Forks a ping thread, sending a ping message every @n@ seconds over the
+-- connection. The thread dies silently if the connection crashes or is closed.
+forkPingThread :: Connection -> Int -> IO ()
+forkPingThread conn n
+    | n <= 0    = return ()
+    | otherwise = do
+        _ <- forkIO (ignore `handle` go 1)
+        return ()
+  where
+    go :: Int -> IO ()
+    go i = do
+        threadDelay (n * 1000 * 1000)
+        sendPing conn (T.pack $ show i)
+        go (i + 1)
+
+    ignore e = case fromException e of
+        Just async -> throw (async :: AsyncException)
+        Nothing    -> return ()

@@ -104,4 +104,8 @@ application pc = do
 --------------------------------------------------------------------------------
 -- | Accepts clients, spawns a single handler for each one.
 main :: IO ()
-main = WS.runServer "0.0.0.0" 8000 application
+main = WS.runServerWith "0.0.0.0" 8000 options application
+  where
+    options = WS.defaultConnectionOptions
+        { WS.connectionPingInterval = 2
+        }

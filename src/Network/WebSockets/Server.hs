@@ -14,7 +14,7 @@ module Network.WebSockets.Server
 
 --------------------------------------------------------------------------------
 import           Control.Concurrent            (forkIO)
-import           Control.Exception             (finally, throw)
+import           Control.Exception             (finally, throwIO)
 import           Control.Monad                 (forever)
 import           Network.Socket                (Socket)
 import qualified Network.Socket                as S
@@ -90,7 +90,7 @@ makePendingConnection sock opts = do
     -- TODO: we probably want to send a 40x if the request is bad?
     mbRequest <- Stream.parse stream (decodeRequestHead False)
     case mbRequest of
-        Nothing      -> throw ConnectionClosed
+        Nothing      -> throwIO ConnectionClosed
         Just request -> return PendingConnection
             { pendingOptions  = opts
             , pendingRequest  = request

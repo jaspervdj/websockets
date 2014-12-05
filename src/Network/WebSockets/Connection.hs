@@ -35,7 +35,7 @@ import qualified Blaze.ByteString.Builder    as Builder
 import           Control.Concurrent          (forkIO, threadDelay)
 import           Control.Concurrent.MVar     (MVar, newMVar, putMVar, takeMVar)
 import           Control.Exception           (AsyncException, fromException,
-                                              handle, onException, throw)
+                                              handle, mask, onException, throwIO)
 import           Control.Monad               (unless)
 import qualified Data.ByteString             as B
 import           Data.IORef                  (IORef, newIORef, readIORef,
@@ -95,7 +95,7 @@ acceptRequestWith :: PendingConnection -> AcceptRequest -> IO Connection
 acceptRequestWith pc ar = case find (flip compatible request) protocols of
     Nothing       -> do
         sendResponse pc $ response400 versionHeader ""
-        throw NotSupported
+        throwIO NotSupported
     Just protocol -> do
         let subproto = maybe [] (\p -> [("Sec-WebSocket-Protocol", p)]) $ acceptSubprotocol ar
             response = finishRequest protocol request subproto
@@ -169,15 +169,14 @@ defaultConnectionOptions = ConnectionOptions
 
 --------------------------------------------------------------------------------
 receive :: Connection -> IO Message
-receive conn = do
-    state <- takeMVar m
+receive conn = withMVarEx m Unavailable $ \state ->
     case state of
-        Unavailable     -> putMVar m Unavailable >> throw ConnectionClosed
+        Unavailable     -> throwIO ConnectionClosed
         Available parse -> do
-            mbMsg <- parse `onException` putMVar m Unavailable
+            mbMsg <- parse
             case mbMsg of
-                Nothing  -> putMVar m Unavailable >> throw ConnectionClosed
-                Just msg -> putMVar m (Available parse) >> return msg
+                Nothing  -> throwIO ConnectionClosed
+                Just msg -> return msg
   where
     m = connectionParse conn
 
@@ -202,7 +201,7 @@ receiveDataMessage conn = do
             Close i closeMsg -> do
                 hasSentClose <- readIORef $ connectionSentClose conn
                 unless hasSentClose $ send conn msg
-                throw $ CloseRequest i closeMsg
+                throwIO $ CloseRequest i closeMsg
             Pong _    -> do
                 connectionOnPong (connectionOptions conn)
                 receiveDataMessage conn
@@ -223,16 +222,13 @@ receiveData conn = do
 
 --------------------------------------------------------------------------------
 send :: Connection -> Message -> IO ()
-send conn msg = do
-    state <- takeMVar m
+send conn msg = withMVarEx m Unavailable $ \state -> do
     case msg of
         (ControlMessage (Close _ _)) -> writeIORef (connectionSentClose conn) True
         _ -> return ()
     case state of
-        Unavailable     -> putMVar m Unavailable >> throw ConnectionClosed
-        Available write -> do
-            write msg `onException` putMVar m Unavailable
-            putMVar m (Available write)
+        Unavailable     -> throwIO ConnectionClosed
+        Available write -> write msg
   where
     m = connectionWrite conn
 
@@ -301,5 +297,17 @@ forkPingThread conn n
         go (i + 1)
 
     ignore e = case fromException e of
-        Just async -> throw (async :: AsyncException)
+        Just async -> throwIO (async :: AsyncException)
         Nothing    -> return ()
+
+
+-- Like 'withMVar' but in case of exceptions it puts the given alternative
+-- value back into the MVar.
+withMVarEx :: MVar a -> a -> (a -> IO b) -> IO b
+withMVarEx m x io =
+  mask $ \restore -> do
+    a <- takeMVar m
+    b <- restore (io a) `onException` putMVar m x
+    putMVar m a
+    return b
+{-# INLINE withMVarEx #-}

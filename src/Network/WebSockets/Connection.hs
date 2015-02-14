@@ -9,7 +9,7 @@ module Network.WebSockets.Connection
     , acceptRequestWith
     , rejectRequest
 
-    , Available (..)
+    , DecoderEncoder (..)
     , Connection (..)
 
     , ConnectionOptions (..)
@@ -33,9 +33,9 @@ module Network.WebSockets.Connection
 --------------------------------------------------------------------------------
 import qualified Blaze.ByteString.Builder    as Builder
 import           Control.Concurrent          (forkIO, threadDelay)
-import           Control.Concurrent.MVar     (MVar, newMVar, putMVar, takeMVar)
+import           Control.Concurrent.MVar     (MVar, newMVar, withMVar)
 import           Control.Exception           (AsyncException, fromException,
-                                              handle, mask, onException, throwIO)
+                                              handle, onException, throwIO)
 import           Control.Monad               (unless)
 import qualified Data.ByteString             as B
 import           Data.IORef                  (IORef, newIORef, readIORef,
@@ -103,15 +103,17 @@ acceptRequestWith pc ar = case find (flip compatible request) protocols of
         parse <- decodeMessages protocol (pendingStream pc)
         write <- encodeMessages protocol ServerConnection (pendingStream pc)
 
-        parseState <- newMVar (Available parse)
-        writeState <- newMVar (Available write)
+        parseLock  <- newMVar ()
+        writeLock  <- newMVar ()
+        stream     <- newIORef (DecoderEncoder parse write)
         sentRef    <- newIORef False
         let connection = Connection
                 { connectionOptions   = pendingOptions pc
                 , connectionType      = ServerConnection
                 , connectionProtocol  = protocol
-                , connectionParse     = parseState
-                , connectionWrite     = writeState
+                , connectionParseLock = parseLock
+                , connectionWriteLock = writeLock
+                , connectionStream    = stream
                 , connectionSentClose = sentRef
                 }
 
@@ -129,10 +131,10 @@ rejectRequest pc message = sendResponse pc $ response400 [] message
 
 
 --------------------------------------------------------------------------------
--- | Type protecting the 'connectionParse' and 'connectionWrite' IO actions. By
--- using this inside an 'MVar' we can protect from concurrent writes/reads, and
--- writes/reads to closed channels.
-data Available a = Available !a | Unavailable
+-- | Type representing an available or unavailable stream.
+data DecoderEncoder a
+    = DecoderEncoder !(IO (Maybe a)) !(a -> IO ())
+    | Closed
 
 
 --------------------------------------------------------------------------------
@@ -140,8 +142,9 @@ data Connection = Connection
     { connectionOptions   :: !ConnectionOptions
     , connectionType      :: !ConnectionType
     , connectionProtocol  :: !Protocol
-    , connectionParse     :: !(MVar (Available (IO (Maybe Message))))
-    , connectionWrite     :: !(MVar (Available (Message -> IO ())))
+    , connectionParseLock :: !(MVar ())
+    , connectionWriteLock :: !(MVar ())
+    , connectionStream    :: !(IORef (DecoderEncoder Message))
     , connectionSentClose :: !(IORef Bool)
     -- ^ According to the RFC, both the client and the server MUST send
     -- a close control message to each other.  Either party can initiate
@@ -169,16 +172,18 @@ defaultConnectionOptions = ConnectionOptions
 
 --------------------------------------------------------------------------------
 receive :: Connection -> IO Message
-receive conn = withMVarEx m Unavailable $ \state ->
-    case state of
-        Unavailable     -> throwIO ConnectionClosed
-        Available parse -> do
-            mbMsg <- parse
-            case mbMsg of
-                Nothing  -> throwIO ConnectionClosed
-                Just msg -> return msg
+receive conn = withMVar (connectionParseLock conn) $ \() ->
+    tryParse `onException` (writeIORef (connectionStream conn) Closed)
   where
-    m = connectionParse conn
+    tryParse = do
+        stream <- readIORef (connectionStream conn)
+        case stream of
+            Closed                 -> throwIO ConnectionClosed
+            DecoderEncoder parse _ -> do
+                mbMsg <- parse
+                case mbMsg of
+                    Nothing  -> throwIO ConnectionClosed
+                    Just msg -> return msg
 
 
 --------------------------------------------------------------------------------
@@ -222,15 +227,18 @@ receiveData conn = do
 
 --------------------------------------------------------------------------------
 send :: Connection -> Message -> IO ()
-send conn msg = withMVarEx m Unavailable $ \state -> do
-    case msg of
-        (ControlMessage (Close _ _)) -> writeIORef (connectionSentClose conn) True
-        _ -> return ()
-    case state of
-        Unavailable     -> throwIO ConnectionClosed
-        Available write -> write msg
+send conn msg = withMVar (connectionWriteLock conn) $ \() ->
+    trySend `onException` writeIORef (connectionStream conn) Closed
   where
-    m = connectionWrite conn
+    trySend = do
+        stream <- readIORef (connectionStream conn)
+        case msg of
+            (ControlMessage (Close _ _)) ->
+                writeIORef (connectionSentClose conn) True
+            _ -> return ()
+        case stream of
+            Closed                 -> throwIO ConnectionClosed
+            DecoderEncoder _ write -> write msg
 
 
 --------------------------------------------------------------------------------
@@ -299,15 +307,3 @@ forkPingThread conn n
     ignore e = case fromException e of
         Just async -> throwIO (async :: AsyncException)
         Nothing    -> return ()
-
-
--- Like 'withMVar' but in case of exceptions it puts the given alternative
--- value back into the MVar.
-withMVarEx :: MVar a -> a -> (a -> IO b) -> IO b
-withMVarEx m x io =
-  mask $ \restore -> do
-    a <- takeMVar m
-    b <- restore (io a) `onException` putMVar m x
-    putMVar m a
-    return b
-{-# INLINE withMVarEx #-}

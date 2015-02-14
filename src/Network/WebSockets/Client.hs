@@ -101,15 +101,17 @@ runClientWithStream stream host path opts customHeaders app = do
     parse        <- decodeMessages protocol stream
     write        <- encodeMessages protocol ClientConnection stream
 
-    parseState <- newMVar (Available parse)
-    writeState <- newMVar (Available write)
-    sentRef    <- newIORef False
+    parseLock <- newMVar ()
+    writeLock <- newMVar ()
+    stream'   <- newIORef (DecoderEncoder parse write)
+    sentRef   <- newIORef False
     app Connection
         { connectionOptions   = opts
         , connectionType      = ClientConnection
         , connectionProtocol  = protocol
-        , connectionParse     = parseState
-        , connectionWrite     = writeState
+        , connectionParseLock = parseLock
+        , connectionWriteLock = writeLock
+        , connectionStream    = stream'
         , connectionSentClose = sentRef
         }
   where

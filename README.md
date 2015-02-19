@@ -9,19 +9,23 @@ Haskell.
 
 The following program echoes messages back after appending `meow`:
 
-    {-# LANGUAGE OverloadedStrings #-}
-    import           Control.Monad      (forever)
-    import qualified Data.Text          as T
-    import qualified Network.WebSockets as WS
+```haskell
+{-# LANGUAGE OverloadedStrings #-}
+import           Control.Monad      (forever)
+import qualified Data.Text          as T
+import qualified Network.WebSockets as WS
 
-    meow :: WS.Connection -> IO ()
-    meow conn = forever $ do
-        msg <- WS.receiveData conn
-        WS.sendTextData conn $ msg `T.append` ", meow"
+meow :: WS.Connection -> IO ()
+meow conn = forever $ do
+    msg <- WS.receiveData conn
+    WS.sendTextData conn $ msg `T.append` ", meow"
+```
 
 Installation is provided using cabal:
 
-    cabal install websockets
+```
+$ cabal install websockets
+```
 
 Authors
 -------

@@ -14,8 +14,8 @@ module Network.WebSockets.Server
 
 --------------------------------------------------------------------------------
 import           Control.Concurrent            (forkIO)
-import           Control.Exception             (finally, throwIO)
-import           Control.Monad                 (forever)
+import           Control.Exception             (bracket, finally, throwIO)
+import           Control.Monad                 (forever, void)
 import           Network.Socket                (Socket)
 import qualified Network.Socket                as S
 
@@ -47,14 +47,17 @@ runServer host port app = runServerWith host port defaultConnectionOptions app
 --------------------------------------------------------------------------------
 -- | A version of 'runServer' which allows you to customize some options.
 runServerWith :: String -> Int -> ConnectionOptions -> ServerApp -> IO ()
-runServerWith host port opts app = S.withSocketsDo $ do
-    sock <- makeListenSocket host port
-    _    <- forever $ do
-        -- TODO: top level handle
-        (conn, _) <- S.accept sock
-        _         <- forkIO $ finally (runApp conn opts app) (S.sClose conn)
-        return ()
-    S.sClose sock
+runServerWith host port opts app = S.withSocketsDo $
+  bracket
+  (makeListenSocket host port)
+  S.sClose
+  (\sock ->
+    forever $ do
+      (conn, _) <- S.accept sock
+      void $ forkIO $ finally (runApp conn opts app) (S.sClose conn)
+      return ()
+    )
+
 
 
 --------------------------------------------------------------------------------

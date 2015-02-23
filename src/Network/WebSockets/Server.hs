@@ -14,7 +14,7 @@ module Network.WebSockets.Server
 
 --------------------------------------------------------------------------------
 import           Control.Concurrent            (forkIO)
-import           Control.Exception             (bracket, finally, throwIO)
+import           Control.Exception             (bracket, bracketOnError, finally, throwIO)
 import           Control.Monad                 (forever, void)
 import           Network.Socket                (Socket)
 import qualified Network.Socket                as S
@@ -65,13 +65,16 @@ runServerWith host port opts app = S.withSocketsDo $
 -- connections. Should only be used for a quick and dirty solution! Should be
 -- preceded by the call 'Network.Socket.withSocketsDo'.
 makeListenSocket :: String -> Int -> IO Socket
-makeListenSocket host port = do
-    sock  <- S.socket S.AF_INET S.Stream S.defaultProtocol
-    _     <- S.setSocketOption sock S.ReuseAddr 1
-    host' <- S.inet_addr host
-    S.bindSocket sock (S.SockAddrInet (fromIntegral port) host')
-    S.listen sock 5
-    return sock
+makeListenSocket host port = bracketOnError
+    (S.socket S.AF_INET S.Stream S.defaultProtocol)
+    S.sClose
+    (\sock -> do
+        _     <- S.setSocketOption sock S.ReuseAddr 1
+        host' <- S.inet_addr host
+        S.bindSocket sock (S.SockAddrInet (fromIntegral port) host')
+        S.listen sock 5
+        return sock
+        )
 
 
 --------------------------------------------------------------------------------

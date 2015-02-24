@@ -1,3 +1,8 @@
+- 0.9.3.0
+    * Use a shared closed state for connection input/output stream
+    * Make sure `runServer` doesn't leak any sockets
+    * Bump `blaze-builder` dependency
+
 - 0.9.2.2
     * Bump `random` dependency
 

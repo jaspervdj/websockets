@@ -84,16 +84,16 @@ runApp :: Socket
        -> ServerApp
        -> IO ()
 runApp socket opts app = do
-    pending <- makePendingConnection socket opts
+    stream  <- Stream.makeSocketStream socket
+    pending <- makePendingConnection stream opts
     app pending
 
 
 --------------------------------------------------------------------------------
--- | Turns a socket, connected to some client, into a 'PendingConnection'.
+-- | Turns a stream, connected to some client, into a 'PendingConnection'.
 makePendingConnection
-    :: Socket -> ConnectionOptions -> IO PendingConnection
-makePendingConnection sock opts = do
-    stream   <- Stream.makeSocketStream sock
+    :: Stream.Stream -> ConnectionOptions -> IO PendingConnection
+makePendingConnection stream opts = do
     -- TODO: we probably want to send a 40x if the request is bad?
     mbRequest <- Stream.parse stream (decodeRequestHead False)
     case mbRequest of

@@ -179,7 +179,6 @@ noTrailingSlash = do
 path :: (String -> WebSocketsRoute a) -> WebSocketsRoute a
 path r = do
     pending <- askPending
-    liftIO $ print $ pendingRequest pending
     case paths pending of
         (p:ps) | p /= "." -> -- makeRelative turns "/" into ["."]
             withPending (setPath ps) (r $ dropTrailingPathSeparator p)

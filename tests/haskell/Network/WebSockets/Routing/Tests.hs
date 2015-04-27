@@ -1,0 +1,137 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
+--------------------------------------------------------------------------------
+module Network.WebSockets.Routing.Tests
+    ( tests
+    ) where
+
+--------------------------------------------------------------------------------
+import           Control.Concurrent             (forkIO, killThread,
+                                                 threadDelay)
+import           Control.Exception              (SomeException, handle)
+import           Control.Monad                  (msum)
+import           Data.Text                      (Text, pack)
+import           Test.Framework                 (Test, testGroup)
+import           Test.Framework.Providers.HUnit (testCase)
+import           Test.HUnit                     (Assertion, assert)
+
+--------------------------------------------------------------------------------
+import           Network.WebSockets
+import           Network.WebSockets.Routing
+
+
+--------------------------------------------------------------------------------
+tests :: Test
+tests = testGroup "Network.WebSockets.Routing.Tests"
+    [ testCase "echo routes"     testEchoRoutes
+    , testCase "trailing routes" testTrailingRoutes
+    , testCase "path routes"     testPathRoutes
+    ]
+
+
+--------------------------------------------------------------------------------
+testEchoRoutes :: Assertion
+testEchoRoutes = withServer port server $ do
+
+    assert =<< runClient "127.0.0.1" port "/echo"        echoOnce
+    assert =<< runClient "127.0.0.1" port "/echo/twice"  echoTwice
+    assert =<< runClient "127.0.0.1" port "/echo/twice2" echoTwice
+
+  where
+    port = 42950
+    text = "echo" :: Text
+
+    server = routeWebSockets $ msum
+
+        -- test 'dirs'
+        [ dirs "echo/twice" $ routeAccept $ \con -> do
+            msg <- receive con
+            send con msg
+            send con msg
+
+        -- test 'dir' and 'nullDir'
+        , dir "echo" $ msum
+            [ do
+                nullDir
+                routeAccept $ \con -> do
+                msg <- receive con
+                send con msg
+            , dir "twice2" $ routeAccept $ \con -> do
+                msg <- receive con
+                send con msg
+                send con msg
+            ]
+        ]
+
+    echoOnce con = do
+        sendTextData con text
+        msg <- receiveData con
+        return $ msg == text
+
+    echoTwice con = do
+        sendTextData con text
+        msg1 <- receiveData con
+        msg2 <- receiveData con
+        return $ msg1 == text && msg2 == text
+
+
+--------------------------------------------------------------------------------
+testTrailingRoutes :: Assertion
+testTrailingRoutes = withServer port server $ do
+    assert =<< runClient "127.0.0.1" port "/trailing/"  expectTrailing
+    assert =<< runClient "127.0.0.1" port "/trailing"   expectNoTrailing
+  where
+    port = 42951
+
+    server = routeWebSockets $ dir "trailing" $ msum
+
+        -- test 'trailingSlash'
+        [ do trailingSlash
+             routeAccept $ sendTextData `flip` ("Trailing" :: Text)
+
+        -- test 'noTrailingSlash'
+        , do noTrailingSlash
+             routeAccept $ sendTextData `flip` ("No trailing" :: Text)
+        ]
+
+    expectTrailing con = do
+        msg <- receiveData con
+        return $ msg == ("Trailing" :: Text)
+
+    expectNoTrailing con = do
+        msg <- receiveData con
+        return $ msg == ("No trailing" :: Text)
+
+
+--------------------------------------------------------------------------------
+testPathRoutes :: Assertion
+testPathRoutes = withServer port server $ do
+    assert =<< runClient "127.0.0.1" port "/path/foo"   (expect "foo")
+    assert =<< runClient "127.0.0.1" port "/path/bar"   (expect "bar")
+    assert =<< runClient "127.0.0.1" port "/path/"      (expect "none")
+  where
+    port = 42952
+    server = routeWebSockets $ dir "path" $ msum
+        [ path $ \p -> do
+            routeAccept $ sendTextData `flip` (pack p)
+        , routeAccept $ sendTextData `flip` ("none" :: Text)
+        ]
+
+    expect expected con = do
+        msg <- receiveData con
+        return $ (msg :: Text) == expected
+
+--------------------------------------------------------------------------------
+withServer :: Int -> ServerApp -> IO a -> IO a
+withServer port server action = do
+    serverThread <- forkIO $ retry $ runServer "0.0.0.0" port (\c -> server c)
+    waitSome
+    result <- action
+    waitSome
+    killThread serverThread
+    return result
+  where
+    waitSome = threadDelay $ 200 * 1000
+    -- see Network.WebSockets.Server.Tests on 'retry'
+    retry act = (\(_ :: SomeException) -> waitSome >> act) `handle` act

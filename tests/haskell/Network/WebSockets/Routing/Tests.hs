@@ -24,15 +24,15 @@ import           Network.WebSockets.Routing
 --------------------------------------------------------------------------------
 tests :: Test
 tests = testGroup "Network.WebSockets.Routing.Tests"
-    [ testCase "echo routes"     testEchoRoutes
+    [ testCase "dir/dirs routes" testDirRoutes
     , testCase "trailing routes" testTrailingRoutes
     , testCase "path routes"     testPathRoutes
     ]
 
 
 --------------------------------------------------------------------------------
-testEchoRoutes :: Assertion
-testEchoRoutes = withServer port server $ do
+testDirRoutes :: Assertion
+testDirRoutes = withServer port server $ do
 
     assert =<< runClient "127.0.0.1" port "/echo"        echoOnce
     assert =<< runClient "127.0.0.1" port "/echo/twice"  echoTwice
@@ -50,7 +50,7 @@ testEchoRoutes = withServer port server $ do
             send con msg
             send con msg
 
-        -- test 'dir' and 'nullDir'
+        -- test (nested) 'dir' and 'nullDir'
         , dir "echo" $ msum
             [ do
                 nullDir
@@ -122,7 +122,9 @@ testPathRoutes = withServer port server $ do
         msg <- receiveData con
         return $ (msg :: Text) == expected
 
+
 --------------------------------------------------------------------------------
+-- | Helper function to run simple server-client interactions
 withServer :: Int -> ServerApp -> IO a -> IO a
 withServer port server action = do
     serverThread <- forkIO $ retry $ runServer "0.0.0.0" port (\c -> server c)

@@ -51,6 +51,7 @@ Library
     Network.WebSockets
     Network.WebSockets.Connection
     Network.WebSockets.Stream
+    Network.WebSockets.Routing
     -- Network.WebSockets.Util.PubSub TODO
 
   Other-modules:

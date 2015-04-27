@@ -24,9 +24,10 @@ import           Network.WebSockets.Routing
 --------------------------------------------------------------------------------
 tests :: Test
 tests = testGroup "Network.WebSockets.Routing.Tests"
-    [ testCase "dir/dirs routes" testDirRoutes
-    , testCase "trailing routes" testTrailingRoutes
-    , testCase "path routes"     testPathRoutes
+    [ testCase "dir/dirs routes"    testDirRoutes
+    , testCase "trailing routes"    testTrailingRoutes
+    , testCase "path routes"        testPathRoutes
+    , testCase "subprotocol routes" testSubprotocolRoutes
     ]
 
 
@@ -79,8 +80,10 @@ testDirRoutes = withServer port server $ do
 --------------------------------------------------------------------------------
 testTrailingRoutes :: Assertion
 testTrailingRoutes = withServer port server $ do
+
     assert =<< runClient "127.0.0.1" port "/trailing/"  expectTrailing
     assert =<< runClient "127.0.0.1" port "/trailing"   expectNoTrailing
+
   where
     port = 42951
 
@@ -107,15 +110,46 @@ testTrailingRoutes = withServer port server $ do
 --------------------------------------------------------------------------------
 testPathRoutes :: Assertion
 testPathRoutes = withServer port server $ do
+
     assert =<< runClient "127.0.0.1" port "/path/foo"   (expect "foo")
     assert =<< runClient "127.0.0.1" port "/path/bar"   (expect "bar")
     assert =<< runClient "127.0.0.1" port "/path/"      (expect "none")
+
   where
     port = 42952
+
     server = routeWebSockets $ dir "path" $ msum
         [ path $ \p -> do
             routeAccept $ sendTextData `flip` (pack p)
         , routeAccept $ sendTextData `flip` ("none" :: Text)
+        ]
+
+    expect expected con = do
+        msg <- receiveData con
+        return $ (msg :: Text) == expected
+
+
+--------------------------------------------------------------------------------
+testSubprotocolRoutes :: Assertion
+testSubprotocolRoutes = withServer port server $ do
+
+    assert =<< runClientWith "127.0.0.1" port "/" opts (proto "foo") (expect "foo")
+    assert =<< runClientWith "127.0.0.1" port "/" opts (proto "bar") (expect "bar")
+    assert =<< runClient     "127.0.0.1" port "/"                    (expect "none")
+
+  where
+    port = 42953
+    opts = defaultConnectionOptions
+
+    -- Header with subprotocol definition
+    proto p = [("Sec-WebSocket-Protocol", p)]
+
+    server = routeWebSockets $ msum
+        [ subprotocol "foo" $ routeAccept $ sendTextData `flip` ("foo" :: Text)
+        , subprotocol "bar" $ routeAccept $ sendTextData `flip` ("bar" :: Text)
+        , do
+            noSubprotocols
+            routeAccept $ sendTextData `flip` ("none" :: Text)
         ]
 
     expect expected con = do

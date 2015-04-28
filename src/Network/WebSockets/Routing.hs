@@ -172,7 +172,8 @@ nullDir = do
     pending <- askPending'
     guard $ null $ paths pending
 
--- | Opposite of 'nullDir': Succeeds if there are path segments left.
+-- | The opposite of 'nullDir': Succeeds if there are path segments left, fails
+-- otherwise.
 notNullDir :: WebSocketsRoute ()
 notNullDir = do
     pending <- askPending'
@@ -187,7 +188,7 @@ trailingSlash = do
         Just (_, '/') -> return ()
         _             -> mzero
 
--- | The opposite of 'trailingSlash'
+-- | The opposite of 'trailingSlash'.
 noTrailingSlash :: WebSocketsRoute ()
 noTrailingSlash = do
     pending <- askPending'

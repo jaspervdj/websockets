@@ -28,6 +28,7 @@ tests = testGroup "Network.WebSockets.Routing.Tests"
     , testCase "trailing routes"    testTrailingRoutes
     , testCase "path routes"        testPathRoutes
     , testCase "subprotocol routes" testSubprotocolRoutes
+    , testCase "query routes"       testQueryRoutes
     ]
 
 
@@ -155,6 +156,60 @@ testSubprotocolRoutes = withServer port server $ do
     expect expected con = do
         msg <- receiveData con
         return $ (msg :: Text) == expected
+
+--------------------------------------------------------------------------------
+testQueryRoutes :: Assertion
+testQueryRoutes = withServer port server $ do
+
+    assert =<< runClient "127.0.0.1" port "/foo?q=a"            (expect "foo")
+    assert =<< runClient "127.0.0.1" port "/foo/bar?q=a"        (expect "bar")
+    assert =<< runClient "127.0.0.1" port "/foo/bar2?q=a"       (expect "bar2")
+    assert =<< runClient "127.0.0.1" port "/path/foo?q=a"       (expect "foo")
+    assert =<< runClient "127.0.0.1" port "/path/?q=a"          (expect "none")
+    assert =<< runClient "127.0.0.1" port "/trailing/?q=a"      (expect "trailing")
+    assert =<< runClient "127.0.0.1" port "/trailing?q=a"       (expect "no trailing")
+    assert =<< runClient "127.0.0.1" port "/full?path=reply"    (expect "/full?path=reply")
+    assert =<< runClient "127.0.0.1" port "/full/2?path=reply"  (expect "/2?path=reply")
+
+  where
+    port = 42954
+
+    reply t = routeAccept $ sendTextData `flip` (t :: Text)
+    expect expected con = do
+        msg <- receiveData con
+        return $ (msg :: Text) == expected
+
+    server = routeWebSockets $ msum
+
+        -- dir / nullDir test
+        [ dir "foo" $ msum
+            [ nullDir >> reply "foo"
+            , dir "bar" $ reply "bar"
+            ]
+
+        -- dirs test
+        , dirs "foo/bar2" $ reply "bar2"
+
+        -- path test
+        , dir "path" $ msum
+            [ path $ reply . pack
+            , reply "none"
+            ]
+
+        -- trailing / test
+        , dir "trailing" $ msum
+            [ trailingSlash   >> reply "trailing"
+            , noTrailingSlash >> reply "no trailing"
+            ]
+
+        -- full path test, with and without previous 'dir'
+        , dir "full" $ notNullDir >> do
+            p <- askPending
+            routeAccept $ sendTextData `flip` (requestPath $ pendingRequest p)
+        , do
+            p <- askPending
+            routeAccept $ sendTextData `flip` (requestPath $ pendingRequest p)
+        ]
 
 
 --------------------------------------------------------------------------------

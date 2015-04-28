@@ -18,7 +18,7 @@ module Network.WebSockets.Routing
       -- * Route by path info
     , dir
     , dirs
-    , nullDir
+    , nullDir, notNullDir
     , trailingSlash
     , noTrailingSlash
     , path
@@ -32,36 +32,51 @@ import qualified Data.ByteString.Char8 as B8
 import           Network.WebSockets
 import           System.FilePath -- (makeRelative, splitDirectories)
 
+type WebSocketsRouteTy =
+    ( PendingConnection -- the current pending connection (with modified path)
+    , Maybe ByteString  -- the (optional) selected subprotocol
+    , ByteString        -- the query string (separated from the path at start of routing)
+    )
+
 -- | The main routing monad.
 newtype WebSocketsRoute a = WebSocketsRoute
-    { unWebSocketsRoute :: ReaderT (PendingConnection, Maybe ByteString) IO a
+    { unWebSocketsRoute :: ReaderT WebSocketsRouteTy IO a
     } deriving (Functor, Applicative, Monad, MonadIO, Alternative, MonadPlus)
 
 -- | Route websocket requests. If no route is accepted the connection will be
 -- rejected.
 routeWebSockets :: WebSocketsRoute () -> ServerApp
 routeWebSockets route pending =
-    runReaderT (unWebSocketsRoute (route <|> reject)) (pending, Nothing)
+    -- separate path & query
+    let (p, q) = B8.span ('?' /=) (requestPath . pendingRequest $ pending)
+        pending' = pending { pendingRequest = (pendingRequest pending) { requestPath = p } }
+     in runReaderT (unWebSocketsRoute (route <|> reject)) (pending', Nothing, q)
   where
-    reject = liftIO $ rejectRequest pending ""
+    reject = liftIO $ rejectRequest pending "No route."
 
 -- | Get the current pending connection. Note that certain functions like e.g.
 -- 'dir' may modify the 'RequestHead' on subroutes.
 askPending :: WebSocketsRoute PendingConnection
-askPending = WebSocketsRoute $ asks fst
+askPending = WebSocketsRoute $ asks $ \(p,_,q) ->
+    p { pendingRequest = let req = pendingRequest p
+                          in req { requestPath = requestPath req `B8.append` q}
+      }
+
+askPending' :: WebSocketsRoute PendingConnection
+askPending' = WebSocketsRoute $ asks (\(p,_,_) -> p)
 
 -- helper
 askSubprotocol :: WebSocketsRoute (Maybe ByteString)
-askSubprotocol = WebSocketsRoute $ asks snd
+askSubprotocol = WebSocketsRoute $ asks (\(_,s,_) -> s)
 
 --------------------------------------------------------------------------------
 -- Helper functions
 
 withPending :: (PendingConnection -> PendingConnection) -> WebSocketsRoute a -> WebSocketsRoute a
-withPending f r = WebSocketsRoute $ withReaderT (\(p,s) -> (f p,s)) (unWebSocketsRoute r)
+withPending f r = WebSocketsRoute $ withReaderT (\(p,s,q) -> (f p,s,q)) (unWebSocketsRoute r)
 
 setProto :: Maybe ByteString -> WebSocketsRoute a -> WebSocketsRoute a
-setProto bs r = WebSocketsRoute $ withReaderT (\(p,_) -> (p,bs)) (unWebSocketsRoute r)
+setProto bs r = WebSocketsRoute $ withReaderT (\(p,_,q) -> (p,bs,q)) (unWebSocketsRoute r)
 
 setPath :: [String] -> PendingConnection -> PendingConnection
 setPath bs pending =
@@ -89,7 +104,7 @@ routeAccept go = do
 -- given 'AcceptRequest' instead.
 routeAcceptWith :: AcceptRequest -> (Connection -> IO a) -> WebSocketsRoute a
 routeAcceptWith req go = do
-    pending <- askPending
+    pending <- askPending'
     liftIO $ go =<< acceptRequestWith pending req
 
 --------------------------------------------------------------------------------
@@ -106,7 +121,7 @@ routeAcceptWith req go = do
 -- selected subprotocol to the client.
 subprotocol :: ByteString -> WebSocketsRoute a -> WebSocketsRoute a
 subprotocol proto w = do
-    p <- askPending
+    p <- askPending'
     let reqProto = getRequestSubprotocols . pendingRequest $ p
     if proto `elem` reqProto then
         setProto (Just proto) w
@@ -116,7 +131,7 @@ subprotocol proto w = do
 -- | Guard which only succeeds if no subprotocols have been requested.
 noSubprotocols :: WebSocketsRoute ()
 noSubprotocols = do
-    p <- askPending
+    p <- askPending'
     guard $ null . getRequestSubprotocols . pendingRequest $ p
 
 --------------------------------------------------------------------------------
@@ -131,7 +146,7 @@ noSubprotocols = do
 -- The path element can not contain \'/\'. See also 'dirs'.
 dir :: String -> WebSocketsRoute a -> WebSocketsRoute a
 dir p r = do
-    pending <- askPending
+    pending <- askPending'
     case paths pending of
         (p':ps) | p == dropTrailingPathSeparator p' -> do
             let ps' | hasTrailingPathSeparator p' = "/" : ps
@@ -154,14 +169,20 @@ dirs fp w = do
 -- used if you want to explicitly assign a route for \'/\'.
 nullDir :: WebSocketsRoute ()
 nullDir = do
-    pending <- askPending
-    guard $ null (paths pending)
+    pending <- askPending'
+    guard $ null $ paths pending
+
+-- | Opposite of 'nullDir': Succeeds if there are path segments left.
+notNullDir :: WebSocketsRoute ()
+notNullDir = do
+    pending <- askPending'
+    guard $ not . null $ paths pending
 
 -- | Guard which checks that the request URI ends in \'/\'. Useful for
 -- distinguishing between @foo@ and @foo/@.
 trailingSlash :: WebSocketsRoute ()
 trailingSlash = do
-    pending <- askPending
+    pending <- askPending'
     case B8.unsnoc . requestPath . pendingRequest $ pending of
         Just (_, '/') -> return ()
         _             -> mzero
@@ -169,7 +190,7 @@ trailingSlash = do
 -- | The opposite of 'trailingSlash'
 noTrailingSlash :: WebSocketsRoute ()
 noTrailingSlash = do
-    pending <- askPending
+    pending <- askPending'
     case B8.unsnoc . requestPath . pendingRequest $ pending of
         Just (_, '/') -> mzero
         _             -> return ()
@@ -178,7 +199,7 @@ noTrailingSlash = do
 -- component was popped. Fails if the remaining path was empty.
 path :: (String -> WebSocketsRoute a) -> WebSocketsRoute a
 path r = do
-    pending <- askPending
+    pending <- askPending'
     case paths pending of
         (p:ps) | p /= "." -> -- makeRelative turns "/" into ["."]
             withPending (setPath ps) (r $ dropTrailingPathSeparator p)

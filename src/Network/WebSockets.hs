@@ -53,6 +53,7 @@ module Network.WebSockets
       -- * Utilities for writing your own server
     , makeListenSocket
     , makePendingConnection
+    , makePendingConnectionFromStream
 
       -- * Running a client
     , ClientApp

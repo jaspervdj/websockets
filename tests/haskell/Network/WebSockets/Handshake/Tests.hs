@@ -22,7 +22,6 @@ import           Network.WebSockets
 import           Network.WebSockets.Connection
 import           Network.WebSockets.Http
 import qualified Network.WebSockets.Stream      as Stream
-import           Network.WebSockets.Tests.Util
 
 
 --------------------------------------------------------------------------------

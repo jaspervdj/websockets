@@ -84,18 +84,22 @@ runApp :: Socket
        -> ConnectionOptions
        -> ServerApp
        -> IO ()
-runApp socket opts app = do
-    pending <- makePendingConnection socket opts
-    app pending
+runApp socket opts app =
+    bracket
+        (makePendingConnection socket opts)
+        (Stream.close . pendingStream)
+        app
 
 
 --------------------------------------------------------------------------------
--- | Turns a socket, connected to some client, into a 'PendingConnection'.
+-- | Turns a socket, connected to some client, into a 'PendingConnection'. The
+-- 'PendingConnection' should be closed using 'Stream.close' later.
 makePendingConnection
     :: Socket -> ConnectionOptions -> IO PendingConnection
 makePendingConnection socket opts = do
-    stream  <- Stream.makeSocketStream socket
+    stream <- Stream.makeSocketStream socket
     makePendingConnectionFromStream stream opts
+
 
 -- | More general version of 'makePendingConnection' for 'Stream.Stream'
 -- instead of a 'Socket'.

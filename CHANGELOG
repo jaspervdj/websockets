@@ -1,3 +1,6 @@
+- 0.9.5.0
+    * Bugfixes wrt closing sockets and streams
+
 - 0.9.4.0
     * Add `makePendingConnectionFromStream` function
     * Bump `attoparsec` dependency

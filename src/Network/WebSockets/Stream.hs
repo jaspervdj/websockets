@@ -11,14 +11,15 @@ module Network.WebSockets.Stream
     , close
     ) where
 
-import           Control.Applicative            ((<$>))
-import qualified Control.Concurrent.Chan        as Chan
-import           Control.Exception              (throwIO)
-import           Control.Monad                  (forM_)
+import           Control.Concurrent.MVar        (MVar, newEmptyMVar, newMVar,
+                                                 putMVar, takeMVar, withMVar)
+import           Control.Exception              (onException, throwIO)
+import           Control.Monad                  (forM_, when)
 import qualified Data.Attoparsec.ByteString     as Atto
 import qualified Data.ByteString                as B
 import qualified Data.ByteString.Lazy           as BL
-import           Data.IORef                     (IORef, newIORef, readIORef,
+import           Data.IORef                     (IORef, atomicModifyIORef,
+                                                 newIORef, readIORef,
                                                  writeIORef)
 import qualified Network.Socket                 as S
 import qualified Network.Socket.ByteString      as SB (recv)
@@ -49,11 +50,51 @@ data Stream = Stream
 
 
 --------------------------------------------------------------------------------
+-- | Create a stream from a "receive" and "send" action. The following
+-- properties apply:
+--
+-- - Regardless of the provided "receive" and "send" functions, reading and
+--   writing from the stream will be thread-safe, i.e. this function will create
+--   a receive and write lock to be used internally.
+--
+-- - Reading from or writing or to a closed 'Stream' will always throw an
+--   exception, even if the underlying "receive" and "send" functions do not
+--   (we do the bookkeeping).
+--
+-- - Streams should always be closed.
 makeStream
     :: IO (Maybe B.ByteString)         -- ^ Reading
     -> (Maybe BL.ByteString -> IO ())  -- ^ Writing
     -> IO Stream                       -- ^ Resulting stream
-makeStream i o = Stream i o <$> newIORef (Open B.empty)
+makeStream receive send = do
+    ref         <- newIORef (Open B.empty)
+    receiveLock <- newMVar ()
+    sendLock    <- newMVar ()
+    return $ Stream (receive' ref receiveLock) (send' ref sendLock) ref
+  where
+    closeRef :: IORef StreamState -> IO ()
+    closeRef ref = atomicModifyIORef ref $ \state -> case state of
+        Open   buf -> (Closed buf, ())
+        Closed buf -> (Closed buf, ())
+
+    assertNotClosed :: IORef StreamState -> IO a -> IO a
+    assertNotClosed ref io = do
+        state <- readIORef ref
+        case state of
+            Closed _ -> throwIO ConnectionClosed
+            Open   _ -> io
+
+    receive' :: IORef StreamState -> MVar () -> IO (Maybe B.ByteString)
+    receive' ref lock = withMVar lock $ \() -> assertNotClosed ref $ do
+        mbBs <- onException receive (closeRef ref)
+        case mbBs of
+            Nothing -> closeRef ref >> return Nothing
+            Just bs -> return (Just bs)
+
+    send' :: IORef StreamState -> MVar () -> (Maybe BL.ByteString -> IO ())
+    send' ref lock mbBs = withMVar lock $ \() -> assertNotClosed ref $ do
+        when (mbBs == Nothing) (closeRef ref)
+        onException (send mbBs) (closeRef ref)
 
 
 --------------------------------------------------------------------------------
@@ -65,7 +106,7 @@ makeSocketStream socket = makeStream receive send
         return $ if B.null bs then Nothing else Just bs
 
     send Nothing   = return ()
-    send (Just bs) =
+    send (Just bs) = do
 #if !defined(mingw32_HOST_OS)
         SBL.sendAll socket bs
 #else
@@ -76,10 +117,10 @@ makeSocketStream socket = makeStream receive send
 --------------------------------------------------------------------------------
 makeEchoStream :: IO Stream
 makeEchoStream = do
-    chan <- Chan.newChan
-    makeStream (Chan.readChan chan) $ \mbBs -> case mbBs of
-        Nothing -> Chan.writeChan chan Nothing
-        Just bs -> forM_ (BL.toChunks bs) $ \c -> Chan.writeChan chan (Just c)
+    mvar <- newEmptyMVar
+    makeStream (takeMVar mvar) $ \mbBs -> case mbBs of
+        Nothing -> putMVar mvar Nothing
+        Just bs -> forM_ (BL.toChunks bs) $ \c -> putMVar mvar (Just c)
 
 
 --------------------------------------------------------------------------------

@@ -22,7 +22,6 @@ import           Network.WebSockets
 import           Network.WebSockets.Connection
 import           Network.WebSockets.Http
 import qualified Network.WebSockets.Stream      as Stream
-import           Network.WebSockets.Tests.Util
 
 
 --------------------------------------------------------------------------------
@@ -43,6 +42,7 @@ testHandshake rq app = do
         _ <- app (PendingConnection defaultConnectionOptions rq nullify echo)
         return ()
     mbRh <- Stream.parse echo decodeResponseHead
+    Stream.close echo
     case mbRh of
         Nothing -> fail "testHandshake: No response"
         Just rh -> return rh

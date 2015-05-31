@@ -9,7 +9,8 @@ module Network.WebSockets.Tests
 --------------------------------------------------------------------------------
 import qualified Blaze.ByteString.Builder              as Builder
 import           Control.Applicative                   ((<$>))
-import           Control.Monad                         (replicateM, forM_)
+import           Control.Concurrent                    (forkIO)
+import           Control.Monad                         (forM_, replicateM)
 import qualified Data.ByteString.Lazy                  as BL
 import           Data.List                             (intersperse)
 import           Data.Maybe                            (catMaybes)
@@ -47,8 +48,9 @@ testSimpleEncodeDecode protocol = QC.monadicIO $
         echo  <- Stream.makeEchoStream
         parse <- decodeMessages protocol echo
         write <- encodeMessages protocol ClientConnection echo
-        forM_ msgs write
+        _     <- forkIO $ forM_ msgs write
         msgs' <- catMaybes <$> replicateM (length msgs) parse
+        Stream.close echo
         msgs @=? msgs'
 
 
@@ -61,12 +63,13 @@ testFragmentedHybi13 = QC.monadicIO $
         -- is'      <- Streams.filter isDataMessage =<< Hybi13.decodeMessages is
 
         -- Simple hacky encoding of all frames
-        mapM_ (Stream.write echo)
-            [ Builder.toLazyByteString (Hybi13.encodeFrame Nothing f)
-            | FragmentedMessage _ frames <- fragmented
-            , f                          <- frames
-            ]
-        Stream.close echo
+        _ <- forkIO $ do
+            mapM_ (Stream.write echo)
+                [ Builder.toLazyByteString (Hybi13.encodeFrame Nothing f)
+                | FragmentedMessage _ frames <- fragmented
+                , f                          <- frames
+                ]
+            Stream.close echo
 
         -- Check if we got all data
         msgs <- filter isDataMessage <$> parseAll parse

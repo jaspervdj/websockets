@@ -12,8 +12,7 @@ module Network.WebSockets.Client
 
 --------------------------------------------------------------------------------
 import qualified Blaze.ByteString.Builder      as Builder
-import           Control.Concurrent.MVar       (newMVar)
-import           Control.Exception             (finally, throwIO)
+import           Control.Exception             (bracket, finally, throwIO)
 import           Data.IORef                    (newIORef)
 import qualified Data.Text                     as T
 import qualified Data.Text.Encoding            as T
@@ -100,18 +99,14 @@ runClientWithStream stream host path opts customHeaders app = do
     Response _ _ <- return $ finishResponse protocol request response
     parse        <- decodeMessages protocol stream
     write        <- encodeMessages protocol ClientConnection stream
+    sentRef      <- newIORef False
 
-    parseLock <- newMVar ()
-    writeLock <- newMVar ()
-    stream'   <- newIORef (DecoderEncoder parse write)
-    sentRef   <- newIORef False
     app Connection
         { connectionOptions   = opts
         , connectionType      = ClientConnection
         , connectionProtocol  = protocol
-        , connectionParseLock = parseLock
-        , connectionWriteLock = writeLock
-        , connectionStream    = stream'
+        , connectionParse     = parse
+        , connectionWrite     = write
         , connectionSentClose = sentRef
         }
   where
@@ -128,6 +123,8 @@ runClientWithSocket :: S.Socket           -- ^ Socket
                     -> Headers            -- ^ Custom headers to send
                     -> ClientApp a        -- ^ Client application
                     -> IO a
-runClientWithSocket sock host path opts customHeaders app = do
-    stream <- Stream.makeSocketStream sock
-    runClientWithStream stream host path opts customHeaders app
+runClientWithSocket sock host path opts customHeaders app = bracket
+    (Stream.makeSocketStream sock)
+    Stream.close
+    (\stream ->
+        runClientWithStream stream host path opts customHeaders app)

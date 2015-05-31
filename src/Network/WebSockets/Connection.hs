@@ -9,7 +9,6 @@ module Network.WebSockets.Connection
     , acceptRequestWith
     , rejectRequest
 
-    , DecoderEncoder (..)
     , Connection (..)
 
     , ConnectionOptions (..)
@@ -33,9 +32,8 @@ module Network.WebSockets.Connection
 --------------------------------------------------------------------------------
 import qualified Blaze.ByteString.Builder    as Builder
 import           Control.Concurrent          (forkIO, threadDelay)
-import           Control.Concurrent.MVar     (MVar, newMVar, withMVar)
 import           Control.Exception           (AsyncException, fromException,
-                                              handle, onException, throwIO)
+                                              handle, throwIO)
 import           Control.Monad               (unless)
 import qualified Data.ByteString             as B
 import           Data.IORef                  (IORef, newIORef, readIORef,
@@ -103,17 +101,13 @@ acceptRequestWith pc ar = case find (flip compatible request) protocols of
         parse <- decodeMessages protocol (pendingStream pc)
         write <- encodeMessages protocol ServerConnection (pendingStream pc)
 
-        parseLock  <- newMVar ()
-        writeLock  <- newMVar ()
-        stream     <- newIORef (DecoderEncoder parse write)
         sentRef    <- newIORef False
         let connection = Connection
                 { connectionOptions   = pendingOptions pc
                 , connectionType      = ServerConnection
                 , connectionProtocol  = protocol
-                , connectionParseLock = parseLock
-                , connectionWriteLock = writeLock
-                , connectionStream    = stream
+                , connectionParse     = parse
+                , connectionWrite     = write
                 , connectionSentClose = sentRef
                 }
 
@@ -131,20 +125,12 @@ rejectRequest pc message = sendResponse pc $ response400 [] message
 
 
 --------------------------------------------------------------------------------
--- | Type representing an available or unavailable stream.
-data DecoderEncoder a
-    = DecoderEncoder !(IO (Maybe a)) !(a -> IO ())
-    | Closed
-
-
---------------------------------------------------------------------------------
 data Connection = Connection
     { connectionOptions   :: !ConnectionOptions
     , connectionType      :: !ConnectionType
     , connectionProtocol  :: !Protocol
-    , connectionParseLock :: !(MVar ())
-    , connectionWriteLock :: !(MVar ())
-    , connectionStream    :: !(IORef (DecoderEncoder Message))
+    , connectionParse     :: !(IO (Maybe Message))
+    , connectionWrite     :: !(Message -> IO ())
     , connectionSentClose :: !(IORef Bool)
     -- ^ According to the RFC, both the client and the server MUST send
     -- a close control message to each other.  Either party can initiate
@@ -172,18 +158,11 @@ defaultConnectionOptions = ConnectionOptions
 
 --------------------------------------------------------------------------------
 receive :: Connection -> IO Message
-receive conn = withMVar (connectionParseLock conn) $ \() ->
-    tryParse `onException` (writeIORef (connectionStream conn) Closed)
-  where
-    tryParse = do
-        stream <- readIORef (connectionStream conn)
-        case stream of
-            Closed                 -> throwIO ConnectionClosed
-            DecoderEncoder parse _ -> do
-                mbMsg <- parse
-                case mbMsg of
-                    Nothing  -> throwIO ConnectionClosed
-                    Just msg -> return msg
+receive conn = do
+    mbMsg <- connectionParse conn
+    case mbMsg of
+        Nothing  -> throwIO ConnectionClosed
+        Just msg -> return msg
 
 
 --------------------------------------------------------------------------------
@@ -227,18 +206,12 @@ receiveData conn = do
 
 --------------------------------------------------------------------------------
 send :: Connection -> Message -> IO ()
-send conn msg = withMVar (connectionWriteLock conn) $ \() ->
-    trySend `onException` writeIORef (connectionStream conn) Closed
-  where
-    trySend = do
-        stream <- readIORef (connectionStream conn)
-        case msg of
-            (ControlMessage (Close _ _)) ->
-                writeIORef (connectionSentClose conn) True
-            _ -> return ()
-        case stream of
-            Closed                 -> throwIO ConnectionClosed
-            DecoderEncoder _ write -> write msg
+send conn msg = do
+    case msg of
+        (ControlMessage (Close _ _)) ->
+            writeIORef (connectionSentClose conn) True
+        _ -> return ()
+    connectionWrite conn msg
 
 
 --------------------------------------------------------------------------------

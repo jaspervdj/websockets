@@ -16,6 +16,7 @@ import           Test.Framework                 (Test, testGroup)
 import           Test.Framework.Providers.HUnit (testCase)
 import           Test.HUnit                     (Assertion, assert, (@?=))
 
+import qualified Network.Socket                 as S
 
 --------------------------------------------------------------------------------
 import           Network.WebSockets
@@ -39,7 +40,7 @@ testHandshake :: RequestHead -> (PendingConnection -> IO a) -> IO ResponseHead
 testHandshake rq app = do
     echo <- Stream.makeEchoStream
     _    <- forkIO $ do
-        _ <- app (PendingConnection defaultConnectionOptions rq nullify echo)
+        _ <- app (PendingConnection defaultConnectionOptions rq nullify echo addr)
         return ()
     mbRh <- Stream.parse echo decodeResponseHead
     Stream.close echo
@@ -48,6 +49,7 @@ testHandshake rq app = do
         Just rh -> return rh
   where
     nullify _ = return ()
+    addr = S.SockAddrUnix "No Address"
 
 
 --------------------------------------------------------------------------------

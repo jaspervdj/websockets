@@ -72,7 +72,9 @@ runClientWith host port path opts customHeaders app = do
 
 --------------------------------------------------------------------------------
 runClientWithStream
-    :: Stream
+    :: S.SockAddr
+    -- ^ Remote socket address
+    -> Stream
     -- ^ Stream
     -> String
     -- ^ Host
@@ -85,7 +87,7 @@ runClientWithStream
     -> ClientApp a
     -- ^ Client application
     -> IO a
-runClientWithStream stream host path opts customHeaders app = do
+runClientWithStream sockAddr stream host path opts customHeaders app = do
     -- Create the request and send it
     request    <- createRequest protocol bHost bPath False customHeaders
     Stream.write stream (Builder.toLazyByteString $ encodeRequestHead request)
@@ -108,7 +110,7 @@ runClientWithStream stream host path opts customHeaders app = do
         , connectionParse     = parse
         , connectionWrite     = write
         , connectionSentClose = sentRef
-        , connectionAddr      = S.SockAddrUnix "No address"
+        , connectionAddr      = sockAddr
         }
   where
     protocol = defaultProtocol  -- TODO
@@ -127,5 +129,6 @@ runClientWithSocket :: S.Socket           -- ^ Socket
 runClientWithSocket sock host path opts customHeaders app = bracket
     (Stream.makeSocketStream sock)
     Stream.close
-    (\stream ->
-        runClientWithStream stream host path opts customHeaders app)
+    (\stream -> do
+        sockAddr <- S.getPeerName sock
+        runClientWithStream sockAddr stream host path opts customHeaders app)

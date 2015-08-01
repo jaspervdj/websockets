@@ -97,16 +97,15 @@ runApp socket opts app =
 makePendingConnection
     :: Socket -> ConnectionOptions -> IO PendingConnection
 makePendingConnection socket opts = do
-    addr <- S.getPeerName socket
     stream <- Stream.makeSocketStream socket
-    makePendingConnectionFromStream stream addr opts
+    makePendingConnectionFromStream stream opts
 
 
 -- | More general version of 'makePendingConnection' for 'Stream.Stream'
 -- instead of a 'Socket'.
 makePendingConnectionFromStream
-    :: Stream.Stream -> S.SockAddr -> ConnectionOptions -> IO PendingConnection
-makePendingConnectionFromStream stream addr opts = do
+    :: Stream.Stream -> ConnectionOptions -> IO PendingConnection
+makePendingConnectionFromStream stream opts = do
     -- TODO: we probably want to send a 40x if the request is bad?
     mbRequest <- Stream.parse stream (decodeRequestHead False)
     case mbRequest of
@@ -116,5 +115,4 @@ makePendingConnectionFromStream stream addr opts = do
             , pendingRequest  = request
             , pendingOnAccept = \_ -> return ()
             , pendingStream   = stream
-            , pendingAddr     = addr
             }

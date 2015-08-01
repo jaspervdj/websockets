@@ -42,7 +42,6 @@ import           Data.List                   (find)
 import qualified Data.Text                   as T
 import           Data.Word                   (Word16)
 
-import qualified Network.Socket                 as S
 
 --------------------------------------------------------------------------------
 import           Network.WebSockets.Http
@@ -65,8 +64,6 @@ data PendingConnection = PendingConnection
     -- the accepting response is sent to the client.
     , pendingStream   :: !Stream
     -- ^ Input/output stream
-    , pendingAddr     :: !S.SockAddr
-    -- ^ Peer socket address
     }
 
 
@@ -112,7 +109,6 @@ acceptRequestWith pc ar = case find (flip compatible request) protocols of
                 , connectionParse     = parse
                 , connectionWrite     = write
                 , connectionSentClose = sentRef
-                , connectionAddr      = pendingAddr pc
                 }
 
         pendingOnAccept pc connection
@@ -141,8 +137,6 @@ data Connection = Connection
     -- the first close message but then the other party must respond.  Finally,
     -- the server is in charge of closing the TCP connection.  This IORef tracks
     -- if we have sent a close message and are waiting for the peer to respond.
-    , connectionAddr      :: !S.SockAddr
-    -- ^ Peer socket address
     }
 
 

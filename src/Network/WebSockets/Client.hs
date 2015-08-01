@@ -108,7 +108,6 @@ runClientWithStream stream host path opts customHeaders app = do
         , connectionParse     = parse
         , connectionWrite     = write
         , connectionSentClose = sentRef
-        , connectionAddr      = S.SockAddrUnix "No address"
         }
   where
     protocol = defaultProtocol  -- TODO

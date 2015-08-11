@@ -63,7 +63,8 @@ runClientWith host port path opts customHeaders app = do
     -- Connect WebSocket and run client
     res <- finally
         (S.connect sock (S.addrAddress $ head addrInfos) >>
-         runClientWithSocket sock host path opts customHeaders app)
+         runClientWithSocket
+            sock (host ++ ":" ++ show port) path opts customHeaders app)
         (S.sClose sock)
 
     -- Clean up

@@ -57,14 +57,14 @@ runClientWith host port path opts customHeaders app = do
     -- Create and connect socket
     let hints = S.defaultHints
                     {S.addrFamily = S.AF_INET, S.addrSocketType = S.Stream}
+        fullHost = if port == 80 then host else (host ++ ":" ++ show port)
     addrInfos <- S.getAddrInfo (Just hints) (Just host) (Just $ show port)
     sock      <- S.socket S.AF_INET S.Stream S.defaultProtocol
 
     -- Connect WebSocket and run client
     res <- finally
         (S.connect sock (S.addrAddress $ head addrInfos) >>
-         runClientWithSocket
-            sock (host ++ ":" ++ show port) path opts customHeaders app)
+         runClientWithSocket sock fullHost path opts customHeaders app)
         (S.sClose sock)
 
     -- Clean up

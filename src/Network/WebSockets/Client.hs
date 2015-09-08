@@ -60,6 +60,7 @@ runClientWith host port path opts customHeaders app = do
         fullHost = if port == 80 then host else (host ++ ":" ++ show port)
     addrInfos <- S.getAddrInfo (Just hints) (Just host) (Just $ show port)
     sock      <- S.socket S.AF_INET S.Stream S.defaultProtocol
+    S.setSocketOption sock S.NoDelay 1
 
     -- Connect WebSocket and run client
     res <- finally

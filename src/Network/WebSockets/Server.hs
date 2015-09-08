@@ -72,6 +72,7 @@ makeListenSocket host port = bracketOnError
     S.sClose
     (\sock -> do
         _     <- S.setSocketOption sock S.ReuseAddr 1
+        _     <- S.setSocketOption sock S.NoDelay   1
         host' <- S.inet_addr host
         S.bindSocket sock (S.SockAddrInet (fromIntegral port) host')
         S.listen sock 5

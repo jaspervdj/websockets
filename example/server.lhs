@@ -14,7 +14,6 @@ nearby to check out the functions we use.
 > import Control.Exception (finally)
 > import Control.Monad (forM_, forever)
 > import Control.Concurrent (MVar, newMVar, modifyMVar_, modifyMVar, readMVar)
-> import Control.Monad.IO.Class (liftIO)
 > import qualified Data.Text as T
 > import qualified Data.Text.IO as T
 
@@ -95,7 +94,7 @@ When a client is succesfully connected, we read the first message. This should
 be in the format of "Hi! I am Jasper", where Jasper is the requested username.
 
 >     msg <- WS.receiveData conn
->     clients <- liftIO $ readMVar state
+>     clients <- readMVar state
 >     case msg of
 
 Check that the first message has the right format:
@@ -125,7 +124,7 @@ We send a "Welcome!", according to our own little protocol. We add the client to
 the list and broadcast the fact that he has joined. Then, we give control to the
 'talk' function.
 
->                liftIO $ modifyMVar_ state $ \s -> do
+>                modifyMVar_ state $ \s -> do
 >                    let s' = addClient client s
 >                    WS.sendTextData conn $
 >                        "Welcome! Users: " `mappend`
@@ -148,5 +147,5 @@ disconnects. All messages are broadcasted to the other clients.
 > talk :: WS.Connection -> MVar ServerState -> Client -> IO ()
 > talk conn state (user, _) = forever $ do
 >     msg <- WS.receiveData conn
->     liftIO $ readMVar state >>= broadcast
+>     readMVar state >>= broadcast
 >         (user `mappend` ": " `mappend` msg)

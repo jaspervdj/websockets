@@ -1,3 +1,11 @@
+- 0.9.6.0
+    * Optionally include example server in the cabal file
+    * Send correct port from client
+    * Set `TCP_NO_DELAY` in builtin server
+    * Bump `HUnit` dependency
+    * Drop dependency on `mtl`
+    * Fix `QuickCheck` dependency lower bound
+
 - 0.9.5.0
     * Bugfixes wrt closing sockets and streams
 

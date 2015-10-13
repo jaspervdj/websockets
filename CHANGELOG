@@ -1,3 +1,6 @@
+- 0.9.6.1
+    * Fix issue with fragmentation test
+
 - 0.9.6.0
     * Optionally include example server in the cabal file
     * Send correct port from client

@@ -10,6 +10,7 @@ module Network.WebSockets.Tests
 import qualified Blaze.ByteString.Builder              as Builder
 import           Control.Applicative                   ((<$>))
 import           Control.Concurrent                    (forkIO)
+import           Control.Exception                     (try)
 import           Control.Monad                         (forM_, replicateM)
 import qualified Data.ByteString.Lazy                  as BL
 import           Data.List                             (intersperse)
@@ -37,7 +38,7 @@ import           Network.WebSockets.Types
 tests :: Test
 tests = testGroup "Network.WebSockets.Test"
     [ testProperty "simple encode/decode Hybi13" (testSimpleEncodeDecode Hybi13)
-    , testProperty "framgmented Hybi13"          testFragmentedHybi13
+    , testProperty "fragmented Hybi13"           testFragmentedHybi13
     ]
 
 
@@ -79,10 +80,12 @@ testFragmentedHybi13 = QC.monadicIO $
     isDataMessage (DataMessage _)    = True
 
     parseAll parse = do
-        mbMsg <- parse
+        mbMsg <- try parse
         case mbMsg of
-            Just msg -> (msg :) <$> parseAll parse
-            Nothing  -> return []
+            Left  ConnectionClosed -> return []
+            Left  _                -> return []
+            Right (Just msg)       -> (msg :) <$> parseAll parse
+            Right Nothing          -> return []
 
 
 --------------------------------------------------------------------------------

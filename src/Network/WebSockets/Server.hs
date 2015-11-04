@@ -39,6 +39,12 @@ type ServerApp = PendingConnection -> IO ()
 -- | Provides a simple server. This function blocks forever. Note that this
 -- is merely provided for quick-and-dirty standalone applications, for real
 -- applications, you should use a real server.
+--
+-- Glue for using this package with real servers is provided by:
+--
+-- * <https://hackage.haskell.org/package/wai-websockets>
+--
+-- * <https://hackage.haskell.org/package/websockets-snap>
 runServer :: String     -- ^ Address to bind
           -> Int        -- ^ Port to listen on
           -> ServerApp  -- ^ Application

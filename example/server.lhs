@@ -116,7 +116,7 @@ Check that the given username is not already taken:
 >                 WS.sendTextData conn ("User already exists" :: Text)
 
 All is right! We're going to allow the client, but for safety reasons we *first*
-setup a `disconnect` function that will be run when the exception is closed.
+setup a `disconnect` function that will be run when the connection is closed.
 
 >             | otherwise -> flip finally disconnect $ do
 

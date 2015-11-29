@@ -6,3 +6,5 @@ dist
 tests/coverage
 
 tests/haskell/TestSuite
+
+.stack-work/

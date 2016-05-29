@@ -1,5 +1,5 @@
 Name:    websockets
-Version: 0.9.6.1
+Version: 0.9.6.2
 
 Synopsis:
   A sensible and clean way to write WebSocket-capable servers in Haskell.
@@ -72,7 +72,7 @@ Library
     attoparsec        >= 0.10   && < 0.14,
     base              >= 4      && < 5,
     base64-bytestring >= 0.1    && < 1.1,
-    binary            >= 0.5    && < 0.8,
+    binary            >= 0.5    && < 0.9,
     blaze-builder     >= 0.3    && < 0.5,
     bytestring        >= 0.9    && < 0.11,
     case-insensitive  >= 0.3    && < 1.3,
@@ -106,7 +106,7 @@ Test-suite websockets-tests
     attoparsec        >= 0.10   && < 0.14,
     base              >= 4      && < 5,
     base64-bytestring >= 0.1    && < 1.1,
-    binary            >= 0.5    && < 0.8,
+    binary            >= 0.5    && < 0.9,
     blaze-builder     >= 0.3    && < 0.5,
     bytestring        >= 0.9    && < 0.11,
     case-insensitive  >= 0.3    && < 1.3,
@@ -131,7 +131,7 @@ Executable websockets-example
     attoparsec        >= 0.10   && < 0.14,
     base              >= 4      && < 5,
     base64-bytestring >= 0.1    && < 1.1,
-    binary            >= 0.5    && < 0.8,
+    binary            >= 0.5    && < 0.9,
     blaze-builder     >= 0.3    && < 0.5,
     bytestring        >= 0.9    && < 0.11,
     case-insensitive  >= 0.3    && < 1.3,

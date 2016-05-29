@@ -1,3 +1,6 @@
+- 0.9.6.2
+    * Bump `binary` dependency for GHC 8.0 compatibility
+
 - 0.9.6.1
     * Fix issue with fragmentation test
 

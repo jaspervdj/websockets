@@ -31,7 +31,7 @@ Authors
 -------
 
 An initial WebSockets library was written in 2010 by Siniša Biđin. In 2011, it
-was rewritten from scratch, and extended to it's current state by Jasper Van der
+was rewritten from scratch, and extended to its current state by Jasper Van der
 Jeugt, who is also the current maintainer.
 
 Contributors:

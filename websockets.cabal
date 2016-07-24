@@ -1,5 +1,5 @@
 Name:    websockets
-Version: 0.9.6.2
+Version: 0.9.7.0
 
 Synopsis:
   A sensible and clean way to write WebSocket-capable servers in Haskell.
@@ -98,7 +98,7 @@ Test-suite websockets-tests
 
   Build-depends:
     HUnit                      >= 1.2 && < 1.4,
-    QuickCheck                 >= 2.7 && < 2.9,
+    QuickCheck                 >= 2.7 && < 2.10,
     test-framework             >= 0.4 && < 0.9,
     test-framework-hunit       >= 0.2 && < 0.4,
     test-framework-quickcheck2 >= 0.2 && < 0.4,

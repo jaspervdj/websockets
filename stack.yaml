@@ -1,4 +1,4 @@
-resolver: lts-3.14
+resolver: lts-6.8
 flags:
   websockets:
     example: false

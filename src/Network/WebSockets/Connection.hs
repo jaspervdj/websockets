@@ -98,7 +98,7 @@ acceptRequestWith pc ar = case find (flip compatible request) protocols of
         throwIO NotSupported
     Just protocol -> do
         let subproto = maybe [] (\p -> [("Sec-WebSocket-Protocol", p)]) $ acceptSubprotocol ar
-            headers = subproto `mappend` acceptHeaders ar
+            headers = subproto ++ acceptHeaders ar
             response = finishRequest protocol request headers
         sendResponse pc response
         parse <- decodeMessages protocol (pendingStream pc)

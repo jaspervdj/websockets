@@ -73,6 +73,8 @@ data AcceptRequest = AcceptRequest
     -- ^ The subprotocol to speak with the client.  If 'pendingSubprotcols' is
     -- non-empty, 'acceptSubprotocol' must be one of the subprotocols from the
     -- list.
+    , acceptHeaders :: !Headers
+    -- ^ Extra headers to send with the response.
     }
 
 
@@ -85,7 +87,7 @@ sendResponse pc rsp = Stream.write (pendingStream pc)
 
 --------------------------------------------------------------------------------
 acceptRequest :: PendingConnection -> IO Connection
-acceptRequest pc = acceptRequestWith pc $ AcceptRequest Nothing
+acceptRequest pc = acceptRequestWith pc $ AcceptRequest Nothing []
 
 
 --------------------------------------------------------------------------------
@@ -96,7 +98,8 @@ acceptRequestWith pc ar = case find (flip compatible request) protocols of
         throwIO NotSupported
     Just protocol -> do
         let subproto = maybe [] (\p -> [("Sec-WebSocket-Protocol", p)]) $ acceptSubprotocol ar
-            response = finishRequest protocol request subproto
+            headers = subproto ++ acceptHeaders ar
+            response = finishRequest protocol request headers
         sendResponse pc response
         parse <- decodeMessages protocol (pendingStream pc)
         write <- encodeMessages protocol ServerConnection (pendingStream pc)

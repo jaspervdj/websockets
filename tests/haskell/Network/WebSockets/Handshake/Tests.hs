@@ -29,6 +29,8 @@ tests :: Test
 tests = testGroup "Network.WebSockets.Handshake.Test"
     [ testCase "handshake Hybi13"                   testHandshakeHybi13
     , testCase "handshake Hybi13 with subprotocols" testHandshakeHybi13WithProto
+    , testCase "handshake Hybi13 with headers"      testHandshakeHybi13WithHeaders
+    , testCase "handshake Hybi13 with subprotocols and headers" testHandshakeHybi13WithProtoAndHeaders
     , testCase "handshake reject"                   testHandshakeReject
     , testCase "handshake Hybi9000"                 testHandshakeHybi9000
     ]
@@ -90,7 +92,7 @@ testHandshakeHybi13WithProto = do
     ResponseHead code message headers <- testHandshake rq13 $ \pc -> do
         getRequestSubprotocols (pendingRequest pc) @?= ["chat", "superchat"]
         acceptRequestWith pc {pendingOnAccept = \_ -> writeIORef onAcceptFired True}
-                          (AcceptRequest $ Just "superchat")
+                          (AcceptRequest (Just "superchat") [])
 
     readIORef onAcceptFired >>= assert
     code @?= 101
@@ -98,6 +100,40 @@ testHandshakeHybi13WithProto = do
     headers ! "Sec-WebSocket-Accept" @?= "HSmrc0sMlYUkAGmm5OPpG2HaGWk="
     headers ! "Connection"           @?= "Upgrade"
     headers ! "Sec-WebSocket-Protocol" @?= "superchat"
+
+--------------------------------------------------------------------------------
+testHandshakeHybi13WithHeaders :: Assertion
+testHandshakeHybi13WithHeaders = do
+    onAcceptFired                     <- newIORef False
+    ResponseHead code message headers <- testHandshake rq13 $ \pc -> do
+        getRequestSubprotocols (pendingRequest pc) @?= ["chat", "superchat"]
+        acceptRequestWith pc {pendingOnAccept = \_ -> writeIORef onAcceptFired True}
+                          (AcceptRequest Nothing [("Set-Cookie","sid=foo")])
+
+    readIORef onAcceptFired >>= assert
+    code @?= 101
+    message @?= "WebSocket Protocol Handshake"
+    headers ! "Sec-WebSocket-Accept" @?= "HSmrc0sMlYUkAGmm5OPpG2HaGWk="
+    headers ! "Connection"           @?= "Upgrade"
+    headers ! "Set-Cookie"           @?= "sid=foo"
+    lookup "Sec-WebSocket-Protocol" headers @?= Nothing
+
+--------------------------------------------------------------------------------
+testHandshakeHybi13WithProtoAndHeaders :: Assertion
+testHandshakeHybi13WithProtoAndHeaders = do
+    onAcceptFired                     <- newIORef False
+    ResponseHead code message headers <- testHandshake rq13 $ \pc -> do
+        getRequestSubprotocols (pendingRequest pc) @?= ["chat", "superchat"]
+        acceptRequestWith pc {pendingOnAccept = \_ -> writeIORef onAcceptFired True}
+                          (AcceptRequest (Just "superchat") [("Set-Cookie","sid=foo")])
+
+    readIORef onAcceptFired >>= assert
+    code @?= 101
+    message @?= "WebSocket Protocol Handshake"
+    headers ! "Sec-WebSocket-Accept" @?= "HSmrc0sMlYUkAGmm5OPpG2HaGWk="
+    headers ! "Connection"           @?= "Upgrade"
+    headers ! "Sec-WebSocket-Protocol" @?= "superchat"
+    headers ! "Set-Cookie"           @?= "sid=foo"
 
 --------------------------------------------------------------------------------
 testHandshakeReject :: Assertion

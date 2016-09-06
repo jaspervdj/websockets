@@ -25,14 +25,10 @@ type Mask = Maybe B.ByteString
 -- | Apply mask
 maskPayload :: Mask -> BL.ByteString -> BL.ByteString
 maskPayload Nothing     = id
-maskPayload (Just mask) = snd . BL.mapAccumL f 0
+maskPayload (Just mask) = snd . BL.mapAccumL f (cycle $ B.unpack mask)
   where
-    len     = B.length mask
-    f !i !c =
-        let i' = (i + 1) `mod` len
-            m  = mask `B.index` i
-        in (i', m `xor` c)
-
+    f []     !c = ([], c)
+    f (m:ms) !c = (ms, m `xor` c)
 
 --------------------------------------------------------------------------------
 -- | Create a random mask

@@ -18,7 +18,7 @@ module Network.WebSockets.Hybi13
 import qualified Blaze.ByteString.Builder              as B
 import           Control.Applicative                   (pure, (<$>))
 import           Control.Exception                     (throw)
-import           Control.Monad                         (liftM)
+import           Control.Monad                         (liftM, forM)
 import qualified Data.Attoparsec.ByteString            as A
 import           Data.Binary.Get                       (getWord16be,
                                                         getWord64be, runGet)
@@ -88,7 +88,7 @@ finishResponse request response
 
 --------------------------------------------------------------------------------
 encodeMessage :: RandomGen g => ConnectionType -> g -> Message -> (g, B.Builder)
-encodeMessage conType gen msg = (gen', builder `mappend` B.flush)
+encodeMessage conType gen msg = (gen', builder)
   where
     mkFrame      = Frame True False False False
     (mask, gen') = case conType of
@@ -107,13 +107,13 @@ encodeMessage conType gen msg = (gen', builder `mappend` B.flush)
 encodeMessages
     :: ConnectionType
     -> Stream
-    -> IO (Message -> IO ())
+    -> IO ([Message] -> IO ())
 encodeMessages conType stream = do
     genRef <- newIORef =<< newStdGen
-    return $ \msg -> do
-        builder <- atomicModifyIORef genRef $ \s -> encodeMessage conType s msg
-        Stream.write stream (B.toLazyByteString builder)
-
+    return $ \msgs -> do
+        builders <- forM msgs $ \msg ->
+          atomicModifyIORef genRef $ \s -> encodeMessage conType s msg
+        Stream.write stream (B.toLazyByteString $ mconcat builders)
 
 --------------------------------------------------------------------------------
 encodeFrame :: Mask -> Frame -> B.Builder

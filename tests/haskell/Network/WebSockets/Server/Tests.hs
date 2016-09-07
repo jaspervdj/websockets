@@ -36,6 +36,7 @@ import           Network.WebSockets.Tests.Util
 tests :: Test
 tests = testGroup "Network.WebSockets.Server.Tests"
     [ testCase "simple server/client" testSimpleServerClient
+    , testCase "bulk server/client"   testBulkServerClient
     , testCase "onPong"               testOnPong
     ]
 
@@ -43,6 +44,10 @@ tests = testGroup "Network.WebSockets.Server.Tests"
 --------------------------------------------------------------------------------
 testSimpleServerClient :: Assertion
 testSimpleServerClient = testServerClient $ \conn -> mapM_ (sendTextData conn)
+
+--------------------------------------------------------------------------------
+testBulkServerClient :: Assertion
+testBulkServerClient = testServerClient sendTextDatas
 
 --------------------------------------------------------------------------------
 testServerClient :: (Connection -> [BL.ByteString] -> IO ()) -> Assertion

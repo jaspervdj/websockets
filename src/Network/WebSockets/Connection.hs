@@ -19,9 +19,11 @@ module Network.WebSockets.Connection
     , receiveData
     , send
     , sendDataMessage
+    , sendDataMessages
     , sendTextData
     , sendTextDatas
     , sendBinaryData
+    , sendBinaryDatas
     , sendClose
     , sendCloseCode
     , sendPing
@@ -210,7 +212,7 @@ receiveData conn = do
 
 --------------------------------------------------------------------------------
 send :: Connection -> Message -> IO ()
-send conn msg = sendAll conn [msg]
+send conn = sendAll conn . return
 
 --------------------------------------------------------------------------------
 sendAll :: Connection -> [Message] -> IO ()
@@ -225,7 +227,7 @@ sendAll conn msgs = do
 --------------------------------------------------------------------------------
 -- | Send a 'DataMessage'
 sendDataMessage :: Connection -> DataMessage -> IO ()
-sendDataMessage conn = send conn . DataMessage
+sendDataMessage conn = sendDataMessages conn . return
 
 --------------------------------------------------------------------------------
 -- | Send a collection of 'DataMessage's
@@ -235,19 +237,22 @@ sendDataMessages conn = sendAll conn . map DataMessage
 --------------------------------------------------------------------------------
 -- | Send a message as text
 sendTextData :: WebSocketsData a => Connection -> a -> IO ()
-sendTextData conn = sendDataMessage conn . Text . toLazyByteString
+sendTextData conn = sendTextDatas conn . return
 
 --------------------------------------------------------------------------------
 -- | Send a collection of messages as text
 sendTextDatas :: WebSocketsData a => Connection -> [a] -> IO ()
 sendTextDatas conn = sendDataMessages conn . map (Text . toLazyByteString)
 
-
 --------------------------------------------------------------------------------
 -- | Send a message as binary data
 sendBinaryData :: WebSocketsData a => Connection -> a -> IO ()
-sendBinaryData conn = sendDataMessage conn . Binary . toLazyByteString
+sendBinaryData conn = sendBinaryDatas conn . return
 
+--------------------------------------------------------------------------------
+-- | Send a collection of messages as binary data
+sendBinaryDatas :: WebSocketsData a => Connection -> [a] -> IO ()
+sendBinaryDatas conn = sendDataMessages conn . map (Binary . toLazyByteString)
 
 --------------------------------------------------------------------------------
 -- | Send a friendly close message.  Note that after sending this message,

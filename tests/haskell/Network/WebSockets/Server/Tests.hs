@@ -11,7 +11,7 @@ import           Control.Applicative            ((<$>))
 import           Control.Concurrent             (forkIO, killThread,
                                                  threadDelay)
 import           Control.Exception              (SomeException, handle, catch)
-import           Control.Monad                  (forM_, forever, replicateM, unless)
+import           Control.Monad                  (forever, replicateM, unless)
 import           Data.IORef                     (newIORef, readIORef, IORef,
                                                  writeIORef)
 
@@ -42,14 +42,18 @@ tests = testGroup "Network.WebSockets.Server.Tests"
 
 --------------------------------------------------------------------------------
 testSimpleServerClient :: Assertion
-testSimpleServerClient = withEchoServer 42940 "Bye" $ do
+testSimpleServerClient = testServerClient $ \conn -> mapM_ (sendTextData conn)
+
+--------------------------------------------------------------------------------
+testServerClient :: (Connection -> [BL.ByteString] -> IO ()) -> Assertion
+testServerClient sendMessages = withEchoServer 42940 "Bye" $ do
     texts  <- map unArbitraryUtf8 <$> sample
     texts' <- retry $ runClient "127.0.0.1" 42940 "/chat" $ client texts
     texts @=? texts'
   where
     client :: [BL.ByteString] -> ClientApp [BL.ByteString]
     client texts conn = do
-        forM_ texts (sendTextData conn)
+        sendMessages conn texts
         texts' <- replicateM (length texts) (receiveData conn)
         sendClose conn ("Bye" :: BL.ByteString)
         expectCloseException conn "Bye"

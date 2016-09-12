@@ -19,8 +19,11 @@ module Network.WebSockets.Connection
     , receiveData
     , send
     , sendDataMessage
+    , sendDataMessages
     , sendTextData
+    , sendTextDatas
     , sendBinaryData
+    , sendBinaryDatas
     , sendClose
     , sendCloseCode
     , sendPing
@@ -34,7 +37,7 @@ import qualified Blaze.ByteString.Builder    as Builder
 import           Control.Concurrent          (forkIO, threadDelay)
 import           Control.Exception           (AsyncException, fromException,
                                               handle, throwIO)
-import           Control.Monad               (unless)
+import           Control.Monad               (unless, when)
 import qualified Data.ByteString             as B
 import           Data.IORef                  (IORef, newIORef, readIORef,
                                               writeIORef)
@@ -133,7 +136,7 @@ data Connection = Connection
     , connectionType      :: !ConnectionType
     , connectionProtocol  :: !Protocol
     , connectionParse     :: !(IO (Maybe Message))
-    , connectionWrite     :: !(Message -> IO ())
+    , connectionWrite     :: !([Message] -> IO ())
     , connectionSentClose :: !(IORef Bool)
     -- ^ According to the RFC, both the client and the server MUST send
     -- a close control message to each other.  Either party can initiate
@@ -209,31 +212,47 @@ receiveData conn = do
 
 --------------------------------------------------------------------------------
 send :: Connection -> Message -> IO ()
-send conn msg = do
-    case msg of
-        (ControlMessage (Close _ _)) ->
-            writeIORef (connectionSentClose conn) True
-        _ -> return ()
-    connectionWrite conn msg
+send conn = sendAll conn . return
 
+--------------------------------------------------------------------------------
+sendAll :: Connection -> [Message] -> IO ()
+sendAll conn msgs = do
+    when (any isCloseMessage msgs) $
+      writeIORef (connectionSentClose conn) True
+    connectionWrite conn msgs
+  where
+    isCloseMessage (ControlMessage (Close _ _)) = True
+    isCloseMessage _                            = False
 
 --------------------------------------------------------------------------------
 -- | Send a 'DataMessage'
 sendDataMessage :: Connection -> DataMessage -> IO ()
-sendDataMessage conn = send conn . DataMessage
+sendDataMessage conn = sendDataMessages conn . return
 
+--------------------------------------------------------------------------------
+-- | Send a collection of 'DataMessage's
+sendDataMessages :: Connection -> [DataMessage] -> IO ()
+sendDataMessages conn = sendAll conn . map DataMessage
 
 --------------------------------------------------------------------------------
 -- | Send a message as text
 sendTextData :: WebSocketsData a => Connection -> a -> IO ()
-sendTextData conn = sendDataMessage conn . Text . toLazyByteString
+sendTextData conn = sendTextDatas conn . return
 
+--------------------------------------------------------------------------------
+-- | Send a collection of messages as text
+sendTextDatas :: WebSocketsData a => Connection -> [a] -> IO ()
+sendTextDatas conn = sendDataMessages conn . map (Text . toLazyByteString)
 
 --------------------------------------------------------------------------------
 -- | Send a message as binary data
 sendBinaryData :: WebSocketsData a => Connection -> a -> IO ()
-sendBinaryData conn = sendDataMessage conn . Binary . toLazyByteString
+sendBinaryData conn = sendBinaryDatas conn . return
 
+--------------------------------------------------------------------------------
+-- | Send a collection of messages as binary data
+sendBinaryDatas :: WebSocketsData a => Connection -> [a] -> IO ()
+sendBinaryDatas conn = sendDataMessages conn . map (Binary . toLazyByteString)
 
 --------------------------------------------------------------------------------
 -- | Send a friendly close message.  Note that after sending this message,

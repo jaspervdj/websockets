@@ -68,7 +68,7 @@ finishResponse Hybi13 = Hybi13.finishResponse
 --------------------------------------------------------------------------------
 encodeMessages
     :: Protocol -> ConnectionType -> Stream
-    -> IO (Message -> IO ())
+    -> IO ([Message] -> IO ())
 encodeMessages Hybi13 = Hybi13.encodeMessages
 
 

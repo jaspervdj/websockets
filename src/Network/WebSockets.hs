@@ -23,6 +23,7 @@ module Network.WebSockets
     , send
     , sendDataMessage
     , sendTextData
+    , sendTextDatas
     , sendBinaryData
     , sendClose
     , sendPing

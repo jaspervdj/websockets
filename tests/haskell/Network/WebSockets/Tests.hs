@@ -49,7 +49,7 @@ testSimpleEncodeDecode protocol = QC.monadicIO $
         echo  <- Stream.makeEchoStream
         parse <- decodeMessages protocol echo
         write <- encodeMessages protocol ClientConnection echo
-        _     <- forkIO $ forM_ msgs write
+        _     <- forkIO $ write msgs
         msgs' <- catMaybes <$> replicateM (length msgs) parse
         Stream.close echo
         msgs @=? msgs'

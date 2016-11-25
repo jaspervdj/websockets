@@ -53,11 +53,14 @@ runClientWith :: String             -- ^ Host
               -> Headers            -- ^ Custom headers to send
               -> ClientApp a        -- ^ Client application
               -> IO a
-runClientWith host port path opts customHeaders app = do
+runClientWith host port path0 opts customHeaders app = do
     -- Create and connect socket
     let hints = S.defaultHints
                     {S.addrFamily = S.AF_INET, S.addrSocketType = S.Stream}
+
+        -- Correct host and path.
         fullHost = if port == 80 then host else (host ++ ":" ++ show port)
+        path     = if null path0 then "/" else path0
     addrInfos <- S.getAddrInfo (Just hints) (Just host) (Just $ show port)
     sock      <- S.socket S.AF_INET S.Stream S.defaultProtocol
     S.setSocketOption sock S.NoDelay 1

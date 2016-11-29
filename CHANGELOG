@@ -1,8 +1,13 @@
-- 0.9.8.0
-    * Fix client specifying empty path
-    * Allow sending collections of messages (by David Turner)
-    * Allow sending extra headers when accepting request (by James Deery)
+- 0.9.8.2
     * Bump `HUnit` dependency to 1.5
+
+- 0.9.8.1
+    * Restore state of the package to version `0.9.7.0`
+
+- 0.9.8.0
+    * This release contained a feature which broke backwards-compatibility.
+      Hence, it was marked as broken a new release containing the changes will
+      be uploaded as `0.10.0.0`.
 
 - 0.9.7.0
     * Fix issue trying to kill builtin server

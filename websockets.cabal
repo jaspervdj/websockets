@@ -1,5 +1,5 @@
 Name:    websockets
-Version: 0.9.8.0
+Version: 0.9.8.2
 
 Synopsis:
   A sensible and clean way to write WebSocket-capable servers in Haskell.

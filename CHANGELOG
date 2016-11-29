@@ -1,3 +1,8 @@
+- 0.10.0.0
+    * Fix client specifying empty path
+    * Allow sending collections of messages (by David Turner)
+    * Allow sending extra headers when accepting request (by James Deery)
+
 - 0.9.8.2
     * Bump `HUnit` dependency to 1.5
 

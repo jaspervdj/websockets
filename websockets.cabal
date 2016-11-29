@@ -90,11 +90,22 @@ Test-suite websockets-tests
   Ghc-options:    -Wall
 
   Other-modules:
+    Network.WebSockets
+    Network.WebSockets.Client
+    Network.WebSockets.Connection
     Network.WebSockets.Handshake.Tests
+    Network.WebSockets.Http
     Network.WebSockets.Http.Tests
+    Network.WebSockets.Hybi13
+    Network.WebSockets.Hybi13.Demultiplex
+    Network.WebSockets.Hybi13.Mask
+    Network.WebSockets.Protocol
+    Network.WebSockets.Server
     Network.WebSockets.Server.Tests
+    Network.WebSockets.Stream
     Network.WebSockets.Tests
     Network.WebSockets.Tests.Util
+    Network.WebSockets.Types
 
   Build-depends:
     HUnit                      >= 1.2 && < 1.6,

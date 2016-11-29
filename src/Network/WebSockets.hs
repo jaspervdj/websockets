@@ -4,8 +4,9 @@ module Network.WebSockets
     ( -- * Incoming connections and handshaking
       PendingConnection
     , pendingRequest
-    , AcceptRequest(..)
     , acceptRequest
+    , AcceptRequest(..)
+    , defaultAcceptRequest
     , acceptRequestWith
     , rejectRequest
 

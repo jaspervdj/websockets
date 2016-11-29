@@ -4,8 +4,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.WebSockets.Connection
     ( PendingConnection (..)
-    , AcceptRequest(..)
     , acceptRequest
+    , AcceptRequest(..)
+    , defaultAcceptRequest
     , acceptRequestWith
     , rejectRequest
 
@@ -71,6 +72,10 @@ data PendingConnection = PendingConnection
 
 
 --------------------------------------------------------------------------------
+-- | This datatype allows you to set options for 'acceptRequestWith'.  It is
+-- strongly recommended to use 'defaultAcceptRequest' and then modify the
+-- various fields, that way new fields introduced in the library do not break
+-- your code.
 data AcceptRequest = AcceptRequest
     { acceptSubprotocol :: !(Maybe B.ByteString)
     -- ^ The subprotocol to speak with the client.  If 'pendingSubprotcols' is
@@ -82,6 +87,11 @@ data AcceptRequest = AcceptRequest
 
 
 --------------------------------------------------------------------------------
+defaultAcceptRequest :: AcceptRequest
+defaultAcceptRequest = AcceptRequest Nothing []
+
+
+--------------------------------------------------------------------------------
 -- | Utility
 sendResponse :: PendingConnection -> Response -> IO ()
 sendResponse pc rsp = Stream.write (pendingStream pc)
@@ -89,11 +99,14 @@ sendResponse pc rsp = Stream.write (pendingStream pc)
 
 
 --------------------------------------------------------------------------------
+-- | Accept a pending connection, turning it into a 'Connection'.
 acceptRequest :: PendingConnection -> IO Connection
-acceptRequest pc = acceptRequestWith pc $ AcceptRequest Nothing []
+acceptRequest pc = acceptRequestWith pc defaultAcceptRequest
 
 
 --------------------------------------------------------------------------------
+-- | This function is like 'acceptRequest' but allows you to set custom options
+-- using the 'AcceptRequest' datatype.
 acceptRequestWith :: PendingConnection -> AcceptRequest -> IO Connection
 acceptRequestWith pc ar = case find (flip compatible request) protocols of
     Nothing       -> do

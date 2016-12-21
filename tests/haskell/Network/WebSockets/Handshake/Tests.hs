@@ -32,6 +32,7 @@ tests = testGroup "Network.WebSockets.Handshake.Test"
     , testCase "handshake Hybi13 with headers"      testHandshakeHybi13WithHeaders
     , testCase "handshake Hybi13 with subprotocols and headers" testHandshakeHybi13WithProtoAndHeaders
     , testCase "handshake reject"                   testHandshakeReject
+    , testCase "handshake reject with custom code"  testHandshakeRejectWithCode
     , testCase "handshake Hybi9000"                 testHandshakeHybi9000
     ]
 
@@ -135,6 +136,7 @@ testHandshakeHybi13WithProtoAndHeaders = do
     headers ! "Sec-WebSocket-Protocol" @?= "superchat"
     headers ! "Set-Cookie"           @?= "sid=foo"
 
+
 --------------------------------------------------------------------------------
 testHandshakeReject :: Assertion
 testHandshakeReject = do
@@ -142,6 +144,18 @@ testHandshakeReject = do
         rejectRequest pc "YOU SHALL NOT PASS"
 
     code @?= 400
+
+
+--------------------------------------------------------------------------------
+testHandshakeRejectWithCode :: Assertion
+testHandshakeRejectWithCode = do
+    ResponseHead code _ _ <- testHandshake rq13 $ \pc ->
+        rejectRequestWith pc defaultRejectRequest
+            { rejectBody = "YOU SHALL NOT PASS"
+            , rejectCode = 401
+            }
+
+    code @?= 401
 
 
 --------------------------------------------------------------------------------

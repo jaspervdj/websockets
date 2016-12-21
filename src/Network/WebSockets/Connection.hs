@@ -9,6 +9,9 @@ module Network.WebSockets.Connection
     , defaultAcceptRequest
     , acceptRequestWith
     , rejectRequest
+    , RejectRequest(..)
+    , defaultRejectRequest
+    , rejectRequestWith
 
     , Connection (..)
 
@@ -139,8 +142,52 @@ acceptRequestWith pc ar = case find (flip compatible request) protocols of
 
 
 --------------------------------------------------------------------------------
-rejectRequest :: PendingConnection -> B.ByteString -> IO ()
-rejectRequest pc message = sendResponse pc $ response400 [] message
+-- | Parameters that allow you to tweak how a request is rejected.  Please use
+-- 'defaultRejectRequest' and modify fields using record syntax so your code
+-- will not break when new fields are added.
+data RejectRequest = RejectRequest
+    { -- | The status code, 400 by default.
+      rejectCode         :: !Int
+    , -- | The message, "Bad Request" by default
+      rejectMessage      :: !B.ByteString
+    , -- | Extra headers to be sent with the response.
+      rejectHeaders      :: Headers
+    , -- | Reponse body of the rejection.
+      rejectBody :: !B.ByteString
+    }
+
+
+--------------------------------------------------------------------------------
+defaultRejectRequest :: RejectRequest
+defaultRejectRequest = RejectRequest
+    { rejectCode    = 400
+    , rejectMessage = "Bad Request"
+    , rejectHeaders = []
+    , rejectBody    = ""
+    }
+
+
+--------------------------------------------------------------------------------
+rejectRequestWith
+    :: PendingConnection  -- ^ Connection to reject
+    -> RejectRequest      -- ^ Params on how to reject the request
+    -> IO ()
+rejectRequestWith pc reject = sendResponse pc $ Response
+    ResponseHead
+        { responseCode    = rejectCode reject
+        , responseMessage = rejectMessage reject
+        , responseHeaders = rejectHeaders reject
+        }
+    (rejectBody reject)
+
+
+--------------------------------------------------------------------------------
+rejectRequest
+    :: PendingConnection  -- ^ Connection to reject
+    -> B.ByteString       -- ^ Rejection response body
+    -> IO ()
+rejectRequest pc body = rejectRequestWith pc
+    defaultRejectRequest {rejectBody = body}
 
 
 --------------------------------------------------------------------------------

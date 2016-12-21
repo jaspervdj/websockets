@@ -9,6 +9,9 @@ module Network.WebSockets
     , defaultAcceptRequest
     , acceptRequestWith
     , rejectRequest
+    , RejectRequest(..)
+    , defaultRejectRequest
+    , rejectRequestWith
 
       -- * Main connection type
     , Connection

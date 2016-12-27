@@ -19,6 +19,7 @@ module Network.WebSockets
       -- * Options for connections
     , ConnectionOptions (..)
     , defaultConnectionOptions
+    , defaultConnectionOptionsDeflate
 
       -- * Sending and receiving messages
     , receive
@@ -37,6 +38,7 @@ module Network.WebSockets
     , Request (..)
     , RequestHead (..)
     , getRequestSubprotocols
+    , getRequestSecWebSocketExtensions
     , Response (..)
     , ResponseHead (..)
 

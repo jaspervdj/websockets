@@ -91,6 +91,7 @@ encodeMessage :: RandomGen g => ConnectionType -> g -> Message -> (g, B.Builder)
 encodeMessage conType gen msg = (gen', builder)
   where
     mkFrame      = Frame True False False False
+    mkFrame1     = Frame True True  False False
     (mask, gen') = case conType of
         ServerConnection -> (Nothing, gen)
         ClientConnection -> randomMask gen
@@ -99,8 +100,14 @@ encodeMessage conType gen msg = (gen', builder)
             runPut (putWord16be code) `mappend` pl
         (ControlMessage (Ping pl))       -> mkFrame PingFrame   pl
         (ControlMessage (Pong pl))       -> mkFrame PongFrame   pl
+        (CompressedControlMessage (Close code pl)) -> mkFrame1 CloseFrame $
+            runPut (putWord16be code) `mappend` pl
+        (CompressedControlMessage (Ping pl))       -> mkFrame1 PingFrame   pl
+        (CompressedControlMessage (Pong pl))       -> mkFrame1 PongFrame   pl
         (DataMessage (Text pl))          -> mkFrame TextFrame   pl
         (DataMessage (Binary pl))        -> mkFrame BinaryFrame pl
+        (CompressedDataMessage (Text pl))   -> mkFrame1 TextFrame   pl
+        (CompressedDataMessage (Binary pl)) -> mkFrame1 BinaryFrame pl
 
 
 --------------------------------------------------------------------------------

@@ -59,13 +59,13 @@ runServerWith :: String -> Int -> ConnectionOptions -> ServerApp -> IO ()
 runServerWith host port opts app = S.withSocketsDo $
   bracket
   (makeListenSocket host port)
-  S.sClose
+  S.close
   (\sock ->
     mask_ $ forever $ do
       allowInterrupt
       (conn, _) <- S.accept sock
       void $ forkIOWithUnmask $ \unmask ->
-        finally (unmask $ runApp conn opts app) (S.sClose conn)
+        finally (unmask $ runApp conn opts app) (S.close conn)
     )
 
 
@@ -77,15 +77,15 @@ runServerWith host port opts app = S.withSocketsDo $
 makeListenSocket :: String -> Int -> IO Socket
 makeListenSocket host port = bracketOnError
     (S.socket S.AF_INET S.Stream S.defaultProtocol)
-    S.sClose
+    S.close
     (\sock -> do
         _     <- S.setSocketOption sock S.ReuseAddr 1
         _     <- S.setSocketOption sock S.NoDelay   1
         host' <- S.inet_addr host
-        S.bindSocket sock (S.SockAddrInet (fromIntegral port) host')
+        S.bind sock (S.SockAddrInet (fromIntegral port) host')
         S.listen sock 5
         return sock
-        )
+       )
 
 
 --------------------------------------------------------------------------------

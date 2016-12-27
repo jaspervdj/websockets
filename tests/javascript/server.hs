@@ -14,6 +14,7 @@ import           Control.Exception          (catch)
 import           Data.ByteString            (ByteString)
 import           Data.ByteString.Lazy.Char8 ()
 import           Data.Text                  (Text)
+import           Data.Maybe
 import qualified Data.Text.Lazy             as TL
 
 
@@ -25,7 +26,7 @@ import qualified Network.WebSockets         as WS
 echoText :: WS.Connection -> IO ()
 echoText conn = forever $ do
     msg <- WS.receiveData conn
-    liftIO $ putStrLn $ show (msg :: TL.Text)
+    liftIO $ print (msg :: TL.Text)
     WS.sendTextData conn msg
 
 
@@ -58,8 +59,7 @@ ping conn = do
 
 --------------------------------------------------------------------------------
 echo :: WS.Connection -> IO ()
-echo conn = forever $ WS.receive conn >>= WS.send conn
-
+echo conn = forever $ (WS.receiveData conn :: IO ByteString) >>= WS.sendBinaryData conn
 
 --------------------------------------------------------------------------------
 tests :: [(ByteString, WS.Connection -> IO ())]
@@ -80,13 +80,22 @@ application pc = do
     -- When a client succesfully connects, lookup the requested test and
     -- run it
     conn <- case name of
-        "/subprotocol" -> WS.acceptRequestWith pc $ WS.AcceptRequest $ Just "abc"
+        "/subprotocol" -> WS.acceptRequestWith pc $ WS.AcceptRequest (Just "abc") []
+--         "/subprotocol" -> WS.acceptRequestWith pc $ WS.AcceptRequest (Just "abc") [("Sec-WebSocket-Extensions", "permessage-deflate")]
+--         "/subprotocol" -> WS.acceptRequestWith pc $ WS.AcceptRequest (Just "abc") [("Sec-WebSocket-Extensions", fromJust $ WS.getRequestSecWebSocketExtensions rq)]
+--         "/subprotocol" -> WS.acceptRequestWith pc $ WS.AcceptRequest (Just "abc") [("Sec-WebSocket-Extensions", "x-webkit-deflate-frame")]
         _ -> WS.acceptRequest pc
+--         _ -> WS.acceptRequestWith pc $ WS.AcceptRequest Nothing [("Sec-WebSocket-Extensions",
+--         fromJust $ WS.getRequestSecWebSocketExtensions rq)]
+--                                             "permessage-deflate; server_no_context_takeover")]
+--                                             "permessage-deflate; client_no_context_takeover; server_no_context_takeover")]
+--                                             "permessage-deflate")]
     -- version'' <- WS.getVersion
     liftIO $ putStrLn $ "==================================="
     liftIO $ putStrLn $ "Requested client version: " ++ show version'
     -- liftIO $ putStrLn $ "Selected version: " ++ version''
     liftIO $ putStrLn $ "Requested subprotocols: " ++ show (WS.getRequestSubprotocols rq)
+    liftIO $ putStrLn $ "Requested SecWebSocketExtensions: " ++ show (WS.getRequestSecWebSocketExtensions rq)
     liftIO $ putStrLn $ "Starting test " ++ show name
     let Just test = lookup name tests in test conn `catch` handleClose
     liftIO $ putStrLn $ "Test " ++ show name ++ " finished"
@@ -106,6 +115,7 @@ application pc = do
 main :: IO ()
 main = WS.runServerWith "0.0.0.0" 8000 options application
   where
-    options = WS.defaultConnectionOptions
-        { WS.connectionPingInterval = 2
-        }
+    options = WS.defaultConnectionOptionsDeflate
+--     options = WS.defaultConnectionOptions
+--         { WS.connectionPingInterval = 2
+--         }

@@ -26,6 +26,7 @@ module Network.WebSockets.Http
     , getResponseHeader
     , getRequestSecWebSocketVersion
     , getRequestSubprotocols
+    , getRequestSecWebSocketExtensions
     ) where
 
 
@@ -238,6 +239,11 @@ getRequestSubprotocols rh = maybe [] parse mproto
         mproto = lookup "Sec-WebSocket-Protocol" $ requestHeaders rh
         parse = filter (not . B.null) . BC.splitWith (\o -> o == ',' || o == ' ')
 
+--------------------------------------------------------------------------------
+-- | Get the @Sec-WebSocket-Extensions@ header
+getRequestSecWebSocketExtensions :: RequestHead -> Maybe B.ByteString
+getRequestSecWebSocketExtensions p =
+    lookup "Sec-WebSocket-Extensions" (requestHeaders p)
 
 --------------------------------------------------------------------------------
 decodeHeaderLine :: A.Parser (CI.CI ByteString, ByteString)

@@ -17,6 +17,7 @@ module Network.WebSockets.Connection
 
     , ConnectionOptions (..)
     , defaultConnectionOptions
+    , defaultConnectionOptionsDeflate
 
     , receive
     , receiveDataMessage
@@ -57,6 +58,7 @@ import           Network.WebSockets.Stream   (Stream)
 import qualified Network.WebSockets.Stream   as Stream
 import           Network.WebSockets.Types
 
+import           Network.WebSockets.Extensions.PermessageDeflate
 
 --------------------------------------------------------------------------------
 -- | A new client connected to the server. We haven't accepted the connection
@@ -117,25 +119,34 @@ acceptRequestWith pc ar = case find (flip compatible request) protocols of
         throwIO NotSupported
     Just protocol -> do
         let subproto = maybe [] (\p -> [("Sec-WebSocket-Protocol", p)]) $ acceptSubprotocol ar
-            headers = subproto ++ acceptHeaders ar
+            (exH, negotiatedPerMessage) = negotiateDeflate (getRequestSecWebSocketExtensions request) $ connectionPermessageDeflate (pendingOptions pc)
+            headers = subproto ++ acceptHeaders ar ++ exH
             response = finishRequest protocol request headers
         sendResponse pc response
         parse <- decodeMessages protocol (pendingStream pc)
         write <- encodeMessages protocol ServerConnection (pendingStream pc)
-
+        inflate <- wsInflate negotiatedPerMessage
+        deflate <- wsDeflate negotiatedPerMessage
         sentRef    <- newIORef False
         let connection = Connection
-                { connectionOptions   = pendingOptions pc
+                { connectionOptions   = (pendingOptions pc){connectionPermessageDeflate = negotiatedPerMessage}
                 , connectionType      = ServerConnection
                 , connectionProtocol  = protocol
                 , connectionParse     = parse
                 , connectionWrite     = write
                 , connectionSentClose = sentRef
+                , connectionDeflate   = deflate
+                , connectionInflate   = inflate
                 }
 
         pendingOnAccept pc connection
         return connection
   where
+--     negotiateDeflate (Just x) = ([("Sec-WebSocket-Extensions", "permessage-deflate")], Just x)
+    negotiateDeflate (Just "x-webkit-deflate-frame") (Just x) = ([("Sec-WebSocket-Extensions", "x-webkit-deflate-frame")], Just x)
+    negotiateDeflate (Just prot) (Just x) | "permessage-deflate" `B.isPrefixOf` prot = ([("Sec-WebSocket-Extensions"
+      , "permessage-deflate; client_max_window_bits=15; server_max_window_bits=15")], Just x)
+    negotiateDeflate _ _ = ([], Nothing)
     request       = pendingRequest pc
     versionHeader = [("Sec-WebSocket-Version",
         B.intercalate ", " $ concatMap headerVersions protocols)]
@@ -203,6 +214,9 @@ data Connection = Connection
     -- the first close message but then the other party must respond.  Finally,
     -- the server is in charge of closing the TCP connection.  This IORef tracks
     -- if we have sent a close message and are waiting for the peer to respond.
+    -- needs to be updated to some more generic plugin framework
+    , connectionDeflate   :: !(Message -> IO Message)
+    , connectionInflate   :: !(Message -> IO Message)
     }
 
 
@@ -212,6 +226,7 @@ data ConnectionOptions = ConnectionOptions
     { connectionOnPong :: !(IO ())
       -- ^ Whenever a 'pong' is received, this IO action is executed. It can be
       -- used to tickle connections or fire missiles.
+    , connectionPermessageDeflate :: Maybe PermessageDeflate
     }
 
 
@@ -219,6 +234,13 @@ data ConnectionOptions = ConnectionOptions
 defaultConnectionOptions :: ConnectionOptions
 defaultConnectionOptions = ConnectionOptions
     { connectionOnPong = return ()
+    , connectionPermessageDeflate = Just defaultPermessageDeflate
+    }
+
+defaultConnectionOptionsDeflate :: ConnectionOptions
+defaultConnectionOptionsDeflate = ConnectionOptions
+    { connectionOnPong = return ()
+    , connectionPermessageDeflate = Just defaultPermessageDeflate
     }
 
 
@@ -228,7 +250,7 @@ receive conn = do
     mbMsg <- connectionParse conn
     case mbMsg of
         Nothing  -> throwIO ConnectionClosed
-        Just msg -> return msg
+        Just msg -> connectionInflate conn msg
 
 
 --------------------------------------------------------------------------------
@@ -258,8 +280,7 @@ receiveDataMessage conn = do
             Ping pl   -> do
                 send conn (ControlMessage (Pong pl))
                 receiveDataMessage conn
-
-
+        a -> print a >> error ""
 --------------------------------------------------------------------------------
 -- | Receive a message, converting it to whatever format is needed.
 receiveData :: WebSocketsData a => Connection -> IO a
@@ -279,7 +300,7 @@ sendAll :: Connection -> [Message] -> IO ()
 sendAll conn msgs = do
     when (any isCloseMessage msgs) $
       writeIORef (connectionSentClose conn) True
-    connectionWrite conn msgs
+    connectionWrite conn =<< mapM (connectionDeflate conn) msgs
   where
     isCloseMessage (ControlMessage (Close _ _)) = True
     isCloseMessage _                            = False

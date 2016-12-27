@@ -69,7 +69,7 @@ runClientWith host port path0 opts customHeaders app = do
     res <- finally
         (S.connect sock (S.addrAddress $ head addrInfos) >>
          runClientWithSocket sock fullHost path opts customHeaders app)
-        (S.sClose sock)
+        (S.close sock)
 
     -- Clean up
     return res
@@ -113,6 +113,8 @@ runClientWithStream stream host path opts customHeaders app = do
         , connectionParse     = parse
         , connectionWrite     = write
         , connectionSentClose = sentRef
+        , connectionDeflate   = return
+        , connectionInflate   = return
         }
   where
     protocol = defaultProtocol  -- TODO

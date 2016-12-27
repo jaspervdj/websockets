@@ -62,7 +62,7 @@ instance Exception DemultiplexException
 -- | Internal state used by the demultiplexer
 data DemultiplexState
     = EmptyDemultiplexState
-    | DemultiplexState !FrameType !Builder
+    | DemultiplexState !FrameType !Builder !Bool
 
 
 --------------------------------------------------------------------------------
@@ -74,11 +74,14 @@ emptyDemultiplexState = EmptyDemultiplexState
 demultiplex :: DemultiplexState
             -> Frame
             -> (Maybe Message, DemultiplexState)
-demultiplex state (Frame fin _ _ _ tp pl) = case tp of
+demultiplex state (Frame fin rsv1' _ _ tp pl) = case tp of
     -- Return control messages immediately, they have no influence on the state
-    CloseFrame  -> (Just (ControlMessage (uncurry Close parsedClose)), state)
-    PingFrame   -> (Just (ControlMessage (Ping pl)), state)
-    PongFrame   -> (Just (ControlMessage (Pong pl)), state)
+    CloseFrame | rsv1' -> (Just (CompressedControlMessage (uncurry Close parsedClose)), state)
+    CloseFrame         -> (Just (ControlMessage (uncurry Close parsedClose)), state)
+    PingFrame  | rsv1' -> (Just (CompressedControlMessage (Ping pl)), state)
+    PingFrame          -> (Just (ControlMessage (Ping pl)), state)
+    PongFrame  | rsv1' -> (Just (CompressedControlMessage (Pong pl)), state)
+    PongFrame          -> (Just (ControlMessage (Pong pl)), state)
     -- If we're dealing with a continuation...
     ContinuationFrame -> case state of
         -- We received a continuation but we don't have any state. Let's ignore
@@ -86,23 +89,27 @@ demultiplex state (Frame fin _ _ _ tp pl) = case tp of
         EmptyDemultiplexState -> (Nothing, EmptyDemultiplexState)
         -- Append the payload to the state
         -- TODO: protect against overflows
-        DemultiplexState amt b
-            | not fin   -> (Nothing, DemultiplexState amt b')
+        DemultiplexState amt b rsv1
+            | not fin   -> (Nothing, DemultiplexState amt b' rsv1)
             | otherwise -> case amt of
-                TextFrame   -> (Just (DataMessage (Text m)), e)
+                TextFrame   | rsv1 -> (Just (CompressedDataMessage (Text m)), e)
+                TextFrame          -> (Just (DataMessage (Text m)), e)
+                BinaryFrame | rsv1 -> (Just (CompressedDataMessage (Binary m)), e)
                 BinaryFrame -> (Just (DataMessage (Binary m)), e)
                 _           -> throw DemultiplexException
           where
             b' = b `mappend` plb
             m = B.toLazyByteString b'
     TextFrame
-        | fin       -> (Just (DataMessage (Text pl)), e)
-        | otherwise -> (Nothing, DemultiplexState TextFrame plb)
+        | fin && rsv1' -> (Just (CompressedDataMessage (Text pl)), e)
+        | fin          -> (Just (DataMessage (Text pl)), e)
+        | otherwise    -> (Nothing, DemultiplexState TextFrame plb rsv1')
     BinaryFrame
+        | fin && rsv1' -> (Just (CompressedDataMessage (Binary pl)), e)
         | fin       -> (Just (DataMessage (Binary pl)), e)
-        | otherwise -> (Nothing, DemultiplexState BinaryFrame plb)
+        | otherwise -> (Nothing, DemultiplexState BinaryFrame plb rsv1')
   where
-    e   = emptyDemultiplexState
+    e   = EmptyDemultiplexState
     plb = B.fromLazyByteString pl
 
     -- The Close frame MAY contain a body (the "Application data" portion of the

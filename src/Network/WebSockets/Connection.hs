@@ -117,36 +117,33 @@ acceptRequestWith pc ar = case find (flip compatible request) protocols of
     Nothing       -> do
         sendResponse pc $ response400 versionHeader ""
         throwIO NotSupported
-    Just protocol -> do
-        let subproto = maybe [] (\p -> [("Sec-WebSocket-Protocol", p)]) $ acceptSubprotocol ar
-            (exH, negotiatedPerMessage) = negotiateDeflate (getRequestSecWebSocketExtensions request) $ connectionPermessageDeflate (pendingOptions pc)
-            headers = subproto ++ acceptHeaders ar ++ exH
-            response = finishRequest protocol request headers
-        sendResponse pc response
-        parse <- decodeMessages protocol (pendingStream pc)
-        write <- encodeMessages protocol ServerConnection (pendingStream pc)
-        inflate <- wsInflate negotiatedPerMessage
-        deflate <- wsDeflate negotiatedPerMessage
-        sentRef    <- newIORef False
-        let connection = Connection
-                { connectionOptions   = (pendingOptions pc){connectionPermessageDeflate = negotiatedPerMessage}
-                , connectionType      = ServerConnection
-                , connectionProtocol  = protocol
-                , connectionParse     = parse
-                , connectionWrite     = write
-                , connectionSentClose = sentRef
-                , connectionDeflate   = deflate
-                , connectionInflate   = inflate
-                }
+    Just protocol ->
+      case negotiateDeflate (getRequestSecWebSocketExtensions request) $ connectionPermessageDeflate (pendingOptions pc) of
+        Left err -> rejectRequestWith pc defaultRejectRequest{rejectMessage = err} >> throwIO NotSupported
+        Right (exH, negotiatedPerMessage) -> do
+         let subproto = maybe [] (\p -> [("Sec-WebSocket-Protocol", p)]) $ acceptSubprotocol ar
+             headers = subproto ++ acceptHeaders ar ++ exH
+             response = finishRequest protocol request headers
+         sendResponse pc response
+         parse <- decodeMessages protocol (pendingStream pc)
+         write <- encodeMessages protocol ServerConnection (pendingStream pc)
+         inflate <- wsInflate negotiatedPerMessage
+         deflate <- wsDeflate negotiatedPerMessage
+         sentRef    <- newIORef False
+         let connection = Connection
+                 { connectionOptions   = (pendingOptions pc){connectionPermessageDeflate = negotiatedPerMessage}
+                 , connectionType      = ServerConnection
+                 , connectionProtocol  = protocol
+                 , connectionParse     = parse
+                 , connectionWrite     = write
+                 , connectionSentClose = sentRef
+                 , connectionDeflate   = deflate
+                 , connectionInflate   = inflate
+                 }
 
-        pendingOnAccept pc connection
-        return connection
+         pendingOnAccept pc connection
+         return connection
   where
---     negotiateDeflate (Just x) = ([("Sec-WebSocket-Extensions", "permessage-deflate")], Just x)
-    negotiateDeflate (Just "x-webkit-deflate-frame") (Just x) = ([("Sec-WebSocket-Extensions", "x-webkit-deflate-frame")], Just x)
-    negotiateDeflate (Just prot) (Just x) | "permessage-deflate" `B.isPrefixOf` prot = ([("Sec-WebSocket-Extensions"
-      , "permessage-deflate; client_max_window_bits=15; server_max_window_bits=15")], Just x)
-    negotiateDeflate _ _ = ([], Nothing)
     request       = pendingRequest pc
     versionHeader = [("Sec-WebSocket-Version",
         B.intercalate ", " $ concatMap headerVersions protocols)]
@@ -227,6 +224,8 @@ data ConnectionOptions = ConnectionOptions
       -- ^ Whenever a 'pong' is received, this IO action is executed. It can be
       -- used to tickle connections or fire missiles.
     , connectionPermessageDeflate :: Maybe PermessageDeflate
+      -- ^ Settings of permessage deflate extension.
+      -- Nothing will disable it
     }
 
 
@@ -242,7 +241,6 @@ defaultConnectionOptionsDeflate = ConnectionOptions
     { connectionOnPong = return ()
     , connectionPermessageDeflate = Just defaultPermessageDeflate
     }
-
 
 --------------------------------------------------------------------------------
 receive :: Connection -> IO Message

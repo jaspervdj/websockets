@@ -100,10 +100,6 @@ encodeMessage conType gen msg = (gen', builder)
             runPut (putWord16be code) `mappend` pl
         (ControlMessage (Ping pl))       -> mkFrame PingFrame   pl
         (ControlMessage (Pong pl))       -> mkFrame PongFrame   pl
-        (CompressedControlMessage (Close code pl)) -> mkFrame1 CloseFrame $
-            runPut (putWord16be code) `mappend` pl
-        (CompressedControlMessage (Ping pl))       -> mkFrame1 PingFrame   pl
-        (CompressedControlMessage (Pong pl))       -> mkFrame1 PongFrame   pl
         (DataMessage (Text pl))          -> mkFrame TextFrame   pl
         (DataMessage (Binary pl))        -> mkFrame BinaryFrame pl
         (CompressedDataMessage (Text pl))   -> mkFrame1 TextFrame   pl

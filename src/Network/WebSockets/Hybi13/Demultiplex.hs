@@ -76,11 +76,8 @@ demultiplex :: DemultiplexState
             -> (Maybe Message, DemultiplexState)
 demultiplex state (Frame fin rsv1' _ _ tp pl) = case tp of
     -- Return control messages immediately, they have no influence on the state
-    CloseFrame | rsv1' -> (Just (CompressedControlMessage (uncurry Close parsedClose)), state)
     CloseFrame         -> (Just (ControlMessage (uncurry Close parsedClose)), state)
-    PingFrame  | rsv1' -> (Just (CompressedControlMessage (Ping pl)), state)
     PingFrame          -> (Just (ControlMessage (Ping pl)), state)
-    PongFrame  | rsv1' -> (Just (CompressedControlMessage (Pong pl)), state)
     PongFrame          -> (Just (ControlMessage (Pong pl)), state)
     -- If we're dealing with a continuation...
     ContinuationFrame -> case state of

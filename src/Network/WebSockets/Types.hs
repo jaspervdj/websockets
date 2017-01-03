@@ -34,7 +34,6 @@ import           Network.WebSockets.Http
 data Message
     = ControlMessage ControlMessage
     | DataMessage DataMessage
-    | CompressedControlMessage ControlMessage
     | CompressedDataMessage DataMessage
     deriving (Eq, Show)
 

@@ -20,7 +20,7 @@ import           Data.Streaming.Zlib
 import qualified Data.Attoparsec.ByteString       as  A hiding (Parser)
 import qualified Data.Attoparsec.ByteString.Char8 as  A
 import qualified Data.CaseInsensitive             as CI
-
+import           Control.Exception  (throwIO)
 {-
    Four extension parameters are defined for "permessage-deflate" to
    help endpoints manage per-connection resource usage.
@@ -76,9 +76,13 @@ wsCompress PermessageDeflate{..} = initDeflate pdCompressionLevel (WindowBits (-
 appTailL :: BSL.ByteString
 appTailL = BSL.pack [0x00,0x00,0xff,0xff]
 
+rejectExtensions :: Message -> IO Message
+rejectExtensions (DataMessage a b c _) | a || b || c = throwIO $ CloseRequest 1002 "Protocol Error"
+rejectExtensions a = return a
+
 {-# NOINLINE wsDeflate #-}
 wsDeflate :: Maybe PermessageDeflate -> IO (Message -> IO Message)
-wsDeflate Nothing = return return
+wsDeflate Nothing = return rejectExtensions
 wsDeflate (Just pmd) = do
     dmRef <- newMVar =<< fresh
     return $ wsDeflate1 dmRef
@@ -96,13 +100,13 @@ wsDeflate (Just pmd) = do
        PRNext c  -> L.chunk c <$> dePopper p
        PRError x -> print x >> return BSL.empty
 
-    wsDeflate1 dmRef (DataMessage (Text x))   = CompressedDataMessage . Text <$> compressor dmRef x
-    wsDeflate1 dmRef (DataMessage (Binary x)) = CompressedDataMessage . Binary <$> compressor dmRef x
+    wsDeflate1 dmRef (DataMessage False False False (Text x))   = DataMessage True False False . Text <$> compressor dmRef x
+    wsDeflate1 dmRef (DataMessage False False False (Binary x)) = DataMessage True False False . Binary <$> compressor dmRef x
     wsDeflate1 _ x = return x
 
 {-# NOINLINE wsInflate #-}
 wsInflate :: Maybe PermessageDeflate -> IO (Message -> IO Message)
-wsInflate Nothing = return return
+wsInflate Nothing = return rejectExtensions
 wsInflate (Just pmd) = do
     dmRef <- newMVar =<< fresh
     return $ wsInflate1 dmRef
@@ -118,8 +122,8 @@ wsInflate (Just pmd) = do
        PRDone -> return BSL.empty
        PRNext c -> L.chunk c <$> dePopper p
        PRError x -> print x >> return BSL.empty
-    wsInflate1 dmRef (CompressedDataMessage   (Text x)) = DataMessage . Text   <$> compressor dmRef x
-    wsInflate1 dmRef (CompressedDataMessage (Binary x)) = DataMessage . Binary <$> compressor dmRef x
+    wsInflate1 dmRef (DataMessage True a b  (Text x)) = DataMessage False a b . Text   <$> compressor dmRef x
+    wsInflate1 dmRef (DataMessage True a b (Binary x)) = DataMessage False a b . Binary <$> compressor dmRef x
     wsInflate1 _ x = return x
 
 maybeStrip :: BSL.ByteString -> BSL.ByteString

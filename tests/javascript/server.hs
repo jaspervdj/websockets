@@ -81,19 +81,9 @@ application pc = do
     -- run it
     conn <- case name of
         "/subprotocol" -> WS.acceptRequestWith pc $ WS.AcceptRequest (Just "abc") []
---         "/subprotocol" -> WS.acceptRequestWith pc $ WS.AcceptRequest (Just "abc") [("Sec-WebSocket-Extensions", "permessage-deflate")]
---         "/subprotocol" -> WS.acceptRequestWith pc $ WS.AcceptRequest (Just "abc") [("Sec-WebSocket-Extensions", fromJust $ WS.getRequestSecWebSocketExtensions rq)]
---         "/subprotocol" -> WS.acceptRequestWith pc $ WS.AcceptRequest (Just "abc") [("Sec-WebSocket-Extensions", "x-webkit-deflate-frame")]
         _ -> WS.acceptRequest pc
---         _ -> WS.acceptRequestWith pc $ WS.AcceptRequest Nothing [("Sec-WebSocket-Extensions",
---         fromJust $ WS.getRequestSecWebSocketExtensions rq)]
---                                             "permessage-deflate; server_no_context_takeover")]
---                                             "permessage-deflate; client_no_context_takeover; server_no_context_takeover")]
---                                             "permessage-deflate")]
-    -- version'' <- WS.getVersion
     liftIO $ putStrLn $ "==================================="
     liftIO $ putStrLn $ "Requested client version: " ++ show version'
-    -- liftIO $ putStrLn $ "Selected version: " ++ version''
     liftIO $ putStrLn $ "Requested subprotocols: " ++ show (WS.getRequestSubprotocols rq)
     liftIO $ putStrLn $ "Requested SecWebSocketExtensions: " ++ show (WS.getRequestSecWebSocketExtensions rq)
     liftIO $ putStrLn $ "Starting test " ++ show name

@@ -77,8 +77,7 @@ testFragmentedHybi13 = QC.monadicIO $
         [msg | FragmentedMessage msg _ <- fragmented] @=? msgs
   where
     isDataMessage (ControlMessage _) = False
-    isDataMessage (DataMessage _)    = True
-    isDataMessage (CompressedDataMessage _)  = True
+    isDataMessage (DataMessage _ _ _ _)    = True
 
     parseAll parse = do
         mbMsg <- try parse

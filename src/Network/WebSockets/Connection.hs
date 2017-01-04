@@ -44,6 +44,7 @@ import           Control.Exception           (AsyncException, fromException,
                                               handle, throwIO)
 import           Control.Monad               (unless, when)
 import qualified Data.ByteString             as B
+import qualified Data.ByteString.Lazy        as BSL
 import           Data.IORef                  (IORef, newIORef, readIORef,
                                               writeIORef)
 import           Data.List                   (find)
@@ -266,7 +267,7 @@ receiveDataMessage :: Connection -> IO DataMessage
 receiveDataMessage conn = do
     msg <- receive conn
     case msg of
-        DataMessage am    -> return am
+        DataMessage False False False am -> return am
         ControlMessage cm -> case cm of
             Close i closeMsg -> do
                 hasSentClose <- readIORef $ connectionSentClose conn
@@ -311,7 +312,7 @@ sendDataMessage conn = sendDataMessages conn . return
 --------------------------------------------------------------------------------
 -- | Send a collection of 'DataMessage's
 sendDataMessages :: Connection -> [DataMessage] -> IO ()
-sendDataMessages conn = sendAll conn . map DataMessage
+sendDataMessages conn = sendAll conn . map (DataMessage False False False)
 
 --------------------------------------------------------------------------------
 -- | Send a message as text

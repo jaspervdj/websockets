@@ -62,8 +62,7 @@ instance Exception DemultiplexException
 -- | Internal state used by the demultiplexer
 data DemultiplexState
     = EmptyDemultiplexState
-    | DemultiplexState !FrameType !Builder !Bool
-
+    | DemultiplexState (Builder -> Message) !Builder
 
 --------------------------------------------------------------------------------
 emptyDemultiplexState :: DemultiplexState
@@ -74,48 +73,46 @@ emptyDemultiplexState = EmptyDemultiplexState
 demultiplex :: DemultiplexState
             -> Frame
             -> (Maybe Message, DemultiplexState)
-demultiplex state (Frame fin rsv1' _ _ tp pl) = case tp of
-    -- Return control messages immediately, they have no influence on the state
-    CloseFrame         -> (Just (ControlMessage (uncurry Close parsedClose)), state)
-    PingFrame          -> (Just (ControlMessage (Ping pl)), state)
-    PongFrame          -> (Just (ControlMessage (Pong pl)), state)
-    -- If we're dealing with a continuation...
-    ContinuationFrame -> case state of
-        -- We received a continuation but we don't have any state. Let's ignore
-        -- this fragment...
-        EmptyDemultiplexState -> (Nothing, EmptyDemultiplexState)
-        -- Append the payload to the state
-        -- TODO: protect against overflows
-        DemultiplexState amt b rsv1
-            | not fin   -> (Nothing, DemultiplexState amt b' rsv1)
-            | otherwise -> case amt of
-                TextFrame   | rsv1 -> (Just (CompressedDataMessage (Text m)), e)
-                TextFrame          -> (Just (DataMessage (Text m)), e)
-                BinaryFrame | rsv1 -> (Just (CompressedDataMessage (Binary m)), e)
-                BinaryFrame -> (Just (DataMessage (Binary m)), e)
-                _           -> throw DemultiplexException
-          where
-            b' = b `mappend` plb
-            m = B.toLazyByteString b'
-    TextFrame
-        | fin && rsv1' -> (Just (CompressedDataMessage (Text pl)), e)
-        | fin          -> (Just (DataMessage (Text pl)), e)
-        | otherwise    -> (Nothing, DemultiplexState TextFrame plb rsv1')
-    BinaryFrame
-        | fin && rsv1' -> (Just (CompressedDataMessage (Binary pl)), e)
-        | fin       -> (Just (DataMessage (Binary pl)), e)
-        | otherwise -> (Nothing, DemultiplexState BinaryFrame plb rsv1')
+demultiplex state (Frame True False False False PingFrame pl)
+   | BL.length pl > 125 = throw $ CloseRequest 1002 "Protocol Error"
+   | otherwise = (Just (ControlMessage (Ping pl)), state)
+demultiplex state (Frame True False False False PongFrame pl) = (Just (ControlMessage (Pong pl)), state)
+demultiplex _     (Frame True False False False CloseFrame pl)
+      = (Just (ControlMessage (uncurry Close parsedClose)), EmptyDemultiplexState)
   where
-    e   = EmptyDemultiplexState
-    plb = B.fromLazyByteString pl
-
-    -- The Close frame MAY contain a body (the "Application data" portion of the
-    -- frame) that indicates a reason for closing, such as an endpoint shutting
-    -- down, an endpoint having received a frame too large, or an endpoint
-    -- having received a frame that does not conform to the format expected by
-    -- the endpoint. If there is a body, the first two bytes of the body MUST
-    -- be a 2-byte unsigned integer (in network byte order) representing a
-    -- status code with value /code/ defined in Section 7.4.
+      -- The Close frame MAY contain a body (the "Application data" portion of the
+      -- frame) that indicates a reason for closing, such as an endpoint shutting
+      -- down, an endpoint having received a frame too large, or an endpoint
+      -- having received a frame that does not conform to the format expected by
+      -- the endpoint. If there is a body, the first two bytes of the body MUST
+      -- be a 2-byte unsigned integer (in network byte order) representing a
+      -- status code with value /code/ defined in Section 7.4.
     parsedClose
-        | BL.length pl >= 2 = (runGet getWord16be pl, BL.drop 2 pl)
-        | otherwise         = (1000, BL.empty)
+       | BL.length pl >= 2 = case runGet getWord16be pl of
+              a | a < 1000 -> (1002, BL.empty)
+              a -> (a, BL.drop 2 pl)
+       | BL.length pl == 1 = (1002, BL.empty)
+       | otherwise         = (1000, BL.empty)
+
+demultiplex EmptyDemultiplexState (Frame fin rsv1 rsv2 rsv3 tp pl) = case tp of
+    TextFrame
+        | fin       -> (Just (DataMessage rsv1 rsv2 rsv3 (Text pl)), e)
+        | otherwise -> (Nothing, DemultiplexState (DataMessage rsv1 rsv2 rsv3 . Text . B.toLazyByteString) plb)
+    BinaryFrame
+        | fin       -> (Just (DataMessage rsv1 rsv2 rsv3 (Binary pl)), e)
+        | otherwise -> (Nothing, DemultiplexState (DataMessage rsv1 rsv2 rsv3 . Binary . B.toLazyByteString) plb)
+    _ -> throw DemultiplexException
+  where
+      e   = EmptyDemultiplexState
+      plb = B.fromLazyByteString pl
+
+demultiplex (DemultiplexState f b) (Frame fin False False False ContinuationFrame pl)
+  | not fin   = (Nothing, DemultiplexState f b')
+  | otherwise = (Just (f b'), e)
+
+ where
+   b' = b `mappend` plb
+   e   = EmptyDemultiplexState
+   plb = B.fromLazyByteString pl
+
+demultiplex _ _ = throw DemultiplexException

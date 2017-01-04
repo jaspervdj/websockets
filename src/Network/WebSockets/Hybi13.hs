@@ -91,7 +91,6 @@ encodeMessage :: RandomGen g => ConnectionType -> g -> Message -> (g, B.Builder)
 encodeMessage conType gen msg = (gen', builder)
   where
     mkFrame      = Frame True False False False
-    mkFrame1     = Frame True True  False False
     (mask, gen') = case conType of
         ServerConnection -> (Nothing, gen)
         ClientConnection -> randomMask gen
@@ -100,10 +99,8 @@ encodeMessage conType gen msg = (gen', builder)
             runPut (putWord16be code) `mappend` pl
         (ControlMessage (Ping pl))       -> mkFrame PingFrame   pl
         (ControlMessage (Pong pl))       -> mkFrame PongFrame   pl
-        (DataMessage (Text pl))          -> mkFrame TextFrame   pl
-        (DataMessage (Binary pl))        -> mkFrame BinaryFrame pl
-        (CompressedDataMessage (Text pl))   -> mkFrame1 TextFrame   pl
-        (CompressedDataMessage (Binary pl)) -> mkFrame1 BinaryFrame pl
+        (DataMessage rsv1 rsv2 rsv3 (Text pl))   -> Frame True rsv1 rsv2 rsv3 TextFrame   pl
+        (DataMessage rsv1 rsv2 rsv3 (Binary pl)) -> Frame True rsv1 rsv2 rsv3 BinaryFrame pl
 
 
 --------------------------------------------------------------------------------
@@ -162,7 +159,7 @@ decodeMessages stream = do
         case mbFrame of
             Nothing    -> return Nothing
             Just frame -> do
-                mbMsg <- atomicModifyIORef dmRef $
+                mbMsg <- atomicModifyIORef' dmRef $
                     \s -> swap $ demultiplex s frame
                 case mbMsg of
                     Nothing  -> go dmRef

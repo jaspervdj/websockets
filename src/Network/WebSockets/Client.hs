@@ -27,6 +27,8 @@ import           Network.WebSockets.Stream     (Stream)
 import qualified Network.WebSockets.Stream     as Stream
 import           Network.WebSockets.Types
 
+import           Network.WebSockets.Extensions.PermessageDeflate (rejectExtensions)
+
 
 --------------------------------------------------------------------------------
 -- | A client application interacting with a single server. Once this 'IO'
@@ -113,8 +115,8 @@ runClientWithStream stream host path opts customHeaders app = do
         , connectionParse     = parse
         , connectionWrite     = write
         , connectionSentClose = sentRef
-        , connectionDeflate   = return
-        , connectionInflate   = return
+        , connectionDeflate   = rejectExtensions
+        , connectionInflate   = rejectExtensions
         }
   where
     protocol = defaultProtocol  -- TODO

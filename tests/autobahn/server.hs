@@ -17,15 +17,13 @@ pip install autobahntestsuite
 source pyt/bin/activate
 mkdir -p test && cd test
 wstest -m fuzzingclient
-
+websockets-autobahn
 -}
 
 --------------------------------------------------------------------------------
 import           Control.Monad              (forever)
-import           Control.Monad.Trans        (liftIO)
-import           Control.Exception          (catch)
+import           Control.Exception.Safe     (catch)
 import           Data.ByteString.Lazy.Char8 ()
-
 
 --------------------------------------------------------------------------------
 import qualified Network.WebSockets         as WS
@@ -41,15 +39,9 @@ echoDataMessage conn = forever $
 application :: WS.ServerApp
 application pc = do
     conn <-  WS.acceptRequest pc
---     liftIO $ putStrLn $ "==================================="
---     liftIO $ putStrLn $ "Requested client version: " ++ show version'
---     liftIO $ putStrLn $ "Requested subprotocols: " ++ show (WS.getRequestSubprotocols rq)
---     liftIO $ putStrLn $ "Requested SecWebSocketExtensions: " ++ show (WS.getRequestSecWebSocketExtensions rq)
-    echoDataMessage conn `catch` handleClose >> (liftIO $ putStrLn $ "Finished")
+    echoDataMessage conn `catch` handleClose
 
   where
-    rq       = WS.pendingRequest pc
-    version' = lookup "Sec-WebSocket-Version" (WS.requestHeaders rq)
     handleClose (WS.CloseRequest i msg) =
         putStrLn $ "Recevied close request " ++ show i ++ " : " ++ show msg
     handleClose WS.ConnectionClosed =

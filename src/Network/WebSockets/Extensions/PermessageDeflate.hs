@@ -2,25 +2,27 @@
            , LambdaCase
            , RecordWildCards
            , BangPatterns
+           , TupleSections
            #-}
 module Network.WebSockets.Extensions.PermessageDeflate where
 
 import qualified Data.ByteString                  as  BS
 import qualified Data.ByteString.Char8            as BS8
+import qualified Data.ByteString.Lazy.Char8       as BSL8
 import qualified Data.ByteString.Lazy             as BSL
 import qualified Data.ByteString.Lazy.Internal    as   L
 import           Network.WebSockets.Types
 import           Network.WebSockets.Http
 import           Data.Monoid
 import           Data.Either
-import           Control.Applicative ((<|>), (<$>), (*>), (<*))
+import           Control.Applicative              ((<|>), (<$>), (*>), (<*))
 import           Control.Concurrent.MVar
-import           Control.Monad (when)
+import           Control.Monad                    (when, liftM2)
 import           Data.Streaming.Zlib
 import qualified Data.Attoparsec.ByteString       as  A hiding (Parser)
 import qualified Data.Attoparsec.ByteString.Char8 as  A
 import qualified Data.CaseInsensitive             as CI
-import           Control.Exception  (throwIO)
+import           Control.Exception.Safe           (throwIO)
 {-
    Four extension parameters are defined for "permessage-deflate" to
    help endpoints manage per-connection resource usage.
@@ -83,45 +85,54 @@ rejectExtensions a = return a
 {-# NOINLINE wsDeflate #-}
 wsDeflate :: Maybe PermessageDeflate -> IO (Message -> IO Message)
 wsDeflate Nothing = return rejectExtensions
-wsDeflate (Just pmd) = do
-    dmRef <- newMVar =<< fresh
-    return $ wsDeflate1 dmRef
+wsDeflate (Just pmd) =
+    wsDeflate1 <$> (newMVar =<< fresh)
   where
     fresh = wsCompress pmd
-    compressor dmRef !x =  do
-          worker <- takeMVar dmRef
-          dec <- dePopper =<< feedDeflate worker (BSL.toStrict x)
-          d1 <- dePopper $ flushDeflate worker
-          putMVar dmRef =<< if serverNoContextTakeover pmd then fresh else return worker
-          return (maybeStrip $ dec `BSL.append` d1)
-
-    dePopper p = p >>= \case
-       PRDone    -> return BSL.empty
-       PRNext c  -> L.chunk c <$> dePopper p
-       PRError x -> print x >> return BSL.empty
+    compressor dmRef x =
+      modifyMVar dmRef $ \worker -> do
+        ret <- feedDeflateLazy worker x
+        if serverNoContextTakeover pmd
+          then (, ret) <$> fresh
+          else return (worker, ret)
 
     wsDeflate1 dmRef (DataMessage False False False (Text x))   = DataMessage True False False . Text <$> compressor dmRef x
     wsDeflate1 dmRef (DataMessage False False False (Binary x)) = DataMessage True False False . Binary <$> compressor dmRef x
     wsDeflate1 _ x = return x
 
+feedDeflateLazy :: Deflate -> BSL.ByteString -> IO BSL.ByteString
+feedDeflateLazy worker x = do
+  dec <- BSL.foldlChunks (\acc y -> liftM2 (<>) acc (dePopper =<< feedDeflate worker y)) (return BSL.empty) x
+  d1 <- dePopper $ flushDeflate worker
+  return $ maybeStrip $ dec <> d1
+
+feedInflateLazy :: Inflate -> BSL.ByteString -> IO BSL.ByteString
+feedInflateLazy worker x = do
+  dec <- BSL.foldlChunks (\acc y -> liftM2 (<>) acc (dePopper =<< feedInflate worker y)) (return BSL.empty) x
+  d1 <- flushInflate worker
+  return $ dec <> BSL.fromStrict d1
+
+dePopper :: IO PopperRes -> IO BSL.ByteString
+dePopper p = p >>= \case
+  PRDone    -> return BSL.empty
+  PRNext c  -> L.chunk c <$> dePopper p
+  PRError x -> throwIO $ CloseRequest 1002 (BSL8.pack (show x))
+
+
 {-# NOINLINE wsInflate #-}
 wsInflate :: Maybe PermessageDeflate -> IO (Message -> IO Message)
 wsInflate Nothing = return rejectExtensions
-wsInflate (Just pmd) = do
-    dmRef <- newMVar =<< fresh
-    return $ wsInflate1 dmRef
+wsInflate (Just pmd) = 
+    wsInflate1 <$> (newMVar =<< fresh)
   where
     fresh = wsDecompress pmd
-    compressor dmRef x =  do
-          worker <- takeMVar dmRef
-          dec <- dePopper =<< feedInflate worker (BSL.toStrict $ x <> appTailL)
-          d1 <- flushInflate worker
-          putMVar dmRef =<< if clientNoContextTakeover pmd then fresh else return worker
-          return $ dec `BSL.append` BSL.fromStrict d1
-    dePopper p = p >>= \case
-       PRDone -> return BSL.empty
-       PRNext c -> L.chunk c <$> dePopper p
-       PRError x -> print x >> return BSL.empty
+    compressor dmRef x =
+      modifyMVar dmRef $ \worker -> do
+        ret <- feedInflateLazy worker x
+        if clientNoContextTakeover pmd
+          then (, ret) <$> fresh
+          else return (worker, ret)
+
     wsInflate1 dmRef (DataMessage True a b  (Text x)) = DataMessage False a b . Text   <$> compressor dmRef x
     wsInflate1 dmRef (DataMessage True a b (Binary x)) = DataMessage False a b . Binary <$> compressor dmRef x
     wsInflate1 _ x = return x

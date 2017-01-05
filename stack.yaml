@@ -1,4 +1,8 @@
-resolver: lts-6.8
+build:
+  library-profiling: true
+  executable-profiling: true
+
+resolver: lts-7.14
 flags:
   websockets:
 #    example: false

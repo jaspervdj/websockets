@@ -1,6 +1,7 @@
 --------------------------------------------------------------------------------
 {-# LANGUAGE BangPatterns      #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns #-}
 module Network.WebSockets.Hybi13
     ( headerVersions
     , finishRequest
@@ -17,7 +18,7 @@ module Network.WebSockets.Hybi13
 --------------------------------------------------------------------------------
 import qualified Blaze.ByteString.Builder              as B
 import           Control.Applicative                   (pure, (<$>))
-import           Control.Exception                     (throw)
+import           Control.Exception.Safe                (throwIO)
 import           Control.Monad                         (liftM, forM)
 import qualified Data.Attoparsec.ByteString            as A
 import           Data.Binary.Get                       (getWord16be,
@@ -25,12 +26,14 @@ import           Data.Binary.Get                       (getWord16be,
 import           Data.Binary.Put                       (putWord16be, runPut)
 import           Data.Bits                             ((.&.), (.|.))
 import           Data.ByteString                       (ByteString)
+import qualified Data.ByteString                       as BS
 import qualified Data.ByteString.Base64                as B64
 import           Data.ByteString.Char8                 ()
 import qualified Data.ByteString.Lazy                  as BL
 import           Data.Digest.Pure.SHA                  (bytestringDigest, sha1)
 import           Data.Int                              (Int64)
 import           Data.IORef
+import           Data.Either
 import           Data.Monoid                           (mappend, mconcat,
                                                         mempty)
 import           Data.Tuple                            (swap)
@@ -55,18 +58,18 @@ headerVersions = ["13"]
 --------------------------------------------------------------------------------
 finishRequest :: RequestHead
               -> Headers
-              -> Response
+              -> Either HandshakeException Response
 finishRequest reqHttp headers =
     let !key     = getRequestHeader reqHttp "Sec-WebSocket-Key"
-        !hash    = hashKey key
-        !encoded = B64.encode hash
-    in response101 (("Sec-WebSocket-Accept", encoded):headers) ""
+        !hash    = hashKey <$> key
+        !encoded = B64.encode <$> hash
+    in (\x -> response101 (("Sec-WebSocket-Accept", x):headers) "") <$> encoded
 
 
 --------------------------------------------------------------------------------
 finishResponse :: RequestHead
                -> ResponseHead
-               -> Response
+               -> Either HandshakeException Response
 finishResponse request response
     -- Response message should be one of
     --
@@ -74,16 +77,17 @@ finishResponse request response
     -- - Switching Protocols
     --
     -- But we don't check it for now
-    | responseCode response /= 101  = throw $ MalformedResponse response
+    | responseCode response /= 101  = Left $ MalformedResponse response
         "Wrong response status or message."
-    | responseHash /= challengeHash = throw $ MalformedResponse response
+    | isLeft responseHash = let Left x = responseHash in Left x
+    | responseHash /= challengeHash = Left $ MalformedResponse response
         "Challenge and response hashes do not match."
     | otherwise                     =
-        Response response ""
+        Right $ Response response ""
   where
     key           = getRequestHeader  request  "Sec-WebSocket-Key"
     responseHash  = getResponseHeader response "Sec-WebSocket-Accept"
-    challengeHash = B64.encode $ hashKey key
+    challengeHash = B64.encode . hashKey <$> key
 
 
 --------------------------------------------------------------------------------
@@ -112,7 +116,7 @@ encodeMessages conType stream = do
     genRef <- newIORef =<< newStdGen
     return $ \msgs -> do
         builders <- forM msgs $ \msg ->
-          atomicModifyIORef genRef $ \s -> encodeMessage conType s msg
+          atomicModifyIORef' genRef $ \s -> encodeMessage conType s msg
         Stream.write stream (B.toLazyByteString $ mconcat builders)
 
 --------------------------------------------------------------------------------
@@ -136,7 +140,7 @@ encodeFrame mask f = B.fromWord8 byte0 `mappend`
 
     (maskflag, maskbytes) = case mask of
         Nothing -> (0x00, mempty)
-        Just m  -> (0x80, B.fromByteString m)
+        Just m  -> (0x80, B.fromByteString $ BS.pack m)
 
     byte1 = maskflag .|. lenflag
     len'  = BL.length (framePayload f)
@@ -159,11 +163,12 @@ decodeMessages stream = do
         case mbFrame of
             Nothing    -> return Nothing
             Just frame -> do
-                mbMsg <- atomicModifyIORef' dmRef $
+                mbMsg <- atomicModifyIORef dmRef $
                     \s -> swap $ demultiplex s frame
                 case mbMsg of
-                    Nothing  -> go dmRef
-                    Just msg -> return (Just msg)
+                    Left x -> throwIO x
+                    Right Nothing  -> go dmRef
+                    Right (Just msg) -> return (Just msg)
 
 
 --------------------------------------------------------------------------------
@@ -195,7 +200,7 @@ parseFrame = do
         127 -> fromIntegral . runGet' getWord64be <$> A.take 8
         _   -> return lenflag
 
-    masker <- maskPayload <$> if mask then Just <$> A.take 4 else pure Nothing
+    masker <- maskPayload <$> if mask then Just . BS.unpack <$> A.take 4 else pure Nothing
 
     chunks <- take64 len
 

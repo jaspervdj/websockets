@@ -10,7 +10,7 @@ module Network.WebSockets.Server.Tests
 import           Control.Applicative            ((<$>))
 import           Control.Concurrent             (forkIO, killThread,
                                                  threadDelay)
-import           Control.Exception              (SomeException, handle, catch)
+import           Control.Exception.Safe         (SomeException, handle, catch)
 import           Control.Monad                  (forever, replicateM, unless)
 import           Data.IORef                     (newIORef, readIORef, IORef,
                                                  writeIORef)

@@ -13,12 +13,12 @@ module Network.WebSockets.Stream
 
 import           Control.Concurrent.MVar        (MVar, newEmptyMVar, newMVar,
                                                  putMVar, takeMVar, withMVar)
-import           Control.Exception              (onException, throwIO)
+import           Control.Exception.Safe         (onException, throwIO)
 import           Control.Monad                  (forM_, when)
 import qualified Data.Attoparsec.ByteString     as Atto
 import qualified Data.ByteString                as B
 import qualified Data.ByteString.Lazy           as BL
-import           Data.IORef                     (IORef, atomicModifyIORef',
+import           Data.IORef                     (IORef, atomicModifyIORef,
                                                  newIORef, readIORef,
                                                  writeIORef)
 import qualified Network.Socket                 as S
@@ -73,7 +73,7 @@ makeStream receive send = do
     return $ Stream (receive' ref receiveLock) (send' ref sendLock) ref
   where
     closeRef :: IORef StreamState -> IO ()
-    closeRef ref = atomicModifyIORef' ref $ \state -> case state of
+    closeRef ref = atomicModifyIORef ref $ \state -> case state of
         Open   buf -> (Closed buf, ())
         Closed buf -> (Closed buf, ())
 
@@ -81,12 +81,12 @@ makeStream receive send = do
     assertNotClosed ref io = do
         state <- readIORef ref
         case state of
-            Closed _ -> throwIO ConnectionClosed
+            Closed _ -> cleanBuffer ref >> throwIO ConnectionClosed
             Open   _ -> io
 
     receive' :: IORef StreamState -> MVar () -> IO (Maybe B.ByteString)
     receive' ref lock = withMVar lock $ \() -> assertNotClosed ref $ do
-        mbBs <- onException receive (closeRef ref)
+        mbBs <- onException receive (cleanBuffer ref)
         case mbBs of
             Nothing -> closeRef ref >> return Nothing
             Just bs -> return (Just bs)
@@ -94,7 +94,7 @@ makeStream receive send = do
     send' :: IORef StreamState -> MVar () -> (Maybe BL.ByteString -> IO ())
     send' ref lock mbBs = withMVar lock $ \() -> assertNotClosed ref $ do
         when (mbBs == Nothing) (closeRef ref)
-        onException (send mbBs) (closeRef ref)
+        onException (send mbBs) (cleanBuffer ref)
 
 
 --------------------------------------------------------------------------------
@@ -136,7 +136,7 @@ parse stream parser = do
                 mbBs <- streamIn stream
                 case mbBs of
                     Nothing -> do
-                        writeIORef (streamState stream) (Closed B.empty)
+                        cleanBuffer (streamState stream)
                         return Nothing
                     Just bs -> go (Atto.parse parser bs) False
             | otherwise     -> go (Atto.parse parser buffer) False
@@ -153,7 +153,7 @@ parse stream parser = do
             case mbBs of
                 Nothing -> go (f B.empty) True
                 Just bs -> go (f bs) False
-    go (Atto.Fail _ _ err) _ = throwIO (ParseException err)
+    go (Atto.Fail _ _ err) _ = cleanBuffer (streamState stream) >> throwIO (ParseException err)
 
 
 --------------------------------------------------------------------------------
@@ -163,4 +163,8 @@ write stream = streamOut stream . Just
 
 --------------------------------------------------------------------------------
 close :: Stream -> IO ()
-close stream = streamOut stream Nothing
+close stream = cleanBuffer (streamState stream) >> streamOut stream Nothing
+
+{-# NOINLINE cleanBuffer #-}
+cleanBuffer :: IORef StreamState -> IO ()
+cleanBuffer ref = writeIORef ref (Closed B.empty)

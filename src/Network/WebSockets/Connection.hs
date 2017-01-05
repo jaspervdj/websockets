@@ -40,11 +40,11 @@ module Network.WebSockets.Connection
 --------------------------------------------------------------------------------
 import qualified Blaze.ByteString.Builder    as Builder
 import           Control.Concurrent          (forkIO, threadDelay)
-import           Control.Exception           (AsyncException, fromException,
+import           Control.Exception.Base      (AsyncException)
+import           Control.Exception.Safe      (fromException,
                                               handle, throwIO)
 import           Control.Monad               (unless, when)
 import qualified Data.ByteString             as B
-import qualified Data.ByteString.Lazy        as BSL
 import           Data.IORef                  (IORef, newIORef, readIORef,
                                               writeIORef)
 import           Data.List                   (find)
@@ -125,7 +125,7 @@ acceptRequestWith pc ar = case find (flip compatible request) protocols of
          let subproto = maybe [] (\p -> [("Sec-WebSocket-Protocol", p)]) $ acceptSubprotocol ar
              headers = subproto ++ acceptHeaders ar ++ exH
              response = finishRequest protocol request headers
-         sendResponse pc response
+         either throwIO (sendResponse pc) response
          parse <- decodeMessages protocol (pendingStream pc)
          write <- encodeMessages protocol ServerConnection (pendingStream pc)
          inflate <- wsInflate negotiatedPerMessage

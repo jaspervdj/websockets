@@ -10,7 +10,7 @@ module Main
 --------------------------------------------------------------------------------
 import           Control.Monad              (forM_, forever, void)
 import           Control.Monad.Trans        (liftIO)
-import           Control.Exception          (catch)
+import           Control.Exception.Safe     (catch)
 import           Data.ByteString            (ByteString)
 import           Data.ByteString.Lazy.Char8 ()
 import           Data.Text                  (Text)

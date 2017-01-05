@@ -15,9 +15,8 @@ module Network.WebSockets.Server
 
 --------------------------------------------------------------------------------
 import           Control.Concurrent            (forkIOWithUnmask)
-import           Control.Exception             (allowInterrupt, bracket,
-                                                bracketOnError, finally, mask_,
-                                                throwIO)
+import           Control.Exception.Safe        (bracket,bracketOnError,
+                                                finally, mask_,throwIO)
 import           Control.Monad                 (forever, void)
 import           Network.Socket                (Socket)
 import qualified Network.Socket                as S
@@ -62,7 +61,6 @@ runServerWith host port opts app = S.withSocketsDo $
   S.close
   (\sock ->
     mask_ $ forever $ do
-      allowInterrupt
       (conn, _) <- S.accept sock
       void $ forkIOWithUnmask $ \unmask ->
         finally (unmask $ runApp conn opts app) (S.close conn)

@@ -45,6 +45,7 @@ import           Control.Exception.Safe      (fromException,
                                               handle, throwIO)
 import           Control.Monad               (unless, when)
 import qualified Data.ByteString             as B
+import qualified Data.ByteString.Char8       as B8
 import           Data.IORef                  (IORef, newIORef, readIORef,
                                               writeIORef)
 import           Data.List                   (find)
@@ -120,7 +121,7 @@ acceptRequestWith pc ar = case find (flip compatible request) protocols of
         throwIO NotSupported
     Just protocol ->
       case negotiateDeflate (getRequestSecWebSocketExtensions request) $ connectionPermessageDeflate (pendingOptions pc) of
-        Left err -> rejectRequestWith pc defaultRejectRequest{rejectMessage = err} >> throwIO NotSupported
+        Left err -> rejectRequestWith pc defaultRejectRequest{rejectMessage = B8.pack err} >> throwIO NotSupported
         Right (exH, negotiatedPerMessage) -> do
          let subproto = maybe [] (\p -> [("Sec-WebSocket-Protocol", p)]) $ acceptSubprotocol ar
              headers = subproto ++ acceptHeaders ar ++ exH

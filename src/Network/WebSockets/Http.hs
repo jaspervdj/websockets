@@ -45,6 +45,7 @@ import           Data.ByteString.Internal           (c2w)
 import qualified Data.CaseInsensitive               as CI
 import           Data.Dynamic                       (Typeable)
 import           Data.Monoid                        (mappend, mconcat)
+import           Data.Maybe                         (maybeToList)
 
 
 --------------------------------------------------------------------------------
@@ -241,9 +242,9 @@ getRequestSubprotocols rh = maybe [] parse mproto
 
 --------------------------------------------------------------------------------
 -- | Get the @Sec-WebSocket-Extensions@ header
-getRequestSecWebSocketExtensions :: RequestHead -> Maybe B.ByteString
+getRequestSecWebSocketExtensions :: RequestHead -> [B.ByteString]
 getRequestSecWebSocketExtensions p =
-    lookup "Sec-WebSocket-Extensions" (requestHeaders p)
+    maybeToList $ lookup "Sec-WebSocket-Extensions" (requestHeaders p)
 
 --------------------------------------------------------------------------------
 decodeHeaderLine :: A.Parser (CI.CI ByteString, ByteString)

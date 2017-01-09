@@ -1,10 +1,16 @@
 {-# LANGUAGE OverloadedStrings
            , LambdaCase
            , RecordWildCards
-           , BangPatterns
            , TupleSections
            #-}
-module Network.WebSockets.Extensions.PermessageDeflate where
+module Network.WebSockets.Extensions.PermessageDeflate
+( defaultPermessageDeflate
+, PermessageDeflate(..)
+, negotiateDeflate
+, wsDeflate
+, wsInflate
+, rejectExtensions
+) where
 
 import qualified Data.ByteString                  as  BS
 import qualified Data.ByteString.Char8            as BS8
@@ -17,12 +23,13 @@ import           Data.Monoid
 import           Data.Either
 import           Control.Applicative              ((<|>), (<$>), (*>), (<*))
 import           Control.Concurrent.MVar
-import           Control.Monad                    (when, liftM2)
+import           Control.Monad                    (when)
 import           Data.Streaming.Zlib
 import qualified Data.Attoparsec.ByteString       as  A hiding (Parser)
 import qualified Data.Attoparsec.ByteString.Char8 as  A
 import qualified Data.CaseInsensitive             as CI
 import           Control.Exception.Safe           (throwIO)
+
 {-
    Four extension parameters are defined for "permessage-deflate" to
    help endpoints manage per-connection resource usage.
@@ -55,16 +62,16 @@ toClient PermessageDeflate{..} = BS.intercalate "; " $
       ++ [BS8.pack $ "client_max_window_bits=" ++ show clientMaxWindowBits | clientMaxWindowBits /= 15 ]
 
 negotiateDeflate
-  :: Maybe BS8.ByteString
+  :: [BS8.ByteString]
   -> Maybe PermessageDeflate
-  -> Either BS8.ByteString (Headers, Maybe PermessageDeflate)
-negotiateDeflate (Just "x-webkit-deflate-frame") (Just x) = Right ([("Sec-WebSocket-Extensions", "x-webkit-deflate-frame")], Just x)
-negotiateDeflate (Just prot) (Just x) | "permessage-deflate" `BS.isPrefixOf` prot =
+  -> Either String (Headers, Maybe PermessageDeflate)
+negotiateDeflate ("x-webkit-deflate-frame":_) (Just x) = Right ([("Sec-WebSocket-Extensions", "x-webkit-deflate-frame")], Just x)
+negotiateDeflate (prot:exts) (Just x) | "permessage-deflate" `BS.isPrefixOf` prot =
   case partitionEithers (parseFrames prot) of
     (_, upd:_) -> let x' = upd x in Right ([(CI.mk "Sec-WebSocket-Extensions", toClient x')], Just x')
-    (err:_,[]) -> Left err
-    _          -> Right ([], Nothing)
-
+    (err:_,[]) -> Left (BS8.unpack err)
+    _          -> negotiateDeflate exts (Just x)
+negotiateDeflate (_:exts) (Just x) = negotiateDeflate exts (Just x)
 negotiateDeflate _ _ = Right ([], Nothing)
 
 {-# NOINLINE wsDecompress #-}
@@ -102,15 +109,10 @@ wsDeflate (Just pmd) =
 
 feedDeflateLazy :: Deflate -> BSL.ByteString -> IO BSL.ByteString
 feedDeflateLazy worker x = do
-  dec <- BSL.foldlChunks (\acc y -> liftM2 (<>) acc (dePopper =<< feedDeflate worker y)) (return BSL.empty) x
+  dec <- dePopper =<< feedDeflate worker (BSL.toStrict x)
   d1 <- dePopper $ flushDeflate worker
   return $ maybeStrip $ dec <> d1
 
-feedInflateLazy :: Inflate -> BSL.ByteString -> IO BSL.ByteString
-feedInflateLazy worker x = do
-  dec <- BSL.foldlChunks (\acc y -> liftM2 (<>) acc (dePopper =<< feedInflate worker y)) (return BSL.empty) x
-  d1 <- flushInflate worker
-  return $ dec <> BSL.fromStrict d1
 
 dePopper :: IO PopperRes -> IO BSL.ByteString
 dePopper p = p >>= \case
@@ -136,6 +138,12 @@ wsInflate (Just pmd) =
     wsInflate1 dmRef (DataMessage True a b  (Text x)) = DataMessage False a b . Text   <$> compressor dmRef x
     wsInflate1 dmRef (DataMessage True a b (Binary x)) = DataMessage False a b . Binary <$> compressor dmRef x
     wsInflate1 _ x = return x
+
+feedInflateLazy :: Inflate -> BSL.ByteString -> IO BSL.ByteString
+feedInflateLazy worker x = do
+  dec <-dePopper =<< feedInflate worker (BSL.toStrict $ x <> appTailL)
+  d1 <- flushInflate worker
+  return $ dec <> BSL.fromStrict d1
 
 maybeStrip :: BSL.ByteString -> BSL.ByteString
 maybeStrip x | appTailL `BSL.isSuffixOf` x = BSL.take (BSL.length x - 4) x

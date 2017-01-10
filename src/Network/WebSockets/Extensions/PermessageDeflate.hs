@@ -93,18 +93,19 @@ rejectExtensions a = return a
 wsDeflate :: Maybe PermessageDeflate -> IO (Message -> IO Message)
 wsDeflate Nothing = return rejectExtensions
 wsDeflate (Just pmd) =
-    wsDeflate1 <$> (newMVar =<< fresh)
+  if serverNoContextTakeover pmd
+  then
+    return $ wsDeflate1 compressorFresh
+  else
+    wsDeflate1 . compressor <$> (newMVar =<< fresh)
   where
     fresh = wsCompress pmd
+    compressorFresh x = flip feedDeflateLazy x =<< fresh
     compressor dmRef x =
-      modifyMVar dmRef $ \worker -> do
-        ret <- feedDeflateLazy worker x
-        if serverNoContextTakeover pmd
-          then (, ret) <$> fresh
-          else return (worker, ret)
+      modifyMVar dmRef $ \worker -> (worker, ) <$> feedDeflateLazy worker x
 
-    wsDeflate1 dmRef (DataMessage False False False (Text x))   = DataMessage True False False . Text <$> compressor dmRef x
-    wsDeflate1 dmRef (DataMessage False False False (Binary x)) = DataMessage True False False . Binary <$> compressor dmRef x
+    wsDeflate1 comp (DataMessage False False False (Text x))   = DataMessage True False False . Text <$> comp x
+    wsDeflate1 comp (DataMessage False False False (Binary x)) = DataMessage True False False . Binary <$> comp x
     wsDeflate1 _ x = return x
 
 feedDeflateLazy :: Deflate -> BSL.ByteString -> IO BSL.ByteString
@@ -125,18 +126,21 @@ dePopper p = p >>= \case
 wsInflate :: Maybe PermessageDeflate -> IO (Message -> IO Message)
 wsInflate Nothing = return rejectExtensions
 wsInflate (Just pmd) = 
-    wsInflate1 <$> (newMVar =<< fresh)
+    if clientNoContextTakeover pmd
+    then
+       return $ wsInflate1 compressorFresh
+    else
+       wsInflate1 . compressor <$> (newMVar =<< fresh)
   where
     fresh = wsDecompress pmd
-    compressor dmRef x =
-      modifyMVar dmRef $ \worker -> do
-        ret <- feedInflateLazy worker x
-        if clientNoContextTakeover pmd
-          then (, ret) <$> fresh
-          else return (worker, ret)
 
-    wsInflate1 dmRef (DataMessage True a b  (Text x)) = DataMessage False a b . Text   <$> compressor dmRef x
-    wsInflate1 dmRef (DataMessage True a b (Binary x)) = DataMessage False a b . Binary <$> compressor dmRef x
+    compressorFresh x = flip feedInflateLazy x =<< fresh
+    compressor dmRef x =
+      modifyMVar dmRef $ \worker ->
+        (worker,) <$> feedInflateLazy worker x
+
+    wsInflate1 comp (DataMessage True a b  (Text x)) = DataMessage False a b . Text   <$> comp x
+    wsInflate1 comp (DataMessage True a b (Binary x)) = DataMessage False a b . Binary <$> comp x
     wsInflate1 _ x = return x
 
 feedInflateLazy :: Inflate -> BSL.ByteString -> IO BSL.ByteString

@@ -43,7 +43,7 @@ import           Control.Concurrent          (forkIO, threadDelay)
 import           Control.Exception.Base      (AsyncException)
 import           Control.Exception.Safe      (fromException,
                                               handle, throwIO)
-import           Control.Monad               (unless, when)
+import           Control.Monad               (unless, when, (<=<), (>=>))
 import qualified Data.ByteString             as B
 import qualified Data.ByteString.Char8       as B8
 import           Data.IORef                  (IORef, newIORef, readIORef,
@@ -127,10 +127,13 @@ acceptRequestWith pc ar = case find (flip compatible request) protocols of
              headers = subproto ++ acceptHeaders ar ++ exH
              response = finishRequest protocol request headers
          either throwIO (sendResponse pc) response
-         parse <- decodeMessages protocol (pendingStream pc)
-         write <- encodeMessages protocol ServerConnection (pendingStream pc)
          inflate <- wsInflate negotiatedPerMessage
          deflate <- wsDeflate negotiatedPerMessage
+         parseRaw <- decodeMessages protocol (pendingStream pc)
+         writeRaw <- encodeMessages protocol ServerConnection (pendingStream pc)
+         let (parse, write) = case negotiatedPerMessage of
+                  Just _ -> (parseRaw >>= maybe (return Nothing) (return . Just <=< inflate) , mapM deflate >=> writeRaw)
+                  Nothing -> (parseRaw, writeRaw)
          sentRef    <- newIORef False
          let connection = Connection
                  { connectionOptions   = (pendingOptions pc){connectionPermessageDeflate = negotiatedPerMessage}
@@ -139,8 +142,6 @@ acceptRequestWith pc ar = case find (flip compatible request) protocols of
                  , connectionParse     = parse
                  , connectionWrite     = write
                  , connectionSentClose = sentRef
-                 , connectionDeflate   = deflate
-                 , connectionInflate   = inflate
                  }
 
          pendingOnAccept pc connection
@@ -214,8 +215,6 @@ data Connection = Connection
     -- the server is in charge of closing the TCP connection.  This IORef tracks
     -- if we have sent a close message and are waiting for the peer to respond.
     -- needs to be updated to some more generic plugin framework
-    , connectionDeflate   :: !(Message -> IO Message)
-    , connectionInflate   :: !(Message -> IO Message)
     }
 
 
@@ -250,7 +249,7 @@ receive conn = do
     mbMsg <- connectionParse conn
     case mbMsg of
         Nothing  -> throwIO ConnectionClosed
-        Just msg -> connectionInflate conn msg
+        Just msg -> return msg
 
 
 --------------------------------------------------------------------------------
@@ -300,7 +299,7 @@ sendAll :: Connection -> [Message] -> IO ()
 sendAll conn msgs = do
     when (any isCloseMessage msgs) $
       writeIORef (connectionSentClose conn) True
-    connectionWrite conn =<< mapM (connectionDeflate conn) msgs
+    connectionWrite conn msgs
   where
     isCloseMessage (ControlMessage (Close _ _)) = True
     isCloseMessage _                            = False

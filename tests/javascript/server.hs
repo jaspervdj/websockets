@@ -1,7 +1,6 @@
 --------------------------------------------------------------------------------
 -- | The server part of the tests
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternGuards     #-}
 module Main
     ( main
     ) where
@@ -14,7 +13,6 @@ import           Control.Exception.Safe     (catch)
 import           Data.ByteString            (ByteString)
 import           Data.ByteString.Lazy.Char8 ()
 import           Data.Text                  (Text)
-import           Data.Maybe
 import qualified Data.Text.Lazy             as TL
 
 

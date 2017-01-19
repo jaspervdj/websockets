@@ -17,7 +17,8 @@ import qualified Data.Text.Lazy             as TL
 
 
 --------------------------------------------------------------------------------
-import qualified Network.WebSockets         as WS
+import qualified Network.WebSockets            as WS
+import qualified Network.WebSockets.Extensions as WS
 
 
 --------------------------------------------------------------------------------
@@ -103,7 +104,7 @@ application pc = do
 main :: IO ()
 main = WS.runServerWith "0.0.0.0" 8000 options application
   where
-    options = WS.defaultConnectionOptionsDeflate
+    options = WS.defaultConnectionOptions{WS.connectionPermessageDeflate = Just WS.defaultPermessageDeflate}
 --     options = WS.defaultConnectionOptions
 --         { WS.connectionPingInterval = 2
 --         }

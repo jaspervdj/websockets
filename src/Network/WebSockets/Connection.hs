@@ -17,7 +17,6 @@ module Network.WebSockets.Connection
 
     , ConnectionOptions (..)
     , defaultConnectionOptions
-    , defaultConnectionOptionsDeflate
 
     , receive
     , receiveDataMessage
@@ -234,13 +233,7 @@ data ConnectionOptions = ConnectionOptions
 defaultConnectionOptions :: ConnectionOptions
 defaultConnectionOptions = ConnectionOptions
     { connectionOnPong = return ()
-    , connectionPermessageDeflate = Just defaultPermessageDeflate
-    }
-
-defaultConnectionOptionsDeflate :: ConnectionOptions
-defaultConnectionOptionsDeflate = ConnectionOptions
-    { connectionOnPong = return ()
-    , connectionPermessageDeflate = Just defaultPermessageDeflate
+    , connectionPermessageDeflate = Nothing
     }
 
 --------------------------------------------------------------------------------

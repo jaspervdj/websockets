@@ -2,6 +2,7 @@
 -- | Masking of fragmes using a simple XOR algorithm
 {-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# language OverloadedStrings   #-}
 module Network.WebSockets.Hybi13.Mask
     ( Mask
     , maskPayload
@@ -24,11 +25,18 @@ type Mask = Maybe B.ByteString
 --------------------------------------------------------------------------------
 -- | Apply mask
 maskPayload :: Mask -> BL.ByteString -> BL.ByteString
-maskPayload Nothing     = id
-maskPayload (Just mask) = snd . BL.mapAccumL f (cycle $ B.unpack mask)
+maskPayload Nothing = id
+maskPayload (Just "\x00\x00\x00\x00") = id
+maskPayload (Just mask) =
+  BL.fromChunks . go (cycle (B.unpack mask)) . BL.toChunks
   where
-    f []     !c = ([], c)
-    f (m:ms) !c = (ms, m `xor` c)
+  go _ [] = []
+  go ms (chunk : chunks) =
+      let (ms', chunk') = B.mapAccumL f ms chunk
+      in chunk' : go ms' chunks
+  f (m : ms) c = (ms, m `xor` c)
+  f [] _ = error "impossible, we have infinite stream of mask bytes"
+
 
 --------------------------------------------------------------------------------
 -- | Create a random mask

@@ -38,22 +38,27 @@ tests = testGroup "Network.WebSockets.Server.Tests"
     [ testCase "simple server/client" testSimpleServerClient
     , testCase "bulk server/client"   testBulkServerClient
     , testCase "onPong"               testOnPong
+    , testCase "ipv6 server"          testIPv6Server
     ]
 
 
 --------------------------------------------------------------------------------
 testSimpleServerClient :: Assertion
-testSimpleServerClient = testServerClient $ \conn -> mapM_ (sendTextData conn)
+testSimpleServerClient = testServerClient "127.0.0.1" $ \conn -> mapM_ (sendTextData conn)
+
+--------------------------------------------------------------------------------
+testIPv6Server :: Assertion        
+testIPv6Server = testServerClient "::1" $ \conn -> mapM_ (sendTextData conn)
 
 --------------------------------------------------------------------------------
 testBulkServerClient :: Assertion
-testBulkServerClient = testServerClient sendTextDatas
+testBulkServerClient = testServerClient "127.0.0.1" sendTextDatas
 
 --------------------------------------------------------------------------------
-testServerClient :: (Connection -> [BL.ByteString] -> IO ()) -> Assertion
-testServerClient sendMessages = withEchoServer 42940 "Bye" $ do
+testServerClient :: String -> (Connection -> [BL.ByteString] -> IO ()) -> Assertion
+testServerClient host sendMessages = withEchoServer host 42940 "Bye" $ do
     texts  <- map unArbitraryUtf8 <$> sample
-    texts' <- retry $ runClient "127.0.0.1" 42940 "/chat" $ client texts
+    texts' <- retry $ runClient host 42940 "/chat" $ client texts
     texts @=? texts'
   where
     client :: [BL.ByteString] -> ClientApp [BL.ByteString]
@@ -63,11 +68,12 @@ testServerClient sendMessages = withEchoServer 42940 "Bye" $ do
         sendClose conn ("Bye" :: BL.ByteString)
         expectCloseException conn "Bye"
         return texts'
-
+        
+  
 
 --------------------------------------------------------------------------------
 testOnPong :: Assertion
-testOnPong = withEchoServer 42941 "Bye" $ do
+testOnPong = withEchoServer "127.0.0.1" 42941 "Bye" $ do
     gotPong <- newIORef False
     let opts = defaultConnectionOptions
                    { connectionOnPong = writeIORef gotPong True
@@ -113,10 +119,10 @@ retry action = (\(_ :: SomeException) -> waitSome >> action) `handle` action
 
 
 --------------------------------------------------------------------------------
-withEchoServer :: Int -> BL.ByteString -> IO a -> IO a
-withEchoServer port expectedClose action = do
+withEchoServer :: String -> Int -> BL.ByteString -> IO a -> IO a
+withEchoServer host port expectedClose action = do
     cRef <- newIORef False
-    serverThread <- forkIO $ retry $ runServer "0.0.0.0" port (\c -> server c `catch` handleClose cRef)
+    serverThread <- forkIO $ retry $ runServer host port (\c -> server c `catch` handleClose cRef)
     waitSome
     result <- action
     waitSome

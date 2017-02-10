@@ -56,12 +56,12 @@ compatible protocol req = case getRequestSecWebSocketVersion req of
 
 
 --------------------------------------------------------------------------------
-finishRequest :: Protocol -> RequestHead -> Headers -> Response
+finishRequest :: Protocol -> RequestHead -> Headers -> Either HandshakeException Response
 finishRequest Hybi13 = Hybi13.finishRequest
 
 
 --------------------------------------------------------------------------------
-finishResponse :: Protocol -> RequestHead -> ResponseHead -> Response
+finishResponse :: Protocol -> RequestHead -> ResponseHead -> Either HandshakeException Response
 finishResponse Hybi13 = Hybi13.finishResponse
 
 

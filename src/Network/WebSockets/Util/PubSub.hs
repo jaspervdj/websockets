@@ -19,7 +19,7 @@ module Network.WebSockets.Util.PubSub
     ) where
 
 import Control.Applicative ((<$>))
-import Control.Exception (IOException, handle)
+import Control.Exception.Safe (IOException, handle)
 import Control.Monad (foldM, forever)
 import Control.Monad.Trans (liftIO)
 import Data.IntMap (IntMap)

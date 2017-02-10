@@ -77,7 +77,7 @@ testFragmentedHybi13 = QC.monadicIO $
         [msg | FragmentedMessage msg _ <- fragmented] @=? msgs
   where
     isDataMessage (ControlMessage _) = False
-    isDataMessage (DataMessage _)    = True
+    isDataMessage (DataMessage _ _ _ _)    = True
 
     parseAll parse = do
         mbMsg <- try parse
@@ -123,8 +123,8 @@ instance Arbitrary Message where
             [ ControlMessage (Close closecode payload)
             , ControlMessage (Ping payload)
             , ControlMessage (Pong payload)
-            , DataMessage (Text payload)
-            , DataMessage (Binary payload)
+            , DataMessage False False False (Text payload)
+            , DataMessage False False False (Binary payload)
             ]
 
 
@@ -145,8 +145,8 @@ instance Arbitrary FragmentedMessage where
         fragments <- arbitraryFragmentation payload
         let fs  = makeFrames $ zip (ft : repeat ContinuationFrame) fragments
             msg = case ft of
-                TextFrame   -> DataMessage (Text payload)
-                BinaryFrame -> DataMessage (Binary payload)
+                TextFrame   -> DataMessage False False False (Text payload)
+                BinaryFrame -> DataMessage False False False (Binary payload)
                 _           -> error "Arbitrary FragmentedMessage crashed"
 
         interleaved <- arbitraryInterleave genControlFrame fs

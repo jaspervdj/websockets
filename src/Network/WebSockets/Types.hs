@@ -15,7 +15,7 @@ module Network.WebSockets.Types
 
 
 --------------------------------------------------------------------------------
-import           Control.Exception       (Exception (..))
+import           Control.Exception.Safe  (Exception (..))
 import qualified Data.ByteString         as B
 import qualified Data.ByteString.Lazy    as BL
 import qualified Data.Text               as T
@@ -33,7 +33,7 @@ import           Network.WebSockets.Http
 -- | The kind of message a server application typically deals with
 data Message
     = ControlMessage ControlMessage
-    | DataMessage DataMessage
+    | DataMessage Bool Bool Bool DataMessage
     deriving (Eq, Show)
 
 

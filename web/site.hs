@@ -7,7 +7,7 @@ module Main where
 
 
 --------------------------------------------------------------------------------
-import           Control.Exception      (SomeException, handle)
+import           Control.Exception.Safe      (SomeException, handle)
 import           Hakyll
 import           System.Posix.Directory (changeWorkingDirectory)
 import           System.Posix.Files     (createSymbolicLink)

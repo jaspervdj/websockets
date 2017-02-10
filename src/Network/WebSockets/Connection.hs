@@ -39,10 +39,12 @@ module Network.WebSockets.Connection
 --------------------------------------------------------------------------------
 import qualified Blaze.ByteString.Builder    as Builder
 import           Control.Concurrent          (forkIO, threadDelay)
-import           Control.Exception           (AsyncException, fromException,
+import           Control.Exception.Base      (AsyncException)
+import           Control.Exception.Safe      (fromException,
                                               handle, throwIO)
-import           Control.Monad               (unless, when)
+import           Control.Monad               (unless, when, (<=<), (>=>))
 import qualified Data.ByteString             as B
+import qualified Data.ByteString.Char8       as B8
 import           Data.IORef                  (IORef, newIORef, readIORef,
                                               writeIORef)
 import           Data.List                   (find)
@@ -57,6 +59,7 @@ import           Network.WebSockets.Stream   (Stream)
 import qualified Network.WebSockets.Stream   as Stream
 import           Network.WebSockets.Types
 
+import           Network.WebSockets.Extensions.PermessageDeflate
 
 --------------------------------------------------------------------------------
 -- | A new client connected to the server. We haven't accepted the connection
@@ -115,26 +118,33 @@ acceptRequestWith pc ar = case find (flip compatible request) protocols of
     Nothing       -> do
         sendResponse pc $ response400 versionHeader ""
         throwIO NotSupported
-    Just protocol -> do
-        let subproto = maybe [] (\p -> [("Sec-WebSocket-Protocol", p)]) $ acceptSubprotocol ar
-            headers = subproto ++ acceptHeaders ar
-            response = finishRequest protocol request headers
-        sendResponse pc response
-        parse <- decodeMessages protocol (pendingStream pc)
-        write <- encodeMessages protocol ServerConnection (pendingStream pc)
+    Just protocol ->
+      case negotiateDeflate (getRequestSecWebSocketExtensions request) $ connectionPermessageDeflate (pendingOptions pc) of
+        Left err -> rejectRequestWith pc defaultRejectRequest{rejectMessage = B8.pack err} >> throwIO NotSupported
+        Right (exH, negotiatedPerMessage) -> do
+         let subproto = maybe [] (\p -> [("Sec-WebSocket-Protocol", p)]) $ acceptSubprotocol ar
+             headers = subproto ++ acceptHeaders ar ++ exH
+             response = finishRequest protocol request headers
+         either throwIO (sendResponse pc) response
+         inflate <- wsInflate negotiatedPerMessage
+         deflate <- wsDeflate negotiatedPerMessage
+         parseRaw <- decodeMessages protocol (pendingStream pc)
+         writeRaw <- encodeMessages protocol ServerConnection (pendingStream pc)
+         let (parse, write) = case negotiatedPerMessage of
+                  Just _ -> (parseRaw >>= maybe (return Nothing) (return . Just <=< inflate) , mapM deflate >=> writeRaw)
+                  Nothing -> (parseRaw, writeRaw)
+         sentRef    <- newIORef False
+         let connection = Connection
+                 { connectionOptions   = (pendingOptions pc){connectionPermessageDeflate = negotiatedPerMessage}
+                 , connectionType      = ServerConnection
+                 , connectionProtocol  = protocol
+                 , connectionParse     = parse
+                 , connectionWrite     = write
+                 , connectionSentClose = sentRef
+                 }
 
-        sentRef    <- newIORef False
-        let connection = Connection
-                { connectionOptions   = pendingOptions pc
-                , connectionType      = ServerConnection
-                , connectionProtocol  = protocol
-                , connectionParse     = parse
-                , connectionWrite     = write
-                , connectionSentClose = sentRef
-                }
-
-        pendingOnAccept pc connection
-        return connection
+         pendingOnAccept pc connection
+         return connection
   where
     request       = pendingRequest pc
     versionHeader = [("Sec-WebSocket-Version",
@@ -203,6 +213,7 @@ data Connection = Connection
     -- the first close message but then the other party must respond.  Finally,
     -- the server is in charge of closing the TCP connection.  This IORef tracks
     -- if we have sent a close message and are waiting for the peer to respond.
+    -- needs to be updated to some more generic plugin framework
     }
 
 
@@ -212,6 +223,9 @@ data ConnectionOptions = ConnectionOptions
     { connectionOnPong :: !(IO ())
       -- ^ Whenever a 'pong' is received, this IO action is executed. It can be
       -- used to tickle connections or fire missiles.
+    , connectionPermessageDeflate :: Maybe PermessageDeflate
+      -- ^ Settings of permessage deflate extension.
+      -- Nothing will disable it
     }
 
 
@@ -219,8 +233,8 @@ data ConnectionOptions = ConnectionOptions
 defaultConnectionOptions :: ConnectionOptions
 defaultConnectionOptions = ConnectionOptions
     { connectionOnPong = return ()
+    , connectionPermessageDeflate = Nothing
     }
-
 
 --------------------------------------------------------------------------------
 receive :: Connection -> IO Message
@@ -246,7 +260,7 @@ receiveDataMessage :: Connection -> IO DataMessage
 receiveDataMessage conn = do
     msg <- receive conn
     case msg of
-        DataMessage am    -> return am
+        DataMessage False False False am -> return am
         ControlMessage cm -> case cm of
             Close i closeMsg -> do
                 hasSentClose <- readIORef $ connectionSentClose conn
@@ -258,8 +272,7 @@ receiveDataMessage conn = do
             Ping pl   -> do
                 send conn (ControlMessage (Pong pl))
                 receiveDataMessage conn
-
-
+        a -> print a >> error ""
 --------------------------------------------------------------------------------
 -- | Receive a message, converting it to whatever format is needed.
 receiveData :: WebSocketsData a => Connection -> IO a
@@ -292,7 +305,7 @@ sendDataMessage conn = sendDataMessages conn . return
 --------------------------------------------------------------------------------
 -- | Send a collection of 'DataMessage's
 sendDataMessages :: Connection -> [DataMessage] -> IO ()
-sendDataMessages conn = sendAll conn . map DataMessage
+sendDataMessages conn = sendAll conn . map (DataMessage False False False)
 
 --------------------------------------------------------------------------------
 -- | Send a message as text

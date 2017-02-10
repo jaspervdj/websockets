@@ -1,7 +1,7 @@
 /*******************************************************************************
 * Utilities                                                                    *
 *******************************************************************************/
-
+var big = "FooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFoo"
 function createWebSocket(path, subproto) {
     var host = window.location.hostname;
     if(host == '') host = 'localhost';
@@ -24,20 +24,35 @@ test('demo', function() {
     ok(true, 'Demo test');
 });
 
+function randomString(len, charSet) {
+    charSet = charSet || 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    // charSet = charSet || 'A';
+    var randomString = '';
+    for (var i = 0; i < Math.pow(2,len); i++) {
+        var randomPoz = Math.floor(Math.random() * charSet.length);
+        randomString += charSet.substring(randomPoz,randomPoz+1);
+    }
+    return randomString;
+}
+
 asyncTest('echo-text', function() {
     var ws = createWebSocket('/echo-text');
-    var messages = ['Hi folks', 'Hello there', 'λ±…'];
 
+    // var messages = ['Hi folks', 'Hello there', 'λ±…','Hi folks', 'Hello there', 'λ±…', 'Hi folks', 'Hello there', 'λ±…', big, big, big, big];
+    
+    var tests = 1;
+    var message = randomString(tests);
     ws.onopen = function() {
-        ws.send(messages[0]);
+        ws.send(message);
     };
 
     ws.onmessage = function(event) {
-        var message = event.data;
-        equal(message, messages[0]);
-        messages = messages.slice(1);
-        if(messages.length > 0) {
-            ws.send(messages[0]);
+        var message1 = event.data;
+        equal(message, message1);
+        tests = tests + 1;
+        message = randomString(tests);
+        if(tests < 20 ) {
+            ws.send(message);
         } else {
             ws.close(4002, "Goodbye");
         }
@@ -84,8 +99,8 @@ asyncTest('blob', function() {
     };
 
     ws.onmessage = function(event){
-        console.log(event.data)
-        console.log(event.data.type)
+        console.log(event.data);
+        console.log(event.data.type);
         ws.close();
     };
 
@@ -100,12 +115,12 @@ asyncTest('subprotocol', function() {
     var ws = createWebSocket("/subprotocol", ["abc", "def"]);
 
     ws.onopen = function() {
-        ws.send("Foo");
+        ws.send("FooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFoo");
     };
 
     ws.onmessage = function(event) {
         var message = event.data;
-        equal(message, "Foo");
+        equal(message, "FooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFooFoo");
         ws.close(4711, "Bar");
     };
 

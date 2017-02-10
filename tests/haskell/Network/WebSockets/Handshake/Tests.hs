@@ -7,7 +7,7 @@ module Network.WebSockets.Handshake.Tests
 
 --------------------------------------------------------------------------------
 import           Control.Concurrent             (forkIO)
-import           Control.Exception              (handle)
+import           Control.Exception.Safe         (handle)
 import           Data.ByteString.Char8          ()
 import           Data.IORef                     (newIORef, readIORef,
                                                  writeIORef)

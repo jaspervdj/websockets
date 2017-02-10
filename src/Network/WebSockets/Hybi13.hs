@@ -26,7 +26,6 @@ import           Data.Binary.Get                       (getWord16be,
 import           Data.Binary.Put                       (putWord16be, runPut)
 import           Data.Bits                             ((.&.), (.|.))
 import           Data.ByteString                       (ByteString)
-import qualified Data.ByteString                       as BS
 import qualified Data.ByteString.Base64                as B64
 import           Data.ByteString.Char8                 ()
 import qualified Data.ByteString.Lazy                  as BL
@@ -140,7 +139,7 @@ encodeFrame mask f = B.fromWord8 byte0 `mappend`
 
     (maskflag, maskbytes) = case mask of
         Nothing -> (0x00, mempty)
-        Just m  -> (0x80, B.fromByteString $ BS.pack m)
+        Just m  -> (0x80, B.fromByteString m)
 
     byte1 = maskflag .|. lenflag
     len'  = BL.length (framePayload f)
@@ -200,7 +199,7 @@ parseFrame = do
         127 -> fromIntegral . runGet' getWord64be <$> A.take 8
         _   -> return lenflag
 
-    masker <- maskPayload <$> if mask then Just . BS.unpack <$> A.take 4 else pure Nothing
+    masker <- maskPayload <$> if mask then Just <$> A.take 4 else pure Nothing
 
     chunks <- take64 len
 

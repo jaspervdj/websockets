@@ -220,3 +220,13 @@ Executable websockets-autobahn
 Source-repository head
   Type:     git
   Location: https://github.com/jaspervdj/websockets
+
+Benchmark bench-mask
+    type:       exitcode-stdio-1.0
+    main-is:    Mask.hs
+    hs-source-dirs: benchmarks, src
+    build-depends:
+        base,
+        bytestring,
+        criterion,
+        random

@@ -2,6 +2,7 @@
 -- | Masking of fragmes using a simple XOR algorithm
 {-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# language OverloadedStrings   #-}
 module Network.WebSockets.Hybi13.Mask
     ( Mask
     , maskPayload
@@ -11,28 +12,36 @@ module Network.WebSockets.Hybi13.Mask
 
 --------------------------------------------------------------------------------
 import           Data.Bits            (shiftR, xor)
-import           Data.Word            (Word8)
+import qualified Data.ByteString      as B
 import qualified Data.ByteString.Lazy as BL
 import           System.Random        (RandomGen, random)
 
 
 --------------------------------------------------------------------------------
 -- | ByteString should be exactly 4 bytes long
-type Mask = Maybe [Word8]
+type Mask = Maybe B.ByteString
 
 
 --------------------------------------------------------------------------------
 -- | Apply mask
 maskPayload :: Mask -> BL.ByteString -> BL.ByteString
-maskPayload (Just mask@[_,_,_,_]) = snd . BL.mapAccumL f 0
+maskPayload Nothing = id
+maskPayload (Just "\x00\x00\x00\x00") = id
+maskPayload (Just mask) =
+  BL.fromChunks . go (cycle (B.unpack mask)) . BL.toChunks
   where
-    f !ix !c = ((ix + 1) `mod` 4, id $! (mask !! ix) `xor` c)
-maskPayload _     = id
+  go _ [] = []
+  go ms (chunk : chunks) =
+      let (ms', chunk') = B.mapAccumL f ms chunk
+      in chunk' : go ms' chunks
+  f (m : ms) c = (ms, m `xor` c)
+  f [] _ = error "impossible, we have infinite stream of mask bytes"
+
 
 --------------------------------------------------------------------------------
 -- | Create a random mask
 randomMask :: forall g. RandomGen g => g -> (Mask, g)
-randomMask gen = (Just [b1, b2, b3, b4], gen')
+randomMask gen = (Just (B.pack [b1, b2, b3, b4]), gen')
   where
     (!int, !gen') = random gen :: (Int, g)
     !b1           = fromIntegral $ int `mod` 0x100

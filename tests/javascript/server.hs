@@ -104,7 +104,6 @@ application pc = do
 main :: IO ()
 main = WS.runServerWith "0.0.0.0" 8000 options application
   where
-    options = WS.defaultConnectionOptions{WS.connectionPermessageDeflate = Just WS.defaultPermessageDeflate}
---     options = WS.defaultConnectionOptions
---         { WS.connectionPingInterval = 2
---         }
+    options = WS.defaultConnectionOptions
+        { WS.connectionPermessageDeflate = Just WS.defaultPermessageDeflate
+        }

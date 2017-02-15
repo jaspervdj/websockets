@@ -75,17 +75,20 @@ runServerWith host port opts app = S.withSocketsDo $
 -- connections. Should only be used for a quick and dirty solution! Should be
 -- preceded by the call 'Network.Socket.withSocketsDo'.
 makeListenSocket :: String -> Int -> IO Socket
-makeListenSocket host port = bracketOnError
-    (S.socket S.AF_INET S.Stream S.defaultProtocol)
-    S.sClose
+makeListenSocket host port = do
+  addr:_ <- S.getAddrInfo (Just hints) (Just host) (Just (show port))
+  bracketOnError
+    (S.socket (S.addrFamily addr) S.Stream S.defaultProtocol)
+    S.close
     (\sock -> do
         _     <- S.setSocketOption sock S.ReuseAddr 1
         _     <- S.setSocketOption sock S.NoDelay   1
-        host' <- S.inet_addr host
-        S.bindSocket sock (S.SockAddrInet (fromIntegral port) host')
+        S.bind sock (S.addrAddress addr)
         S.listen sock 5
         return sock
         )
+  where
+    hints = S.defaultHints { S.addrSocketType = S.Stream }  
 
 
 --------------------------------------------------------------------------------

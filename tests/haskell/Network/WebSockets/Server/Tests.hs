@@ -10,14 +10,15 @@ module Network.WebSockets.Server.Tests
 import           Control.Applicative            ((<$>))
 import           Control.Concurrent             (forkIO, killThread,
                                                  threadDelay)
-import           Control.Exception              (SomeException, handle, catch)
+import           Control.Exception              (SomeException, catch, handle)
 import           Control.Monad                  (forever, replicateM, unless)
-import           Data.IORef                     (newIORef, readIORef, IORef,
+import           Data.IORef                     (IORef, newIORef, readIORef,
                                                  writeIORef)
 
 --------------------------------------------------------------------------------
 import qualified Data.ByteString.Lazy           as BL
 import           Data.Text                      (Text)
+import           System.Environment             (getEnvironment)
 import           Test.Framework                 (Test, testGroup)
 import           Test.Framework.Providers.HUnit (testCase)
 import           Test.HUnit                     (Assertion, assert, (@=?))
@@ -46,9 +47,21 @@ tests = testGroup "Network.WebSockets.Server.Tests"
 testSimpleServerClient :: Assertion
 testSimpleServerClient = testServerClient "127.0.0.1" $ \conn -> mapM_ (sendTextData conn)
 
+
 --------------------------------------------------------------------------------
-testIPv6Server :: Assertion        
-testIPv6Server = testServerClient "::1" $ \conn -> mapM_ (sendTextData conn)
+-- | <travis-ci.org> sets the TRAVIS environment variable to "true".
+skipTravis :: Assertion -> Assertion
+skipTravis assertion = do
+    env <- getEnvironment
+    case lookup "TRAVIS" env of
+        Just "true" -> return ()
+        _           -> assertion
+
+--------------------------------------------------------------------------------
+-- | IPV6 is currently NOT supported on travis
+testIPv6Server :: Assertion
+testIPv6Server = skipTravis $
+    testServerClient "::1" $ \conn -> mapM_ (sendTextData conn)
 
 --------------------------------------------------------------------------------
 testBulkServerClient :: Assertion
@@ -68,8 +81,8 @@ testServerClient host sendMessages = withEchoServer host 42940 "Bye" $ do
         sendClose conn ("Bye" :: BL.ByteString)
         expectCloseException conn "Bye"
         return texts'
-        
-  
+
+
 
 --------------------------------------------------------------------------------
 testOnPong :: Assertion

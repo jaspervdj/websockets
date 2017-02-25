@@ -159,7 +159,7 @@ Source-repository head
 
 Benchmark bench-mask
     type:       exitcode-stdio-1.0
-    main-is:    Mask.hs
+    main-is:    mask.hs
     hs-source-dirs: benchmarks, src
     build-depends:
         base,

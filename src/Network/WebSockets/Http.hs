@@ -34,7 +34,7 @@ import qualified Blaze.ByteString.Builder           as Builder
 import qualified Blaze.ByteString.Builder.Char.Utf8 as Builder
 import           Control.Applicative                (pure, (*>), (<$>), (<*),
                                                      (<*>))
-import           Control.Exception                  (Exception, throw)
+import           Control.Exception                  (Exception)
 import qualified Data.Attoparsec.ByteString         as A
 import           Data.ByteString                    (ByteString)
 import qualified Data.ByteString                    as B
@@ -204,20 +204,20 @@ decodeResponse = Response <$> decodeResponseHead <*> A.takeByteString
 --------------------------------------------------------------------------------
 getRequestHeader :: RequestHead
                  -> CI.CI ByteString
-                 -> ByteString
+                 -> Either HandshakeException ByteString
 getRequestHeader rq key = case lookup key (requestHeaders rq) of
-    Just t  -> t
-    Nothing -> throw $ MalformedRequest rq $
+    Just t  -> Right t
+    Nothing -> Left $ MalformedRequest rq $
         "Header missing: " ++ BC.unpack (CI.original key)
 
 
 --------------------------------------------------------------------------------
 getResponseHeader :: ResponseHead
                   -> CI.CI ByteString
-                  -> ByteString
+                  -> Either HandshakeException ByteString
 getResponseHeader rsp key = case lookup key (responseHeaders rsp) of
-    Just t  -> t
-    Nothing -> throw $ MalformedResponse rsp $
+    Just t  -> Right t
+    Nothing -> Left $ MalformedResponse rsp $
         "Header missing: " ++ BC.unpack (CI.original key)
 
 

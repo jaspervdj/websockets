@@ -13,6 +13,7 @@ module Network.WebSockets.Client
 --------------------------------------------------------------------------------
 import qualified Blaze.ByteString.Builder      as Builder
 import           Control.Exception             (bracket, finally, throwIO)
+import           Control.Monad                 (void)
 import           Data.IORef                    (newIORef)
 import qualified Data.Text                     as T
 import qualified Data.Text.Encoding            as T
@@ -69,7 +70,7 @@ runClientWith host port path0 opts customHeaders app = do
     res <- finally
         (S.connect sock (S.addrAddress addr) >>
          runClientWithSocket sock fullHost path opts customHeaders app)
-        (S.sClose sock)
+        (S.close sock)
 
     -- Clean up
     return res
@@ -100,8 +101,7 @@ runClientWithStream stream host path opts customHeaders app = do
         Nothing       -> throwIO $ OtherHandshakeException $
             "Network.WebSockets.Client.runClientWithStream: no handshake " ++
             "response from server"
-    -- Note that we pattern match to evaluate the result here
-    Response _ _ <- return $ finishResponse protocol request response
+    void $ either throwIO return $ finishResponse protocol request response
     parse        <- decodeMessages protocol stream
     write        <- encodeMessages protocol ClientConnection stream
     sentRef      <- newIORef False

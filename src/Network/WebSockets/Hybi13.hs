@@ -17,8 +17,7 @@ module Network.WebSockets.Hybi13
 --------------------------------------------------------------------------------
 import qualified Blaze.ByteString.Builder              as B
 import           Control.Applicative                   (pure, (<$>))
-import           Control.Exception                     (throw)
-import           Control.Monad                         (liftM, forM)
+import           Control.Monad                         (liftM, forM, when)
 import qualified Data.Attoparsec.ByteString            as A
 import           Data.Binary.Get                       (getWord16be,
                                                         getWord64be, runGet)
@@ -55,35 +54,35 @@ headerVersions = ["13"]
 --------------------------------------------------------------------------------
 finishRequest :: RequestHead
               -> Headers
-              -> Response
-finishRequest reqHttp headers =
-    let !key     = getRequestHeader reqHttp "Sec-WebSocket-Key"
-        !hash    = hashKey key
+              -> Either HandshakeException Response
+finishRequest reqHttp headers = do
+    !key <- getRequestHeader reqHttp "Sec-WebSocket-Key"
+    let !hash    = hashKey key
         !encoded = B64.encode hash
-    in response101 (("Sec-WebSocket-Accept", encoded):headers) ""
+    return $ response101 (("Sec-WebSocket-Accept", encoded):headers) ""
 
 
 --------------------------------------------------------------------------------
 finishResponse :: RequestHead
                -> ResponseHead
-               -> Response
-finishResponse request response
+               -> Either HandshakeException Response
+finishResponse request response = do
     -- Response message should be one of
     --
     -- - WebSocket Protocol Handshake
     -- - Switching Protocols
     --
     -- But we don't check it for now
-    | responseCode response /= 101  = throw $ MalformedResponse response
-        "Wrong response status or message."
-    | responseHash /= challengeHash = throw $ MalformedResponse response
-        "Challenge and response hashes do not match."
-    | otherwise                     =
-        Response response ""
-  where
-    key           = getRequestHeader  request  "Sec-WebSocket-Key"
-    responseHash  = getResponseHeader response "Sec-WebSocket-Accept"
-    challengeHash = B64.encode $ hashKey key
+    when (responseCode response /= 101) $ Left $
+        MalformedResponse response "Wrong response status or message."
+
+    key          <- getRequestHeader  request  "Sec-WebSocket-Key"
+    responseHash <- getResponseHeader response "Sec-WebSocket-Accept"
+    let challengeHash = B64.encode $ hashKey key
+    when (responseHash /= challengeHash) $ Left $
+        MalformedResponse response "Challenge and response hashes do not match."
+
+    return $ Response response ""
 
 
 --------------------------------------------------------------------------------

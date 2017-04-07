@@ -119,7 +119,7 @@ acceptRequestWith pc ar = case find (flip compatible request) protocols of
         let subproto = maybe [] (\p -> [("Sec-WebSocket-Protocol", p)]) $ acceptSubprotocol ar
             headers = subproto ++ acceptHeaders ar
             response = finishRequest protocol request headers
-        sendResponse pc response
+        either throwIO (sendResponse pc) response
         parse <- decodeMessages protocol (pendingStream pc)
         write <- encodeMessages protocol ServerConnection (pendingStream pc)
 

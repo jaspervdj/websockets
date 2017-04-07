@@ -6,6 +6,7 @@ module Network.WebSockets.Hybi13.Demultiplex
     , Frame (..)
     , DemultiplexState
     , emptyDemultiplexState
+    , DemultiplexResult (..)
     , demultiplex
     ) where
 
@@ -13,7 +14,7 @@ module Network.WebSockets.Hybi13.Demultiplex
 --------------------------------------------------------------------------------
 import           Blaze.ByteString.Builder (Builder)
 import qualified Blaze.ByteString.Builder as B
-import           Control.Exception        (Exception, throw)
+import           Control.Exception        (Exception)
 import           Data.Binary.Get          (runGet, getWord16be)
 import qualified Data.ByteString.Lazy     as BL
 import           Data.Monoid              (mappend)
@@ -62,7 +63,7 @@ instance Exception DemultiplexException
 -- | Internal state used by the demultiplexer
 data DemultiplexState
     = EmptyDemultiplexState
-    | DemultiplexState !FrameType !Builder
+    | DemultiplexState !Builder !(Builder -> Message)
 
 
 --------------------------------------------------------------------------------
@@ -71,40 +72,30 @@ emptyDemultiplexState = EmptyDemultiplexState
 
 
 --------------------------------------------------------------------------------
+-- | Result of demultiplexing
+data DemultiplexResult
+    = DemultiplexSuccess  Message
+    | DemultiplexError    ConnectionException
+    | DemultiplexContinue
+
+
+--------------------------------------------------------------------------------
 demultiplex :: DemultiplexState
             -> Frame
-            -> (Maybe Message, DemultiplexState)
-demultiplex state (Frame fin _ _ _ tp pl) = case tp of
-    -- Return control messages immediately, they have no influence on the state
-    CloseFrame  -> (Just (ControlMessage (uncurry Close parsedClose)), state)
-    PingFrame   -> (Just (ControlMessage (Ping pl)), state)
-    PongFrame   -> (Just (ControlMessage (Pong pl)), state)
-    -- If we're dealing with a continuation...
-    ContinuationFrame -> case state of
-        -- We received a continuation but we don't have any state. Let's ignore
-        -- this fragment...
-        EmptyDemultiplexState -> (Nothing, EmptyDemultiplexState)
-        -- Append the payload to the state
-        -- TODO: protect against overflows
-        DemultiplexState amt b
-            | not fin   -> (Nothing, DemultiplexState amt b')
-            | otherwise -> case amt of
-                TextFrame   -> (Just (DataMessage (Text m)), e)
-                BinaryFrame -> (Just (DataMessage (Binary m)), e)
-                _           -> throw DemultiplexException
-          where
-            b' = b `mappend` plb
-            m = B.toLazyByteString b'
-    TextFrame
-        | fin       -> (Just (DataMessage (Text pl)), e)
-        | otherwise -> (Nothing, DemultiplexState TextFrame plb)
-    BinaryFrame
-        | fin       -> (Just (DataMessage (Binary pl)), e)
-        | otherwise -> (Nothing, DemultiplexState BinaryFrame plb)
-  where
-    e   = emptyDemultiplexState
-    plb = B.fromLazyByteString pl
+            -> (DemultiplexResult, DemultiplexState)
 
+demultiplex state (Frame True False False False PingFrame pl)
+    | BL.length pl > 125 =
+        (DemultiplexError $ CloseRequest 1002 "Protocol Error", emptyDemultiplexState)
+    | otherwise =
+        (DemultiplexSuccess $ ControlMessage (Ping pl), state)
+
+demultiplex state (Frame True False False False PongFrame pl) =
+    (DemultiplexSuccess (ControlMessage (Pong pl)), state)
+
+demultiplex _     (Frame True False False False CloseFrame pl) =
+    (DemultiplexSuccess (ControlMessage (uncurry Close parsedClose)), emptyDemultiplexState)
+  where
     -- The Close frame MAY contain a body (the "Application data" portion of the
     -- frame) that indicates a reason for closing, such as an endpoint shutting
     -- down, an endpoint having received a frame too large, or an endpoint
@@ -113,5 +104,39 @@ demultiplex state (Frame fin _ _ _ tp pl) = case tp of
     -- be a 2-byte unsigned integer (in network byte order) representing a
     -- status code with value /code/ defined in Section 7.4.
     parsedClose
-        | BL.length pl >= 2 = (runGet getWord16be pl, BL.drop 2 pl)
-        | otherwise         = (1000, BL.empty)
+       | BL.length pl >= 2 = case runGet getWord16be pl of
+              a | a < 1000 || a `elem` [1004,1005,1006
+                                       ,1014,1015,1016
+                                       ,1100,2000,2999
+                                       ,5000,65535] -> (1002, BL.empty)
+              a -> (a, BL.drop 2 pl)
+       | BL.length pl == 1 = (1002, BL.empty)
+       | otherwise         = (1000, BL.empty)
+
+demultiplex EmptyDemultiplexState (Frame fin rsv1 rsv2 rsv3 tp pl) = case tp of
+
+    TextFrame
+        | fin       -> (DemultiplexSuccess (text pl), emptyDemultiplexState)
+        | otherwise -> (DemultiplexContinue, DemultiplexState plb (text . B.toLazyByteString))
+
+
+    BinaryFrame
+        | fin       -> (DemultiplexSuccess (binary pl), emptyDemultiplexState)
+        | otherwise -> (DemultiplexContinue, DemultiplexState plb (binary . B.toLazyByteString))
+
+    _ -> (DemultiplexError $ CloseRequest 1002 "Protocol Error", emptyDemultiplexState)
+
+  where
+    plb    = B.fromLazyByteString pl
+    text   = DataMessage rsv1 rsv2 rsv3 . Text
+    binary = DataMessage rsv1 rsv2 rsv3 . Binary
+
+demultiplex (DemultiplexState b f) (Frame fin False False False ContinuationFrame pl)
+    | fin       = (DemultiplexSuccess (f b'), emptyDemultiplexState)
+    | otherwise = (DemultiplexContinue, DemultiplexState b' f)
+  where
+    b' = b `mappend` plb
+    plb = B.fromLazyByteString pl
+
+demultiplex _ _ =
+    (DemultiplexError (CloseRequest 1002 "Protocol Error"), emptyDemultiplexState)

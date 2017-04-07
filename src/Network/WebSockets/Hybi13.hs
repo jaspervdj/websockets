@@ -17,7 +17,8 @@ module Network.WebSockets.Hybi13
 --------------------------------------------------------------------------------
 import qualified Blaze.ByteString.Builder              as B
 import           Control.Applicative                   (pure, (<$>))
-import           Control.Monad                         (liftM, forM, when)
+import           Control.Exception                     (throwIO)
+import           Control.Monad                         (forM, liftM, when)
 import qualified Data.Attoparsec.ByteString            as A
 import           Data.Binary.Get                       (getWord16be,
                                                         getWord64be, runGet)
@@ -96,10 +97,10 @@ encodeMessage conType gen msg = (gen', builder)
     builder      = encodeFrame mask $ case msg of
         (ControlMessage (Close code pl)) -> mkFrame CloseFrame $
             runPut (putWord16be code) `mappend` pl
-        (ControlMessage (Ping pl))       -> mkFrame PingFrame   pl
-        (ControlMessage (Pong pl))       -> mkFrame PongFrame   pl
-        (DataMessage (Text pl))          -> mkFrame TextFrame   pl
-        (DataMessage (Binary pl))        -> mkFrame BinaryFrame pl
+        (ControlMessage (Ping pl))               -> mkFrame PingFrame   pl
+        (ControlMessage (Pong pl))               -> mkFrame PongFrame   pl
+        (DataMessage rsv1 rsv2 rsv3 (Text pl))   -> Frame True rsv1 rsv2 rsv3 TextFrame   pl
+        (DataMessage rsv1 rsv2 rsv3 (Binary pl)) -> Frame True rsv1 rsv2 rsv3 BinaryFrame pl
 
 
 --------------------------------------------------------------------------------
@@ -158,11 +159,12 @@ decodeMessages stream = do
         case mbFrame of
             Nothing    -> return Nothing
             Just frame -> do
-                mbMsg <- atomicModifyIORef dmRef $
+                demultiplexResult <- atomicModifyIORef' dmRef $
                     \s -> swap $ demultiplex s frame
-                case mbMsg of
-                    Nothing  -> go dmRef
-                    Just msg -> return (Just msg)
+                case demultiplexResult of
+                    DemultiplexError err    -> throwIO err
+                    DemultiplexContinue     -> go dmRef
+                    DemultiplexSuccess  msg -> return (Just msg)
 
 
 --------------------------------------------------------------------------------

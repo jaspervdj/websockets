@@ -11,7 +11,7 @@ import qualified Blaze.ByteString.Builder              as Builder
 import           Control.Applicative                   ((<$>))
 import           Control.Concurrent                    (forkIO)
 import           Control.Exception                     (try)
-import           Control.Monad                         (forM_, replicateM)
+import           Control.Monad                         (replicateM)
 import qualified Data.ByteString.Lazy                  as BL
 import           Data.List                             (intersperse)
 import           Data.Maybe                            (catMaybes)
@@ -76,8 +76,8 @@ testFragmentedHybi13 = QC.monadicIO $
         msgs <- filter isDataMessage <$> parseAll parse
         [msg | FragmentedMessage msg _ <- fragmented] @=? msgs
   where
-    isDataMessage (ControlMessage _) = False
-    isDataMessage (DataMessage _)    = True
+    isDataMessage (ControlMessage _)    = False
+    isDataMessage (DataMessage _ _ _ _) = True
 
     parseAll parse = do
         mbMsg <- try parse
@@ -89,43 +89,21 @@ testFragmentedHybi13 = QC.monadicIO $
 
 
 --------------------------------------------------------------------------------
-instance Arbitrary FrameType where
-    arbitrary = QC.elements
-        [ ContinuationFrame
-        , TextFrame
-        , BinaryFrame
-        , CloseFrame
-        , PingFrame
-        , PongFrame
-        ]
-
-
---------------------------------------------------------------------------------
-instance Arbitrary Frame where
-    arbitrary = do
-        fin  <- arbitrary
-        rsv1 <- arbitrary
-        rsv2 <- arbitrary
-        rsv3 <- arbitrary
-        t    <- arbitrary
-        payload <- case t of
-            TextFrame -> arbitraryUtf8
-            _         -> BL.pack <$> arbitrary
-        return $ Frame fin rsv1 rsv2 rsv3 t payload
-
-
---------------------------------------------------------------------------------
 instance Arbitrary Message where
-    arbitrary = do
-        payload <- BL.pack <$> arbitrary
-        closecode <- arbitrary
-        QC.elements
-            [ ControlMessage (Close closecode payload)
-            , ControlMessage (Ping payload)
-            , ControlMessage (Pong payload)
-            , DataMessage (Text payload)
-            , DataMessage (Binary payload)
-            ]
+    arbitrary = QC.oneof
+        [ do
+            payload <- BL.take 125 . BL.pack <$> arbitrary
+            return $ ControlMessage (Ping payload)
+        , do
+            payload <- BL.take 125 . BL.pack <$> arbitrary
+            return $ ControlMessage (Pong payload)
+        , do
+            payload <- BL.pack <$> arbitrary
+            return $ DataMessage False False False (Text payload)
+        , do
+            payload <- BL.pack <$> arbitrary
+            return $ DataMessage False False False (Binary payload)
+        ]
 
 
 --------------------------------------------------------------------------------
@@ -145,8 +123,8 @@ instance Arbitrary FragmentedMessage where
         fragments <- arbitraryFragmentation payload
         let fs  = makeFrames $ zip (ft : repeat ContinuationFrame) fragments
             msg = case ft of
-                TextFrame   -> DataMessage (Text payload)
-                BinaryFrame -> DataMessage (Binary payload)
+                TextFrame   -> DataMessage False False False (Text payload)
+                BinaryFrame -> DataMessage False False False (Binary payload)
                 _           -> error "Arbitrary FragmentedMessage crashed"
 
         interleaved <- arbitraryInterleave genControlFrame fs
@@ -160,7 +138,7 @@ instance Arbitrary FragmentedMessage where
 
         genControlFrame = QC.elements
             [ Frame True False False False PingFrame "Herp"
-            , Frame True True  True  True  PongFrame "Derp"
+            , Frame True False False False PongFrame "Derp"
             ]
 
 

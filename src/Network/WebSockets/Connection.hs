@@ -246,8 +246,8 @@ receiveDataMessage :: Connection -> IO DataMessage
 receiveDataMessage conn = do
     msg <- receive conn
     case msg of
-        DataMessage am    -> return am
-        ControlMessage cm -> case cm of
+        DataMessage _ _ _ am -> return am
+        ControlMessage cm    -> case cm of
             Close i closeMsg -> do
                 hasSentClose <- readIORef $ connectionSentClose conn
                 unless hasSentClose $ send conn msg
@@ -292,7 +292,7 @@ sendDataMessage conn = sendDataMessages conn . return
 --------------------------------------------------------------------------------
 -- | Send a collection of 'DataMessage's
 sendDataMessages :: Connection -> [DataMessage] -> IO ()
-sendDataMessages conn = sendAll conn . map DataMessage
+sendDataMessages conn = sendAll conn . map (DataMessage False False False)
 
 --------------------------------------------------------------------------------
 -- | Send a message as text

@@ -33,7 +33,8 @@ import           Network.WebSockets.Http
 -- | The kind of message a server application typically deals with
 data Message
     = ControlMessage ControlMessage
-    | DataMessage DataMessage
+    -- | Reserved bits, actual message
+    | DataMessage Bool Bool Bool DataMessage
     deriving (Eq, Show)
 
 

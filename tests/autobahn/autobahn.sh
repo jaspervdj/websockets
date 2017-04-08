@@ -2,14 +2,14 @@
 set -o errexit -o pipefail
 
 # Note that this script will be executed from the project root.
-
+AUTOBAHN_ENV="$HOME/pyenvs/autobahn"
 echo "Setting up virtualenv..."
-if [[ ! -e "$HOME/pyenv_autobahn" ]]; then
-    virtualenv "$HOME/pyenv_autobahn"
-    source "$HOME/pyenv_autobahn/bin/activate"
+if [[ ! -e "$AUTOBAHN_ENV" ]]; then
+    virtualenv "$AUTOBAHN_ENV"
+    source "$AUTOBAHN_ENV/bin/activate"
     pip install autobahntestsuite
 else
-    source "$HOME/pyenv_autobahn/bin/activate"
+    source "$AUTOBAHN_ENV/bin/activate"
 fi
 
 echo "Launching websockets server in background..."

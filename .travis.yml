@@ -5,7 +5,7 @@ language: c
 cache:
   directories:
   - $HOME/.stack
-  - $HOME/pyenv_autobahn
+  - $HOME/pyenvs
 
 addons:
   apt:

@@ -20,7 +20,7 @@ echo "Getting config..."
 cp tests/autobahn/fuzzingclient.json .
 
 echo "Running autobahn testsuite..."
-wstest -m fuzingclient
+wstest -m fuzzingclient
 
 echo "Killing websockets server..."
 kill "$WEBSOCKETS_AUTOBAHN_PID"

@@ -6,9 +6,11 @@ set -o nounset -o errexit -o pipefail
 echo "Setting up virtualenv..."
 if [[ ! -e "$HOME/pyenv_autobahn" ]]; then
     virtualenv "$HOME/pyenv_autobahn"
+    source "$HOME/pyenv_autobahn/bin/activate"
     pip install autobahntestsuite
+else
+    source "$HOME/pyenv_autobahn/bin/activate"
 fi
-source "$HOME/pyenv_autobahn/bin/activate"
 
 echo "Launching websockets server in background..."
 stack exec websockets-autobahn &

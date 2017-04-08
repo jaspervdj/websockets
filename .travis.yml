@@ -11,7 +11,7 @@ addons:
   apt:
     packages:
     - libgmp-dev
-    - virtualenv  # For autobahn tests
+    - python-virtualenv  # For autobahn tests
 
 before_install:
 # Download and unpack the stack executable

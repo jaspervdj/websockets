@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-set -o nounset -o errexit -o pipefail
+set -o errexit -o pipefail
 
 # Note that this script will be executed from the project root.
 

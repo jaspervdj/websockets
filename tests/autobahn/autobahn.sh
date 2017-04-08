@@ -4,7 +4,7 @@ set -o nounset -o errexit -o pipefail
 # Note that this script will be executed from the project root.
 
 echo "Setting up virtualenv..."
-if ! -e "$HOME/pyenv_autobahn"; then
+if [[ ! -e "$HOME/pyenv_autobahn" ]]; then
     virtualenv "$HOME/pyenv_autobahn"
     pip install autobahntestsuite
 fi

@@ -33,28 +33,39 @@ module Network.WebSockets.Connection
     , sendPing
 
     , forkPingThread
+
+    , PermessageDeflate (..)
+    , defaultPermessageDeflate
     ) where
 
 
 --------------------------------------------------------------------------------
-import qualified Blaze.ByteString.Builder    as Builder
-import           Control.Concurrent          (forkIO, threadDelay)
-import           Control.Exception           (AsyncException, fromException,
-                                              handle, throwIO)
-import           Control.Monad               (unless, when)
-import qualified Data.ByteString             as B
-import           Data.IORef                  (IORef, newIORef, readIORef,
-                                              writeIORef)
-import           Data.List                   (find)
-import qualified Data.Text                   as T
-import           Data.Word                   (Word16)
+import qualified Blaze.ByteString.Builder                        as Builder
+import           Control.Concurrent                              (forkIO,
+                                                                  threadDelay)
+import           Control.Exception                               (AsyncException,
+                                                                  fromException,
+                                                                  handle,
+                                                                  throwIO)
+import           Control.Monad                                   (unless, when)
+import qualified Data.ByteString                                 as B
+import qualified Data.ByteString.Char8                           as B8
+import           Data.IORef                                      (IORef,
+                                                                  newIORef,
+                                                                  readIORef,
+                                                                  writeIORef)
+import           Data.List                                       (find)
+import qualified Data.Text                                       as T
+import           Data.Word                                       (Word16)
 
 
 --------------------------------------------------------------------------------
+import           Network.WebSockets.Extensions                   as Extensions
+import           Network.WebSockets.Extensions.PermessageDeflate
 import           Network.WebSockets.Http
 import           Network.WebSockets.Protocol
-import           Network.WebSockets.Stream   (Stream)
-import qualified Network.WebSockets.Stream   as Stream
+import           Network.WebSockets.Stream                       (Stream)
+import qualified Network.WebSockets.Stream                       as Stream
 import           Network.WebSockets.Types
 
 
@@ -84,7 +95,7 @@ data AcceptRequest = AcceptRequest
     -- ^ The subprotocol to speak with the client.  If 'pendingSubprotcols' is
     -- non-empty, 'acceptSubprotocol' must be one of the subprotocols from the
     -- list.
-    , acceptHeaders :: !Headers
+    , acceptHeaders     :: !Headers
     -- ^ Extra headers to send with the response.
     }
 
@@ -116,12 +127,27 @@ acceptRequestWith pc ar = case find (flip compatible request) protocols of
         sendResponse pc $ response400 versionHeader ""
         throwIO NotSupported
     Just protocol -> do
+
+        extensions <- either throwIO return $
+            getRequestSecWebSocketExtensions request
+        let permessageDeflate0 = connectionPermessageDeflate (pendingOptions pc)
+        pmdExt <- case negotiateDeflate permessageDeflate0 extensions of
+            Left err -> do
+                rejectRequestWith pc defaultRejectRequest {rejectMessage = B8.pack err}
+                throwIO NotSupported
+            Right pmd -> return pmd
+
         let subproto = maybe [] (\p -> [("Sec-WebSocket-Protocol", p)]) $ acceptSubprotocol ar
-            headers = subproto ++ acceptHeaders ar
+            headers = subproto ++ acceptHeaders ar ++ extHeaders pmdExt
             response = finishRequest protocol request headers
+
         either throwIO (sendResponse pc) response
-        parse <- decodeMessages protocol (pendingStream pc)
-        write <- encodeMessages protocol ServerConnection (pendingStream pc)
+
+        parseRaw <- decodeMessages protocol (pendingStream pc)
+        writeRaw <- encodeMessages protocol ServerConnection (pendingStream pc)
+
+        parse <- extParse pmdExt parseRaw
+        write <- extWrite pmdExt writeRaw
 
         sentRef    <- newIORef False
         let connection = Connection
@@ -147,13 +173,13 @@ acceptRequestWith pc ar = case find (flip compatible request) protocols of
 -- will not break when new fields are added.
 data RejectRequest = RejectRequest
     { -- | The status code, 400 by default.
-      rejectCode         :: !Int
+      rejectCode    :: !Int
     , -- | The message, "Bad Request" by default
-      rejectMessage      :: !B.ByteString
+      rejectMessage :: !B.ByteString
     , -- | Extra headers to be sent with the response.
-      rejectHeaders      :: Headers
+      rejectHeaders :: Headers
     , -- | Reponse body of the rejection.
-      rejectBody :: !B.ByteString
+      rejectBody    :: !B.ByteString
     }
 
 
@@ -209,16 +235,18 @@ data Connection = Connection
 --------------------------------------------------------------------------------
 -- | Set options for a 'Connection'.
 data ConnectionOptions = ConnectionOptions
-    { connectionOnPong :: !(IO ())
+    { connectionOnPong            :: !(IO ())
       -- ^ Whenever a 'pong' is received, this IO action is executed. It can be
       -- used to tickle connections or fire missiles.
+    , connectionPermessageDeflate :: Maybe PermessageDeflate
     }
 
 
 --------------------------------------------------------------------------------
 defaultConnectionOptions :: ConnectionOptions
 defaultConnectionOptions = ConnectionOptions
-    { connectionOnPong = return ()
+    { connectionOnPong            = return ()
+    , connectionPermessageDeflate = Nothing
     }
 
 

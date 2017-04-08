@@ -69,6 +69,11 @@ module Network.WebSockets
 
       -- * Utilities
     , forkPingThread
+
+
+      -- * Extensions
+    , PermessageDeflate (..)
+    , defaultPermessageDeflate
     ) where
 
 

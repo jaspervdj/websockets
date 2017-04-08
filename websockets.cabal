@@ -55,11 +55,14 @@ Library
   Exposed-modules:
     Network.WebSockets
     Network.WebSockets.Connection
+    Network.WebSockets.Extensions
     Network.WebSockets.Stream
     -- Network.WebSockets.Util.PubSub TODO
 
   Other-modules:
     Network.WebSockets.Client
+    Network.WebSockets.Extensions.Description
+    Network.WebSockets.Extensions.PermessageDeflate
     Network.WebSockets.Http
     Network.WebSockets.Hybi13
     Network.WebSockets.Hybi13.Demultiplex
@@ -80,6 +83,7 @@ Library
     network           >= 2.3    && < 2.7,
     random            >= 1.0    && < 1.2,
     SHA               >= 1.5    && < 1.7,
+    streaming-commons >= 0.1    && < 0.2,
     text              >= 0.10   && < 1.3,
     entropy           >= 0.2.1  && < 0.4
 
@@ -93,6 +97,7 @@ Test-suite websockets-tests
     Network.WebSockets
     Network.WebSockets.Client
     Network.WebSockets.Connection
+    Network.WebSockets.Extensions.Description
     Network.WebSockets.Handshake.Tests
     Network.WebSockets.Http
     Network.WebSockets.Http.Tests
@@ -156,6 +161,32 @@ Executable websockets-example
 Source-repository head
   Type:     git
   Location: https://github.com/jaspervdj/websockets
+
+
+Executable websockets-autobahn
+  If !flag(Example)
+    Buildable: False
+
+  Hs-source-dirs: tests/autobahn
+  Main-is:        server.hs
+  Ghc-options:    -Wall -threaded -Werror -O2 -rtsopts "-with-rtsopts=-N"
+
+  Build-depends:
+    websockets,
+    -- Copied from regular dependencies...
+    attoparsec        >= 0.10   && < 0.14,
+    base              >= 4      && < 5,
+    base64-bytestring >= 0.1    && < 1.1,
+    binary            >= 0.5    && < 0.9,
+    blaze-builder     >= 0.3    && < 0.5,
+    bytestring        >= 0.9    && < 0.11,
+    case-insensitive  >= 0.3    && < 1.3,
+    containers        >= 0.3    && < 0.6,
+    network           >= 2.3    && < 2.7,
+    random            >= 1.0    && < 1.2,
+    SHA               >= 1.5    && < 1.7,
+    text              >= 0.10   && < 1.3,
+    entropy           >= 0.2.1  && < 0.4
 
 Benchmark bench-mask
     type:       exitcode-stdio-1.0

@@ -13,7 +13,6 @@ module Network.WebSockets.Extensions.Description
 import qualified Data.Attoparsec.ByteString       as A
 import qualified Data.Attoparsec.ByteString.Char8 as AC8
 import qualified Data.ByteString                  as B
-import qualified Data.ByteString.Char8            as B8
 import           Data.Monoid                      ((<>))
 
 type ExtensionParam = (B.ByteString, Maybe B.ByteString)
@@ -21,7 +20,7 @@ type ExtensionParam = (B.ByteString, Maybe B.ByteString)
 data ExtensionDescription = ExtensionDescription
     { extName   :: !B.ByteString
     , extParams :: ![ExtensionParam]
-    } deriving (Show)
+    } deriving (Eq, Show)
 
 parseExtensionDescription :: A.Parser ExtensionDescription
 parseExtensionDescription = do

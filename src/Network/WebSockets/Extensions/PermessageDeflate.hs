@@ -1,3 +1,4 @@
+--------------------------------------------------------------------------------
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
@@ -6,26 +7,17 @@ module Network.WebSockets.Extensions.PermessageDeflate
     ( defaultPermessageDeflate
     , PermessageDeflate(..)
     , negotiateDeflate
-    , wsDeflate
-    , wsInflate
-    , rejectExtensions
     ) where
 
-import           Control.Applicative                       ((*>), (<$>), (<*),
-                                                            (<|>))
-import           Control.Concurrent.MVar
+
+--------------------------------------------------------------------------------
 import           Control.Exception                         (throwIO)
-import           Control.Monad                             (foldM, when)
-import qualified Data.Attoparsec.ByteString                as A hiding (Parser)
-import qualified Data.Attoparsec.ByteString.Char8          as A
+import           Control.Monad                             (foldM)
 import qualified Data.ByteString                           as B
-import qualified Data.ByteString                           as BS
-import qualified Data.ByteString.Char8                     as BS8
-import qualified Data.ByteString.Lazy                      as BSL
-import qualified Data.ByteString.Lazy.Char8                as BSL8
-import qualified Data.ByteString.Lazy.Internal             as L
-import qualified Data.CaseInsensitive                      as CI
-import           Data.Either
+import qualified Data.ByteString.Char8                     as B8
+import qualified Data.ByteString.Lazy                      as BL
+import qualified Data.ByteString.Lazy.Char8                as BL8
+import qualified Data.ByteString.Lazy.Internal             as BL
 import           Data.Monoid
 import qualified Data.Streaming.Zlib                       as Zlib
 import           Network.WebSockets.Extensions
@@ -34,15 +26,14 @@ import           Network.WebSockets.Http
 import           Network.WebSockets.Types
 import           Text.Read                                 (readMaybe)
 
-{-
-   Four extension parameters are defined for "permessage-deflate" to
-   help endpoints manage per-connection resource usage.
-   o  "server_no_context_takeover"
-   o  "client_no_context_takeover"
-   o  "server_max_window_bits"
-   o  "client_max_window_bits"
--}
-
+--------------------------------------------------------------------------------
+-- | Four extension parameters are defined for "permessage-deflate" to
+-- help endpoints manage per-connection resource usage.
+--
+-- - "server_no_context_takeover"
+-- - "client_no_context_takeover"
+-- - "server_max_window_bits"
+-- - "client_max_window_bits"
 data PermessageDeflate = PermessageDeflate
     { serverNoContextTakeover :: Bool
     , clientNoContextTakeover :: Bool
@@ -51,14 +42,15 @@ data PermessageDeflate = PermessageDeflate
     , pdCompressionLevel      :: Int
     } deriving Show
 
+
+--------------------------------------------------------------------------------
 defaultPermessageDeflate :: PermessageDeflate
 defaultPermessageDeflate = PermessageDeflate False False 15 15 8
--- defaultPermessageDeflate = PermessageDeflate True True 8 8 9
-
-type UpdatePermessageDeflate = PermessageDeflate -> PermessageDeflate
 
 
 --------------------------------------------------------------------------------
+-- | Convert the parameters to an 'ExtensionDescription' that we can put in a
+-- 'Sec-WebSocket-Extensions' header.
 toExtensionDescription :: PermessageDeflate -> ExtensionDescription
 toExtensionDescription PermessageDeflate {..} = ExtensionDescription
     { extName   = "permessage-deflate"
@@ -69,20 +61,26 @@ toExtensionDescription PermessageDeflate {..} = ExtensionDescription
          [("client_max_window_bits", param clientMaxWindowBits) | clientMaxWindowBits /= 15]
     }
   where
-    param = Just . BS8.pack . show
+    param = Just . B8.pack . show
 
-toClient :: PermessageDeflate -> BS.ByteString
-toClient = encodeExtensionDescriptions . return . toExtensionDescription
+
+--------------------------------------------------------------------------------
+toHeaders :: PermessageDeflate -> Headers
+toHeaders pmd =
+    [ ( "Sec-WebSocket-Extensions"
+      , encodeExtensionDescriptions [toExtensionDescription pmd]
+      )
+    ]
 
 
 --------------------------------------------------------------------------------
 negotiateDeflate :: Maybe PermessageDeflate -> NegotiateExtension
-negotiateDeflate pmd0 exts = do
-    (headers, pmd1) <- negotiateDeflateOpts exts pmd0
+negotiateDeflate pmd0 exts0 = do
+    (headers, pmd1) <- negotiateDeflateOpts exts0 pmd0
     return Extension
         { extHeaders = headers
         , extParse   = \parseRaw -> do
-            inflate <- wsInflate pmd1
+            inflate <- makeMessageInflater pmd1
             return $ do
                 msg <- parseRaw
                 case msg of
@@ -90,30 +88,29 @@ negotiateDeflate pmd0 exts = do
                     Just m  -> fmap Just (inflate m)
 
         , extWrite   = \writeRaw -> do
-            deflate <- wsDeflate pmd1
+            deflate <- makeMessageDeflater pmd1
             return $ \msgs ->
                 mapM deflate msgs >>= writeRaw
         }
+  where
+    negotiateDeflateOpts
+        :: ExtensionDescriptions
+        -> Maybe PermessageDeflate
+        -> Either String (Headers, Maybe PermessageDeflate)
 
+    negotiateDeflateOpts (ext : _) (Just x)
+        | extName ext == "x-webkit-deflate-frame" = Right
+            ([("Sec-WebSocket-Extensions", "x-webkit-deflate-frame")], Just x)
 
---------------------------------------------------------------------------------
-negotiateDeflateOpts
-    :: ExtensionDescriptions
-    -> Maybe PermessageDeflate
-    -> Either String (Headers, Maybe PermessageDeflate)
+    negotiateDeflateOpts (ext : _) (Just x)
+        | extName ext == "permessage-deflate" = do
+            x' <- foldM setParam x (extParams ext)
+            Right (toHeaders x', Just x')
 
-negotiateDeflateOpts (ext : _) (Just x)
-    | extName ext == "x-webkit-deflate-frame" =
-        Right ([("Sec-WebSocket-Extensions", "x-webkit-deflate-frame")], Just x)
+    negotiateDeflateOpts (_ : exts) (Just x) =
+        negotiateDeflateOpts exts (Just x)
 
-negotiateDeflateOpts (ext : exts) (Just x)
-    | extName ext == "permessage-deflate" = do
-        x' <- foldM setParam x (extParams ext)
-        Right ([("Sec-WebSocket-Extensions", toClient x')], Just x')
-
-negotiateDeflateOpts (_ : exts) (Just x) = negotiateDeflateOpts exts (Just x)
-
-negotiateDeflateOpts _ _ = Right ([], Nothing)
+    negotiateDeflateOpts _ _ = Right ([], Nothing)
 
 
 --------------------------------------------------------------------------------
@@ -144,7 +141,7 @@ setParam pmd (_, _) = Right pmd
 
 --------------------------------------------------------------------------------
 parseWindow :: B.ByteString -> Either String Int
-parseWindow bs8 = case readMaybe (BS8.unpack bs8) of
+parseWindow bs8 = case readMaybe (B8.unpack bs8) of
     Just w
         | w >= 8 && w <= 15 -> Right w
         | otherwise         -> Left $ "Window out of bounds: " ++ show w
@@ -152,17 +149,9 @@ parseWindow bs8 = case readMaybe (BS8.unpack bs8) of
 
 
 --------------------------------------------------------------------------------
-wsDecompress :: PermessageDeflate -> IO Zlib.Inflate
-wsDecompress PermessageDeflate {..} =
+initInflate :: PermessageDeflate -> IO Zlib.Inflate
+initInflate PermessageDeflate {..} =
     Zlib.initInflate (Zlib.WindowBits (- (fixWindowBits clientMaxWindowBits)))
-
-
---------------------------------------------------------------------------------
-wsCompress :: PermessageDeflate -> IO Zlib.Deflate
-wsCompress PermessageDeflate {..} =
-    Zlib.initDeflate
-        pdCompressionLevel
-        (Zlib.WindowBits (- (fixWindowBits serverMaxWindowBits)))
 
 
 --------------------------------------------------------------------------------
@@ -188,8 +177,14 @@ fixWindowBits n
 
 
 --------------------------------------------------------------------------------
-appTailL :: BSL.ByteString
-appTailL = BSL.pack [0x00,0x00,0xff,0xff]
+appTailL :: BL.ByteString
+appTailL = BL.pack [0x00,0x00,0xff,0xff]
+
+
+--------------------------------------------------------------------------------
+maybeStrip :: BL.ByteString -> BL.ByteString
+maybeStrip x | appTailL `BL.isSuffixOf` x = BL.take (BL.length x - 4) x
+maybeStrip x = x
 
 
 --------------------------------------------------------------------------------
@@ -200,79 +195,85 @@ rejectExtensions x = return x
 
 
 --------------------------------------------------------------------------------
-{-# NOINLINE wsDeflate #-}
-wsDeflate :: Maybe PermessageDeflate -> IO (Message -> IO Message)
-wsDeflate Nothing = return rejectExtensions
-wsDeflate (Just pmd) = do
-  print pmd
-  if serverNoContextTakeover pmd
-      then
-        return $ wsDeflate1 compressorFresh
-      else
-        wsDeflate1 . compressor <$> (newMVar =<< fresh)
+makeMessageDeflater
+    :: Maybe PermessageDeflate -> IO (Message -> IO Message)
+makeMessageDeflater Nothing = return rejectExtensions
+makeMessageDeflater (Just pmd)
+    | serverNoContextTakeover pmd = do
+        return $ \msg -> do
+            ptr <- initDeflate pmd
+            deflateMessageWith (deflateBody ptr) msg
+    | otherwise = do
+        ptr <- initDeflate pmd
+        return $ \msg ->
+            deflateMessageWith (deflateBody ptr) msg
   where
-    fresh = wsCompress pmd
-    compressorFresh x = flip feedDeflateLazy x =<< fresh
-    compressor dmRef x =
-      modifyMVar dmRef $ \worker -> (worker, ) <$> feedDeflateLazy worker x
-
-    wsDeflate1 comp (DataMessage False False False (Text x))   = DataMessage True False False . Text <$> comp x
-    wsDeflate1 comp (DataMessage False False False (Binary x)) = DataMessage True False False . Binary <$> comp x
-    wsDeflate1 _ x = return x
-
-feedDeflateLazy :: Zlib.Deflate -> BSL.ByteString -> IO BSL.ByteString
-feedDeflateLazy worker x = do
-  dec <- dePopper =<< Zlib.feedDeflate worker (BSL.toStrict x)
-  d1  <- dePopper $ Zlib.flushDeflate worker
-  return $ maybeStrip $ dec <> d1
+    ----------------------------------------------------------------------------
+    initDeflate :: PermessageDeflate -> IO Zlib.Deflate
+    initDeflate PermessageDeflate {..} =
+        Zlib.initDeflate
+            pdCompressionLevel
+            (Zlib.WindowBits (- (fixWindowBits serverMaxWindowBits)))
 
 
-dePopper :: IO Zlib.PopperRes -> IO BSL.ByteString
+    ----------------------------------------------------------------------------
+    deflateMessageWith
+        :: (BL.ByteString -> IO BL.ByteString)
+        -> Message -> IO Message
+    deflateMessageWith deflater (DataMessage False False False (Text x))   =
+        DataMessage True False False . Text <$> deflater x
+    deflateMessageWith deflater (DataMessage False False False (Binary x)) =
+        DataMessage True False False . Binary <$> deflater x
+    deflateMessageWith _ x = return x
+
+
+    ----------------------------------------------------------------------------
+    deflateBody :: Zlib.Deflate -> BL.ByteString -> IO BL.ByteString
+    deflateBody ptr = fmap maybeStrip . go . BL.toChunks
+      where
+        go []       = dePopper (Zlib.flushDeflate ptr)
+        go (c : cs) = do
+            bl <- Zlib.feedDeflate ptr c >>= dePopper
+            (bl <>) <$> go cs
+
+
+--------------------------------------------------------------------------------
+dePopper :: Zlib.Popper -> IO BL.ByteString
 dePopper p = p >>= \case
-  Zlib.PRDone    -> return BSL.empty
-  Zlib.PRNext c  -> L.chunk c <$> dePopper p
-  Zlib.PRError x -> throwIO $ CloseRequest 1002 (BSL8.pack (show x))
+    Zlib.PRDone    -> return BL.empty
+    Zlib.PRNext c  -> BL.chunk c <$> dePopper p
+    Zlib.PRError x -> throwIO $ CloseRequest 1002 (BL8.pack (show x))
 
 
-{-# NOINLINE wsInflate #-}
-wsInflate :: Maybe PermessageDeflate -> IO (Message -> IO Message)
-wsInflate Nothing = return rejectExtensions
-wsInflate (Just pmd) =
-    if clientNoContextTakeover pmd
-    then
-       return $ wsInflate1 compressorFresh
-    else
-       wsInflate1 . compressor <$> (newMVar =<< fresh)
+--------------------------------------------------------------------------------
+makeMessageInflater :: Maybe PermessageDeflate -> IO (Message -> IO Message)
+makeMessageInflater Nothing = return rejectExtensions
+makeMessageInflater (Just pmd)
+    | clientNoContextTakeover pmd =
+        return $ \msg -> do
+            ptr <- initInflate pmd
+            inflateMessageWith (inflateBody ptr) msg
+    | otherwise = do
+        ptr <- initInflate pmd
+        return $ \msg ->
+            inflateMessageWith (inflateBody ptr) msg
   where
-    fresh = wsDecompress pmd
+    ----------------------------------------------------------------------------
+    inflateMessageWith
+        :: (BL.ByteString -> IO BL.ByteString)
+        -> Message -> IO Message
+    inflateMessageWith inflater (DataMessage True a b (Text x)) =
+        DataMessage False a b . Text <$> inflater x
+    inflateMessageWith inflater (DataMessage True a b (Binary x)) =
+        DataMessage False a b . Binary <$> inflater x
+    inflateMessageWith _ x = return x
 
-    compressorFresh x = flip feedInflateLazy x =<< fresh
-    compressor dmRef x =
-      modifyMVar dmRef $ \worker ->
-        (worker,) <$> feedInflateLazy worker x
 
-    wsInflate1 comp (DataMessage True a b  (Text x)) = DataMessage False a b . Text   <$> comp x
-    wsInflate1 comp (DataMessage True a b (Binary x)) = DataMessage False a b . Binary <$> comp x
-    wsInflate1 _ x = return x
-
-feedInflateLazy :: Zlib.Inflate -> BSL.ByteString -> IO BSL.ByteString
-feedInflateLazy worker x = do
-  dec <-dePopper =<< Zlib.feedInflate worker (BSL.toStrict $ x <> appTailL)
-  d1 <- Zlib.flushInflate worker
-  return $ dec <> BSL.fromStrict d1
-
-maybeStrip :: BSL.ByteString -> BSL.ByteString
-maybeStrip x | appTailL `BSL.isSuffixOf` x = BSL.take (BSL.length x - 4) x
-maybeStrip x = x
-
--- tests ... negotiateDeflate (Just (pmTests !! 5)) (Just defaultPermessageDeflate)
---
--- pmTests :: [BS.ByteString]
--- pmTests=
---   [ "permessage-deflate"
---   , "permessage-deflate; client_max_window_bits; server_max_window_bits=10"
---   , "permessage-deflate; client_max_window_bits=15; server_max_window_bits=10, permessage-deflate; client_max_window_bits,permessage-deflate; client_max_window_bits=15; client_max_window_bits=10"
---   , "permessage-deflate; server_no_context_takeover, permessage-deflate; client_no_context_takeover"
---   , "permessage-deflate; client_no_context_takeover, permessage-deflate; server_no_context_takeover"
---   , "x-webkit-deflate-frame"
---   ]
+    ----------------------------------------------------------------------------
+    inflateBody :: Zlib.Inflate -> BL.ByteString -> IO BL.ByteString
+    inflateBody ptr = go . BL.toChunks . (<> appTailL)
+      where
+        go []       = BL.fromStrict <$> Zlib.flushInflate ptr
+        go (c : cs) = do
+            bl <- Zlib.feedInflate ptr c >>= dePopper
+            (bl <>) <$> go cs

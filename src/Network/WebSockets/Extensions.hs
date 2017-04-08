@@ -1,6 +1,7 @@
 module Network.WebSockets.Extensions
     ( ExtensionDescription (..)
     , ExtensionDescriptions
+    , parseExtensionDescriptions
 
     , NegotiateExtension
     , Extension (..)

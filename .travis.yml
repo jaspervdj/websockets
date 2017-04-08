@@ -1,10 +1,17 @@
 sudo: false
+language: c
 
 # Caching so the next build will be fast too.
 cache:
   directories:
   - $HOME/.stack
   - $HOME/pyenv_autobahn
+
+addons:
+  apt:
+    packages:
+    - libgmp-dev
+    - virtualenv  # For autobahn tests
 
 before_install:
 # Download and unpack the stack executable
@@ -16,4 +23,4 @@ script:
 - stack setup
 - stack --no-terminal --skip-ghc-check test
 - stack --no-terminal --skip-ghc-check build --copy-bins
-- bash tests/scripts/autobahn.sh
+- bash tests/autobahn/autobahn.sh

@@ -149,12 +149,6 @@ parseWindow bs8 = case readMaybe (B8.unpack bs8) of
 
 
 --------------------------------------------------------------------------------
-initInflate :: PermessageDeflate -> IO Zlib.Inflate
-initInflate PermessageDeflate {..} =
-    Zlib.initInflate (Zlib.WindowBits (- (fixWindowBits clientMaxWindowBits)))
-
-
---------------------------------------------------------------------------------
 -- | If the window_bits parameter is set to 8, we must set it to 9 instead.
 --
 -- Related issues:
@@ -258,6 +252,13 @@ makeMessageInflater (Just pmd)
         return $ \msg ->
             inflateMessageWith (inflateBody ptr) msg
   where
+    --------------------------------------------------------------------------------
+    initInflate :: PermessageDeflate -> IO Zlib.Inflate
+    initInflate PermessageDeflate {..} =
+        Zlib.initInflate
+            (Zlib.WindowBits (- (fixWindowBits clientMaxWindowBits)))
+
+
     ----------------------------------------------------------------------------
     inflateMessageWith
         :: (BL.ByteString -> IO BL.ByteString)
@@ -271,7 +272,8 @@ makeMessageInflater (Just pmd)
 
     ----------------------------------------------------------------------------
     inflateBody :: Zlib.Inflate -> BL.ByteString -> IO BL.ByteString
-    inflateBody ptr = go . BL.toChunks . (<> appTailL)
+    inflateBody ptr =
+        go . BL.toChunks . (<> appTailL)
       where
         go []       = BL.fromStrict <$> Zlib.flushInflate ptr
         go (c : cs) = do

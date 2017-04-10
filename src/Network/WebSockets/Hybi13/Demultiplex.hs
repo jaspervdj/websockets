@@ -1,6 +1,7 @@
 --------------------------------------------------------------------------------
 -- | Demultiplexing of frames into messages
-{-# LANGUAGE DeriveDataTypeable, OverloadedStrings #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE OverloadedStrings  #-}
 module Network.WebSockets.Hybi13.Demultiplex
     ( FrameType (..)
     , Frame (..)
@@ -15,7 +16,7 @@ module Network.WebSockets.Hybi13.Demultiplex
 import           Blaze.ByteString.Builder (Builder)
 import qualified Blaze.ByteString.Builder as B
 import           Control.Exception        (Exception)
-import           Data.Binary.Get          (runGet, getWord16be)
+import           Data.Binary.Get          (getWord16be, runGet)
 import qualified Data.ByteString.Lazy     as BL
 import           Data.Monoid              (mappend)
 import           Data.Typeable            (Typeable)
@@ -116,8 +117,10 @@ demultiplex _     (Frame True False False False CloseFrame pl) =
 demultiplex EmptyDemultiplexState (Frame fin rsv1 rsv2 rsv3 tp pl) = case tp of
 
     TextFrame
-        | fin       -> (DemultiplexSuccess (text pl), emptyDemultiplexState)
-        | otherwise -> (DemultiplexContinue, DemultiplexState plb (text . B.toLazyByteString))
+        | fin       ->
+            (DemultiplexSuccess (text pl), emptyDemultiplexState)
+        | otherwise ->
+            (DemultiplexContinue, DemultiplexState plb (text . B.toLazyByteString))
 
 
     BinaryFrame

@@ -2,14 +2,10 @@
 set -o errexit -o pipefail
 
 # Finding the right python
-if command -v python2.7; then
-    AUTOBAHN_PYTHON="python2.7"
-else
-    AUTOBAHN_PYTHON="python"
-fi
+AUTOBAHN_PYTHON="pypy"
 
 # Note that this script will be executed from the project root.
-AUTOBAHN_ENV="$HOME/pyenvs/autobahn"
+AUTOBAHN_ENV="$HOME/.virtualenvs/autobahn"
 echo "Setting up virtualenv..."
 if [[ ! -e "$AUTOBAHN_ENV" ]]; then
     virtualenv --python="$AUTOBAHN_PYTHON" "$AUTOBAHN_ENV"

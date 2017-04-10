@@ -22,7 +22,6 @@ websockets-autobahn
 
 --------------------------------------------------------------------------------
 import           Control.Exception          (catch)
-import           Control.Monad              (forever)
 import           Data.ByteString.Lazy.Char8 ()
 
 --------------------------------------------------------------------------------
@@ -31,8 +30,14 @@ import qualified Network.WebSockets         as WS
 
 --------------------------------------------------------------------------------
 echoDataMessage :: WS.Connection -> IO ()
-echoDataMessage conn = forever $
-    WS.sendDataMessage conn =<< WS.receiveDataMessage conn
+echoDataMessage conn = go 0
+  where
+    go :: Int -> IO ()
+    go x = do
+        msg <- WS.receiveDataMessage conn
+        WS.sendDataMessage conn msg
+        go (x + 1)
+
 
 --------------------------------------------------------------------------------
 -- | Application

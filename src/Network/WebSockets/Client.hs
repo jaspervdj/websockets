@@ -31,7 +31,7 @@ import           Network.WebSockets.Types
 --------------------------------------------------------------------------------
 -- | A client application interacting with a single server. Once this 'IO'
 -- action finished, the underlying socket is closed automatically.
-type ClientApp a = Connection -> IO a
+type ClientApp a = ResponseHead -> Connection -> IO a
 
 
 --------------------------------------------------------------------------------
@@ -101,12 +101,12 @@ runClientWithStream stream host path opts customHeaders app = do
             "Network.WebSockets.Client.runClientWithStream: no handshake " ++
             "response from server"
     -- Note that we pattern match to evaluate the result here
-    Response _ _ <- return $ finishResponse protocol request response
+    Response responseHead _ <- return $ finishResponse protocol request response
     parse        <- decodeMessages protocol stream
     write        <- encodeMessages protocol ClientConnection stream
     sentRef      <- newIORef False
 
-    app Connection
+    app responseHead Connection
         { connectionOptions   = opts
         , connectionType      = ClientConnection
         , connectionProtocol  = protocol

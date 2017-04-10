@@ -27,3 +27,6 @@ wstest -m fuzzingclient
 
 echo "Killing websockets server..."
 kill "$WEBSOCKETS_AUTOBAHN_PID"
+
+echo "Producing report..."
+python tests/autobahn/mini-report.py reports/servers/index.json

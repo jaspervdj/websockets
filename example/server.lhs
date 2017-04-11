@@ -8,6 +8,7 @@ this example, keep the [reference](http://jaspervdj.be/websockets/reference)
 nearby to check out the functions we use.
 
 > {-# LANGUAGE OverloadedStrings #-}
+> module Main where
 > import Data.Char (isPunctuation, isSpace)
 > import Data.Monoid (mappend)
 > import Data.Text (Text)

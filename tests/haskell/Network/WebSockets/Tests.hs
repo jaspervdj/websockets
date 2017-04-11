@@ -99,7 +99,7 @@ instance Arbitrary Message where
             return $ ControlMessage (Pong payload)
         , do
             payload <- BL.pack <$> arbitrary
-            return $ DataMessage False False False (Text payload)
+            return $ DataMessage False False False (Text payload Nothing)
         , do
             payload <- BL.pack <$> arbitrary
             return $ DataMessage False False False (Binary payload)
@@ -123,7 +123,7 @@ instance Arbitrary FragmentedMessage where
         fragments <- arbitraryFragmentation payload
         let fs  = makeFrames $ zip (ft : repeat ContinuationFrame) fragments
             msg = case ft of
-                TextFrame   -> DataMessage False False False (Text payload)
+                TextFrame   -> DataMessage False False False (Text payload Nothing)
                 BinaryFrame -> DataMessage False False False (Binary payload)
                 _           -> error "Arbitrary FragmentedMessage crashed"
 

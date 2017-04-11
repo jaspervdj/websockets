@@ -13,6 +13,15 @@ BROKEN_CASES = [
     '12.4.5',
     '12.4.6',
     '12.4.11',
+    '12.4.18',
+    '12.4.13',
+    '12.4.10',
+    '12.4.17',
+    '12.4.16',
+    '12.4.15',
+    '12.4.14',
+    '12.4.9',
+    '12.4.8',
     '12.5.5',
     '12.5.6',
     '12.5.8',
@@ -29,23 +38,24 @@ BROKEN_CASES = [
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('report', help='JSON report')
+    parser.add_argument('report', help='JSON report', nargs='?')
     parser.add_argument('--duration', type=int, help='Duration treshold',
             default=1000)
     options = parser.parse_args()
 
-    with open(options.report) as f:
-        report = json.load(f)
-
     exclude_cases = []
 
-    # Exclude long tests
-    for server in report:
-        server_report = report[server]
-        for case_name in server_report:
-            case_report = server_report[case_name]
-            if case_report['duration'] >= options.duration:
-                exclude_cases += [case_name]
+    # Exclude long tests from report
+    if options.report:
+        with open(options.report) as f:
+            report = json.load(f)
+
+            for server in report:
+                server_report = report[server]
+                for case_name in server_report:
+                    case_report = server_report[case_name]
+                    if case_report['duration'] >= options.duration:
+                        exclude_cases += [case_name]
 
     # Exclude broken tests
     for case_name in BROKEN_CASES:

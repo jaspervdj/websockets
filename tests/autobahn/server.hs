@@ -20,12 +20,17 @@ wstest -m fuzzingclient
 websockets-autobahn
 -}
 
+
 --------------------------------------------------------------------------------
 import           Control.Exception          (catch)
 import           Data.ByteString.Lazy.Char8 ()
+import           Data.String                (fromString)
+import           Data.Version               (showVersion)
+
 
 --------------------------------------------------------------------------------
 import qualified Network.WebSockets         as WS
+import qualified Paths_websockets
 
 
 --------------------------------------------------------------------------------
@@ -40,10 +45,21 @@ echoDataMessage conn = go 0
 
 
 --------------------------------------------------------------------------------
+infoHeaders :: WS.Headers
+infoHeaders =
+    [ ( "Server"
+      , fromString $ "websockets/" ++ showVersion Paths_websockets.version
+      )
+    ]
+
+
+--------------------------------------------------------------------------------
 -- | Application
 application :: WS.ServerApp
 application pc = do
-    conn <-  WS.acceptRequest pc
+    conn <-  WS.acceptRequestWith pc WS.defaultAcceptRequest
+        { WS.acceptHeaders = infoHeaders
+        }
     echoDataMessage conn `catch` handleClose
 
   where

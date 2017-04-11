@@ -17,8 +17,7 @@ else
 fi
 
 echo "Launching websockets server in background..."
-stack exec websockets-autobahn &
-WEBSOCKETS_AUTOBAHN_PID="$!"
+(stack exec websockets-autobahn) & WEBSOCKETS_AUTOBAHN_PID="$!"
 
 echo "Getting config..."
 cp tests/autobahn/fuzzingclient.json .

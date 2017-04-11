@@ -10,6 +10,9 @@ import argparse
 import json
 
 BROKEN_CASES = [
+    '12.4.5',
+    '12.4.6',
+    '12.4.11',
     '12.5.5',
     '12.5.6',
     '12.5.8',

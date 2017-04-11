@@ -214,10 +214,12 @@ makeMessageDeflater (Just pmd)
     deflateMessageWith
         :: (BL.ByteString -> IO BL.ByteString)
         -> Message -> IO Message
-    deflateMessageWith deflater (DataMessage False False False (Text x))   =
-        DataMessage True False False . Text <$> deflater x
-    deflateMessageWith deflater (DataMessage False False False (Binary x)) =
-        DataMessage True False False . Binary <$> deflater x
+    deflateMessageWith deflater (DataMessage False False False (Text x _)) = do
+        x' <- deflater x
+        return (DataMessage True False False (Text x' Nothing))
+    deflateMessageWith deflater (DataMessage False False False (Binary x)) = do
+        x' <- deflater x
+        return (DataMessage True False False (Binary x'))
     deflateMessageWith _ x = return x
 
 
@@ -263,10 +265,12 @@ makeMessageInflater (Just pmd)
     inflateMessageWith
         :: (BL.ByteString -> IO BL.ByteString)
         -> Message -> IO Message
-    inflateMessageWith inflater (DataMessage True a b (Text x)) =
-        DataMessage False a b . Text <$> inflater x
-    inflateMessageWith inflater (DataMessage True a b (Binary x)) =
-        DataMessage False a b . Binary <$> inflater x
+    inflateMessageWith inflater (DataMessage True a b (Text x _)) = do
+        x' <- inflater x
+        return (DataMessage False a b (Text x' Nothing))
+    inflateMessageWith inflater (DataMessage True a b (Binary x)) = do
+        x' <- inflater x
+        return (DataMessage False a b (Binary x'))
     inflateMessageWith _ x = return x
 
 

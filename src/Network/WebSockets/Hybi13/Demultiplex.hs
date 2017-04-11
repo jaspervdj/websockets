@@ -131,8 +131,8 @@ demultiplex EmptyDemultiplexState (Frame fin rsv1 rsv2 rsv3 tp pl) = case tp of
 
   where
     plb    = B.fromLazyByteString pl
-    text   = DataMessage rsv1 rsv2 rsv3 . Text
-    binary = DataMessage rsv1 rsv2 rsv3 . Binary
+    text   x = DataMessage rsv1 rsv2 rsv3 (Text x Nothing)
+    binary x = DataMessage rsv1 rsv2 rsv3 (Binary x)
 
 demultiplex (DemultiplexState b f) (Frame fin False False False ContinuationFrame pl)
     | fin       = (DemultiplexSuccess (f b'), emptyDemultiplexState)

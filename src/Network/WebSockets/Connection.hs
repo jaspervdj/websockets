@@ -47,7 +47,8 @@ import           Control.Exception                               (AsyncException
                                                                   fromException,
                                                                   handle,
                                                                   throwIO)
-import           Control.Monad                                   (unless, when)
+import           Control.Monad                                   (foldM, unless,
+                                                                  when)
 import qualified Data.ByteString                                 as B
 import qualified Data.ByteString.Char8                           as B8
 import           Data.IORef                                      (IORef,
@@ -55,6 +56,7 @@ import           Data.IORef                                      (IORef,
                                                                   readIORef,
                                                                   writeIORef)
 import           Data.List                                       (find)
+import           Data.Maybe                                      (catMaybes)
 import qualified Data.Text                                       as T
 import           Data.Word                                       (Word16)
 
@@ -62,6 +64,7 @@ import           Data.Word                                       (Word16)
 --------------------------------------------------------------------------------
 import           Network.WebSockets.Extensions                   as Extensions
 import           Network.WebSockets.Extensions.PermessageDeflate
+import           Network.WebSockets.Extensions.StrictUnicode
 import           Network.WebSockets.Http
 import           Network.WebSockets.Protocol
 import           Network.WebSockets.Stream                       (Stream)
@@ -128,17 +131,28 @@ acceptRequestWith pc ar = case find (flip compatible request) protocols of
         throwIO NotSupported
     Just protocol -> do
 
-        extensions <- either throwIO return $
+        -- Get requested list of exceptions from client.
+        rqExts <- either throwIO return $
             getRequestSecWebSocketExtensions request
+
+        -- Set up permessage-deflate extension if configured.
         let permessageDeflate0 = connectionPermessageDeflate (pendingOptions pc)
-        pmdExt <- case negotiateDeflate permessageDeflate0 extensions of
+        pmdExt <- case negotiateDeflate permessageDeflate0 rqExts of
             Left err -> do
                 rejectRequestWith pc defaultRejectRequest {rejectMessage = B8.pack err}
                 throwIO NotSupported
-            Right pmd -> return pmd
+            Right pmd -> return (Just pmd)
+
+        -- Set up strict utf8 extension if configured.
+        let unicodeExt =
+                if connectionStrictUnicode (pendingOptions pc)
+                    then Just strictUnicode else Nothing
+
+        -- Final extension list.
+        let exts = catMaybes [pmdExt, unicodeExt]
 
         let subproto = maybe [] (\p -> [("Sec-WebSocket-Protocol", p)]) $ acceptSubprotocol ar
-            headers = subproto ++ acceptHeaders ar ++ extHeaders pmdExt
+            headers = subproto ++ acceptHeaders ar ++ concatMap extHeaders exts
             response = finishRequest protocol request headers
 
         either throwIO (sendResponse pc) response
@@ -146,8 +160,8 @@ acceptRequestWith pc ar = case find (flip compatible request) protocols of
         parseRaw <- decodeMessages protocol (pendingStream pc)
         writeRaw <- encodeMessages protocol ServerConnection (pendingStream pc)
 
-        parse <- extParse pmdExt parseRaw
-        write <- extWrite pmdExt writeRaw
+        write <- foldM (\x ext -> extWrite ext x) writeRaw exts
+        parse <- foldM (\x ext -> extParse ext x) parseRaw exts
 
         sentRef    <- newIORef False
         let connection = Connection
@@ -239,6 +253,11 @@ data ConnectionOptions = ConnectionOptions
       -- ^ Whenever a 'pong' is received, this IO action is executed. It can be
       -- used to tickle connections or fire missiles.
     , connectionPermessageDeflate :: Maybe PermessageDeflate
+      -- ^ Enable 'PermessageDeflate'.
+    , connectionStrictUnicode     :: !Bool
+      -- ^ Enable strict unicode on the connection.  This means that if a client
+      -- (or server) sends invalid UTF-8, we will throw a 'UnicodeException'
+      -- rather than replacing it by the unicode replacement character U+FFFD.
     }
 
 
@@ -247,6 +266,7 @@ defaultConnectionOptions :: ConnectionOptions
 defaultConnectionOptions = ConnectionOptions
     { connectionOnPong            = return ()
     , connectionPermessageDeflate = Nothing
+    , connectionStrictUnicode     = False
     }
 
 
@@ -291,11 +311,7 @@ receiveDataMessage conn = do
 --------------------------------------------------------------------------------
 -- | Receive a message, converting it to whatever format is needed.
 receiveData :: WebSocketsData a => Connection -> IO a
-receiveData conn = do
-    dm <- receiveDataMessage conn
-    case dm of
-        Text x   -> return (fromLazyByteString x)
-        Binary x -> return (fromLazyByteString x)
+receiveData conn = fromDataMessage <$> receiveDataMessage conn
 
 
 --------------------------------------------------------------------------------
@@ -330,7 +346,9 @@ sendTextData conn = sendTextDatas conn . return
 --------------------------------------------------------------------------------
 -- | Send a collection of messages as text
 sendTextDatas :: WebSocketsData a => Connection -> [a] -> IO ()
-sendTextDatas conn = sendDataMessages conn . map (Text . toLazyByteString)
+sendTextDatas conn =
+    sendDataMessages conn .
+    map (\x -> Text (toLazyByteString x) Nothing)
 
 --------------------------------------------------------------------------------
 -- | Send a message as binary data

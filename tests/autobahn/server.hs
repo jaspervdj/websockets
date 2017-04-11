@@ -69,6 +69,8 @@ application pc = do
         putStrLn "Unexpected connection closed exception"
     handleClose (WS.ParseException e) =
         putStrLn $ "Recevied parse exception: " ++ show e
+    handleClose (WS.UnicodeException e) =
+        putStrLn $ "Recevied unicode exception: " ++ show e
 
 
 --------------------------------------------------------------------------------
@@ -78,4 +80,5 @@ main = WS.runServerWith "0.0.0.0" 9001 options application
   where
     options = WS.defaultConnectionOptions
         { WS.connectionPermessageDeflate = Just WS.defaultPermessageDeflate
+        , WS.connectionStrictUnicode     = True
         }

@@ -11,18 +11,23 @@ module Network.WebSockets.Types
     , ConnectionException (..)
 
     , ConnectionType (..)
+
+    , decodeUtf8Lenient
+    , decodeUtf8Strict
     ) where
 
 
 --------------------------------------------------------------------------------
-import           Control.Exception       (Exception (..))
-import qualified Data.ByteString         as B
-import qualified Data.ByteString.Lazy    as BL
-import qualified Data.Text               as T
-import qualified Data.Text.Lazy          as TL
-import qualified Data.Text.Lazy.Encoding as TL
-import           Data.Typeable           (Typeable)
-import           Data.Word               (Word16)
+import           Control.Exception        (Exception (..))
+import           Control.Exception        (throw, try)
+import qualified Data.ByteString          as B
+import qualified Data.ByteString.Lazy     as BL
+import qualified Data.Text                as T
+import qualified Data.Text.Encoding.Error as TL
+import qualified Data.Text.Lazy           as TL
+import qualified Data.Text.Lazy.Encoding  as TL
+import           Data.Typeable            (Typeable)
+import           Data.Word                (Word16)
 
 
 --------------------------------------------------------------------------------
@@ -52,7 +57,11 @@ data ControlMessage
 -- low-level. This is why define another type on top of it, which represents
 -- data for the application layer.
 data DataMessage
-    = Text BL.ByteString
+    -- | A textual message.  The second field /might/ contain the decoded UTF-8
+    -- text for caching reasons.  This field is computed lazily so if it's not
+    -- accessed, it should have no performance impact.
+    = Text BL.ByteString (Maybe TL.Text)
+    -- | A binary message.
     | Binary BL.ByteString
     deriving (Eq, Show)
 
@@ -72,30 +81,47 @@ data DataMessage
 -- * Messages can be very large. If this is the case, it might be inefficient to
 --   use the strict 'B.ByteString' and 'T.Text' instances.
 class WebSocketsData a where
+    fromDataMessage :: DataMessage -> a
+
     fromLazyByteString :: BL.ByteString -> a
     toLazyByteString   :: a -> BL.ByteString
 
 
 --------------------------------------------------------------------------------
 instance WebSocketsData BL.ByteString where
+    fromDataMessage (Text   bl _) = bl
+    fromDataMessage (Binary bl)   = bl
+
     fromLazyByteString = id
     toLazyByteString   = id
 
 
 --------------------------------------------------------------------------------
 instance WebSocketsData B.ByteString where
+    fromDataMessage (Text   bl _) = fromLazyByteString bl
+    fromDataMessage (Binary bl)   = fromLazyByteString bl
+
     fromLazyByteString = B.concat . BL.toChunks
     toLazyByteString   = BL.fromChunks . return
 
 
 --------------------------------------------------------------------------------
 instance WebSocketsData TL.Text where
+    fromDataMessage (Text   _  (Just tl)) = tl
+    fromDataMessage (Text   bl Nothing)   = fromLazyByteString bl
+    fromDataMessage (Binary bl)           = fromLazyByteString bl
+
+
     fromLazyByteString = TL.decodeUtf8
     toLazyByteString   = TL.encodeUtf8
 
 
 --------------------------------------------------------------------------------
 instance WebSocketsData T.Text where
+    fromDataMessage (Text   _ (Just tl)) = T.concat (TL.toChunks tl)
+    fromDataMessage (Text   bl Nothing)  = fromLazyByteString bl
+    fromDataMessage (Binary bl)          = fromLazyByteString bl
+
     fromLazyByteString = T.concat . TL.toChunks . fromLazyByteString
     toLazyByteString   = toLazyByteString . TL.fromChunks . return
 
@@ -120,6 +146,10 @@ data ConnectionException
 
     -- | The client sent garbage, i.e. we could not parse the WebSockets stream.
     | ParseException String
+
+    -- | The client sent invalid UTF-8.  Note that this exception will only be
+    -- thrown if strict decoding is set in the connection options.
+    | UnicodeException String
     deriving (Show, Typeable)
 
 
@@ -130,3 +160,18 @@ instance Exception ConnectionException
 --------------------------------------------------------------------------------
 data ConnectionType = ServerConnection | ClientConnection
     deriving (Eq, Ord, Show)
+
+
+--------------------------------------------------------------------------------
+-- | Replace an invalid input byte with the Unicode replacement character
+-- U+FFFD.
+decodeUtf8Lenient :: BL.ByteString -> TL.Text
+decodeUtf8Lenient = TL.decodeUtf8With TL.lenientDecode
+
+
+--------------------------------------------------------------------------------
+-- | Throw an error if there is an invalid input byte.
+decodeUtf8Strict :: BL.ByteString -> IO (Either ConnectionException TL.Text)
+decodeUtf8Strict bl = try $
+    let txt = TL.decodeUtf8With (\err _ -> throw (UnicodeException err)) bl in
+    TL.length txt `seq` return txt

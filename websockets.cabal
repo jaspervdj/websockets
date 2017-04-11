@@ -63,6 +63,7 @@ Library
     Network.WebSockets.Client
     Network.WebSockets.Extensions.Description
     Network.WebSockets.Extensions.PermessageDeflate
+    Network.WebSockets.Extensions.StrictUnicode
     Network.WebSockets.Http
     Network.WebSockets.Hybi13
     Network.WebSockets.Hybi13.Demultiplex

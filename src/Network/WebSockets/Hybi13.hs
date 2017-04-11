@@ -99,7 +99,7 @@ encodeMessage conType gen msg = (gen', builder)
             runPut (putWord16be code) `mappend` pl
         (ControlMessage (Ping pl))               -> mkFrame PingFrame   pl
         (ControlMessage (Pong pl))               -> mkFrame PongFrame   pl
-        (DataMessage rsv1 rsv2 rsv3 (Text pl))   -> Frame True rsv1 rsv2 rsv3 TextFrame   pl
+        (DataMessage rsv1 rsv2 rsv3 (Text pl _)) -> Frame True rsv1 rsv2 rsv3 TextFrame   pl
         (DataMessage rsv1 rsv2 rsv3 (Binary pl)) -> Frame True rsv1 rsv2 rsv3 BinaryFrame pl
 
 

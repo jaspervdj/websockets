@@ -79,6 +79,7 @@ main :: IO ()
 main = WS.runServerWith "0.0.0.0" 9001 options application
   where
     options = WS.defaultConnectionOptions
-        { WS.connectionPermessageDeflate = Just WS.defaultPermessageDeflate
-        , WS.connectionStrictUnicode     = True
+        { WS.connectionCompressionOptions =
+            WS.PermessageDeflateCompression WS.defaultPermessageDeflate
+        , WS.connectionStrictUnicode      = True
         }

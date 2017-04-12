@@ -40,7 +40,7 @@ data PermessageDeflate = PermessageDeflate
     , serverMaxWindowBits     :: Int
     , clientMaxWindowBits     :: Int
     , pdCompressionLevel      :: Int
-    } deriving Show
+    } deriving (Eq, Show)
 
 
 --------------------------------------------------------------------------------

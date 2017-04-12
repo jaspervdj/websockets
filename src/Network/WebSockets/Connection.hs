@@ -34,6 +34,7 @@ module Network.WebSockets.Connection
 
     , forkPingThread
 
+    , CompressionOptions (..)
     , PermessageDeflate (..)
     , defaultPermessageDeflate
     ) where
@@ -136,12 +137,14 @@ acceptRequestWith pc ar = case find (flip compatible request) protocols of
             getRequestSecWebSocketExtensions request
 
         -- Set up permessage-deflate extension if configured.
-        let permessageDeflate0 = connectionPermessageDeflate (pendingOptions pc)
-        pmdExt <- case negotiateDeflate permessageDeflate0 rqExts of
-            Left err -> do
-                rejectRequestWith pc defaultRejectRequest {rejectMessage = B8.pack err}
-                throwIO NotSupported
-            Right pmd -> return (Just pmd)
+        pmdExt <- case connectionCompressionOptions (pendingOptions pc) of
+            NoCompression                     -> return Nothing
+            PermessageDeflateCompression pmd0 ->
+                case negotiateDeflate (Just pmd0) rqExts of
+                    Left err   -> do
+                        rejectRequestWith pc defaultRejectRequest {rejectMessage = B8.pack err}
+                        throwIO NotSupported
+                    Right pmd1 -> return (Just pmd1)
 
         -- Set up strict utf8 extension if configured.
         let unicodeExt =
@@ -249,12 +252,12 @@ data Connection = Connection
 --------------------------------------------------------------------------------
 -- | Set options for a 'Connection'.
 data ConnectionOptions = ConnectionOptions
-    { connectionOnPong            :: !(IO ())
+    { connectionOnPong             :: !(IO ())
       -- ^ Whenever a 'pong' is received, this IO action is executed. It can be
       -- used to tickle connections or fire missiles.
-    , connectionPermessageDeflate :: Maybe PermessageDeflate
+    , connectionCompressionOptions :: !CompressionOptions
       -- ^ Enable 'PermessageDeflate'.
-    , connectionStrictUnicode     :: !Bool
+    , connectionStrictUnicode      :: !Bool
       -- ^ Enable strict unicode on the connection.  This means that if a client
       -- (or server) sends invalid UTF-8, we will throw a 'UnicodeException'
       -- rather than replacing it by the unicode replacement character U+FFFD.
@@ -264,10 +267,17 @@ data ConnectionOptions = ConnectionOptions
 --------------------------------------------------------------------------------
 defaultConnectionOptions :: ConnectionOptions
 defaultConnectionOptions = ConnectionOptions
-    { connectionOnPong            = return ()
-    , connectionPermessageDeflate = Nothing
-    , connectionStrictUnicode     = False
+    { connectionOnPong             = return ()
+    , connectionCompressionOptions = NoCompression
+    , connectionStrictUnicode      = False
     }
+
+
+--------------------------------------------------------------------------------
+data CompressionOptions
+    = NoCompression
+    | PermessageDeflateCompression PermessageDeflate
+    deriving (Eq, Show)
 
 
 --------------------------------------------------------------------------------

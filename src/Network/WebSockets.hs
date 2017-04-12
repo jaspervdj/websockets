@@ -20,6 +20,11 @@ module Network.WebSockets
     , ConnectionOptions (..)
     , defaultConnectionOptions
 
+      -- ** Compression options
+    , CompressionOptions (..)
+    , PermessageDeflate (..)
+    , defaultPermessageDeflate
+
       -- * Sending and receiving messages
     , receive
     , receiveDataMessage
@@ -69,11 +74,6 @@ module Network.WebSockets
 
       -- * Utilities
     , forkPingThread
-
-
-      -- * Extensions
-    , PermessageDeflate (..)
-    , defaultPermessageDeflate
     ) where
 
 

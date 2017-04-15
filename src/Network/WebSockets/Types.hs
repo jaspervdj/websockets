@@ -28,6 +28,7 @@ import qualified Data.Text.Lazy           as TL
 import qualified Data.Text.Lazy.Encoding  as TL
 import           Data.Typeable            (Typeable)
 import           Data.Word                (Word16)
+import           System.IO.Unsafe         (unsafePerformIO)
 
 
 --------------------------------------------------------------------------------
@@ -171,7 +172,7 @@ decodeUtf8Lenient = TL.decodeUtf8With TL.lenientDecode
 
 --------------------------------------------------------------------------------
 -- | Throw an error if there is an invalid input byte.
-decodeUtf8Strict :: BL.ByteString -> IO (Either ConnectionException TL.Text)
-decodeUtf8Strict bl = try $
+decodeUtf8Strict :: BL.ByteString -> Either ConnectionException TL.Text
+decodeUtf8Strict bl = unsafePerformIO $ try $
     let txt = TL.decodeUtf8With (\err _ -> throw (UnicodeException err)) bl in
     TL.length txt `seq` return txt

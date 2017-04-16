@@ -33,28 +33,43 @@ module Network.WebSockets.Connection
     , sendPing
 
     , forkPingThread
+
+    , CompressionOptions (..)
+    , PermessageDeflate (..)
+    , defaultPermessageDeflate
     ) where
 
 
 --------------------------------------------------------------------------------
-import qualified Blaze.ByteString.Builder    as Builder
-import           Control.Concurrent          (forkIO, threadDelay)
-import           Control.Exception           (AsyncException, fromException,
-                                              handle, throwIO)
-import           Control.Monad               (unless, when)
-import qualified Data.ByteString             as B
-import           Data.IORef                  (IORef, newIORef, readIORef,
-                                              writeIORef)
-import           Data.List                   (find)
-import qualified Data.Text                   as T
-import           Data.Word                   (Word16)
+import qualified Blaze.ByteString.Builder                        as Builder
+import           Control.Concurrent                              (forkIO,
+                                                                  threadDelay)
+import           Control.Exception                               (AsyncException,
+                                                                  fromException,
+                                                                  handle,
+                                                                  throwIO)
+import           Control.Monad                                   (foldM, unless,
+                                                                  when)
+import qualified Data.ByteString                                 as B
+import qualified Data.ByteString.Char8                           as B8
+import           Data.IORef                                      (IORef,
+                                                                  newIORef,
+                                                                  readIORef,
+                                                                  writeIORef)
+import           Data.List                                       (find)
+import           Data.Maybe                                      (catMaybes)
+import qualified Data.Text                                       as T
+import           Data.Word                                       (Word16)
 
 
 --------------------------------------------------------------------------------
+import           Network.WebSockets.Extensions                   as Extensions
+import           Network.WebSockets.Extensions.PermessageDeflate
+import           Network.WebSockets.Extensions.StrictUnicode
 import           Network.WebSockets.Http
 import           Network.WebSockets.Protocol
-import           Network.WebSockets.Stream   (Stream)
-import qualified Network.WebSockets.Stream   as Stream
+import           Network.WebSockets.Stream                       (Stream)
+import qualified Network.WebSockets.Stream                       as Stream
 import           Network.WebSockets.Types
 
 
@@ -84,7 +99,7 @@ data AcceptRequest = AcceptRequest
     -- ^ The subprotocol to speak with the client.  If 'pendingSubprotcols' is
     -- non-empty, 'acceptSubprotocol' must be one of the subprotocols from the
     -- list.
-    , acceptHeaders :: !Headers
+    , acceptHeaders     :: !Headers
     -- ^ Extra headers to send with the response.
     }
 
@@ -116,12 +131,40 @@ acceptRequestWith pc ar = case find (flip compatible request) protocols of
         sendResponse pc $ response400 versionHeader ""
         throwIO NotSupported
     Just protocol -> do
+
+        -- Get requested list of exceptions from client.
+        rqExts <- either throwIO return $
+            getRequestSecWebSocketExtensions request
+
+        -- Set up permessage-deflate extension if configured.
+        pmdExt <- case connectionCompressionOptions (pendingOptions pc) of
+            NoCompression                     -> return Nothing
+            PermessageDeflateCompression pmd0 ->
+                case negotiateDeflate (Just pmd0) rqExts of
+                    Left err   -> do
+                        rejectRequestWith pc defaultRejectRequest {rejectMessage = B8.pack err}
+                        throwIO NotSupported
+                    Right pmd1 -> return (Just pmd1)
+
+        -- Set up strict utf8 extension if configured.
+        let unicodeExt =
+                if connectionStrictUnicode (pendingOptions pc)
+                    then Just strictUnicode else Nothing
+
+        -- Final extension list.
+        let exts = catMaybes [pmdExt, unicodeExt]
+
         let subproto = maybe [] (\p -> [("Sec-WebSocket-Protocol", p)]) $ acceptSubprotocol ar
-            headers = subproto ++ acceptHeaders ar
+            headers = subproto ++ acceptHeaders ar ++ concatMap extHeaders exts
             response = finishRequest protocol request headers
-        sendResponse pc response
-        parse <- decodeMessages protocol (pendingStream pc)
-        write <- encodeMessages protocol ServerConnection (pendingStream pc)
+
+        either throwIO (sendResponse pc) response
+
+        parseRaw <- decodeMessages protocol (pendingStream pc)
+        writeRaw <- encodeMessages protocol ServerConnection (pendingStream pc)
+
+        write <- foldM (\x ext -> extWrite ext x) writeRaw exts
+        parse <- foldM (\x ext -> extParse ext x) parseRaw exts
 
         sentRef    <- newIORef False
         let connection = Connection
@@ -147,13 +190,13 @@ acceptRequestWith pc ar = case find (flip compatible request) protocols of
 -- will not break when new fields are added.
 data RejectRequest = RejectRequest
     { -- | The status code, 400 by default.
-      rejectCode         :: !Int
+      rejectCode    :: !Int
     , -- | The message, "Bad Request" by default
-      rejectMessage      :: !B.ByteString
+      rejectMessage :: !B.ByteString
     , -- | Extra headers to be sent with the response.
-      rejectHeaders      :: Headers
+      rejectHeaders :: Headers
     , -- | Reponse body of the rejection.
-      rejectBody :: !B.ByteString
+      rejectBody    :: !B.ByteString
     }
 
 
@@ -209,17 +252,32 @@ data Connection = Connection
 --------------------------------------------------------------------------------
 -- | Set options for a 'Connection'.
 data ConnectionOptions = ConnectionOptions
-    { connectionOnPong :: !(IO ())
+    { connectionOnPong             :: !(IO ())
       -- ^ Whenever a 'pong' is received, this IO action is executed. It can be
       -- used to tickle connections or fire missiles.
+    , connectionCompressionOptions :: !CompressionOptions
+      -- ^ Enable 'PermessageDeflate'.
+    , connectionStrictUnicode      :: !Bool
+      -- ^ Enable strict unicode on the connection.  This means that if a client
+      -- (or server) sends invalid UTF-8, we will throw a 'UnicodeException'
+      -- rather than replacing it by the unicode replacement character U+FFFD.
     }
 
 
 --------------------------------------------------------------------------------
 defaultConnectionOptions :: ConnectionOptions
 defaultConnectionOptions = ConnectionOptions
-    { connectionOnPong = return ()
+    { connectionOnPong             = return ()
+    , connectionCompressionOptions = NoCompression
+    , connectionStrictUnicode      = False
     }
+
+
+--------------------------------------------------------------------------------
+data CompressionOptions
+    = NoCompression
+    | PermessageDeflateCompression PermessageDeflate
+    deriving (Eq, Show)
 
 
 --------------------------------------------------------------------------------
@@ -246,8 +304,8 @@ receiveDataMessage :: Connection -> IO DataMessage
 receiveDataMessage conn = do
     msg <- receive conn
     case msg of
-        DataMessage am    -> return am
-        ControlMessage cm -> case cm of
+        DataMessage _ _ _ am -> return am
+        ControlMessage cm    -> case cm of
             Close i closeMsg -> do
                 hasSentClose <- readIORef $ connectionSentClose conn
                 unless hasSentClose $ send conn msg
@@ -263,11 +321,7 @@ receiveDataMessage conn = do
 --------------------------------------------------------------------------------
 -- | Receive a message, converting it to whatever format is needed.
 receiveData :: WebSocketsData a => Connection -> IO a
-receiveData conn = do
-    dm <- receiveDataMessage conn
-    case dm of
-        Text x   -> return (fromLazyByteString x)
-        Binary x -> return (fromLazyByteString x)
+receiveData conn = fromDataMessage <$> receiveDataMessage conn
 
 
 --------------------------------------------------------------------------------
@@ -292,7 +346,7 @@ sendDataMessage conn = sendDataMessages conn . return
 --------------------------------------------------------------------------------
 -- | Send a collection of 'DataMessage's
 sendDataMessages :: Connection -> [DataMessage] -> IO ()
-sendDataMessages conn = sendAll conn . map DataMessage
+sendDataMessages conn = sendAll conn . map (DataMessage False False False)
 
 --------------------------------------------------------------------------------
 -- | Send a message as text
@@ -302,7 +356,9 @@ sendTextData conn = sendTextDatas conn . return
 --------------------------------------------------------------------------------
 -- | Send a collection of messages as text
 sendTextDatas :: WebSocketsData a => Connection -> [a] -> IO ()
-sendTextDatas conn = sendDataMessages conn . map (Text . toLazyByteString)
+sendTextDatas conn =
+    sendDataMessages conn .
+    map (\x -> Text (toLazyByteString x) Nothing)
 
 --------------------------------------------------------------------------------
 -- | Send a message as binary data

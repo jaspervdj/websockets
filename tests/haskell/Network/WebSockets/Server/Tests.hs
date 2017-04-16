@@ -160,6 +160,8 @@ withEchoServer host port expectedClose action = do
         error "Unexpected connection closed exception"
     handleClose _ (ParseException _) =
         error "Unexpected parse exception"
+    handleClose _ (UnicodeException _) =
+        error "Unexpected unicode exception"
 
 
 --------------------------------------------------------------------------------
@@ -172,3 +174,4 @@ expectCloseException conn msg = act `catch` handler
             msg' @=? msg
         handler ConnectionClosed = error "Unexpected connection closed"
         handler (ParseException _) = error "Unexpected parse exception"
+        handler (UnicodeException _) = error "Unexpected unicode exception"

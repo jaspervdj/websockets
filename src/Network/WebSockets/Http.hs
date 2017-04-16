@@ -26,24 +26,26 @@ module Network.WebSockets.Http
     , getResponseHeader
     , getRequestSecWebSocketVersion
     , getRequestSubprotocols
+    , getRequestSecWebSocketExtensions
     ) where
 
 
 --------------------------------------------------------------------------------
-import qualified Blaze.ByteString.Builder           as Builder
-import qualified Blaze.ByteString.Builder.Char.Utf8 as Builder
-import           Control.Applicative                (pure, (*>), (<$>), (<*),
-                                                     (<*>))
-import           Control.Exception                  (Exception, throw)
-import qualified Data.Attoparsec.ByteString         as A
-import           Data.ByteString                    (ByteString)
-import qualified Data.ByteString                    as B
-import           Data.ByteString.Char8              ()
-import qualified Data.ByteString.Char8              as BC
-import           Data.ByteString.Internal           (c2w)
-import qualified Data.CaseInsensitive               as CI
-import           Data.Dynamic                       (Typeable)
-import           Data.Monoid                        (mappend, mconcat)
+import qualified Blaze.ByteString.Builder                  as Builder
+import qualified Blaze.ByteString.Builder.Char.Utf8        as Builder
+import           Control.Applicative                       (pure, (*>), (<$>),
+                                                            (<*), (<*>))
+import           Control.Exception                         (Exception)
+import qualified Data.Attoparsec.ByteString                as A
+import           Data.ByteString                           (ByteString)
+import qualified Data.ByteString                           as B
+import           Data.ByteString.Char8                     ()
+import qualified Data.ByteString.Char8                     as BC
+import           Data.ByteString.Internal                  (c2w)
+import qualified Data.CaseInsensitive                      as CI
+import           Data.Dynamic                              (Typeable)
+import           Data.Monoid                               (mappend, mconcat)
+import qualified Network.WebSockets.Extensions.Description as Extensions
 
 
 --------------------------------------------------------------------------------
@@ -204,20 +206,20 @@ decodeResponse = Response <$> decodeResponseHead <*> A.takeByteString
 --------------------------------------------------------------------------------
 getRequestHeader :: RequestHead
                  -> CI.CI ByteString
-                 -> ByteString
+                 -> Either HandshakeException ByteString
 getRequestHeader rq key = case lookup key (requestHeaders rq) of
-    Just t  -> t
-    Nothing -> throw $ MalformedRequest rq $
+    Just t  -> Right t
+    Nothing -> Left $ MalformedRequest rq $
         "Header missing: " ++ BC.unpack (CI.original key)
 
 
 --------------------------------------------------------------------------------
 getResponseHeader :: ResponseHead
                   -> CI.CI ByteString
-                  -> ByteString
+                  -> Either HandshakeException ByteString
 getResponseHeader rsp key = case lookup key (responseHeaders rsp) of
-    Just t  -> t
-    Nothing -> throw $ MalformedResponse rsp $
+    Just t  -> Right t
+    Nothing -> Left $ MalformedResponse rsp $
         "Header missing: " ++ BC.unpack (CI.original key)
 
 
@@ -237,6 +239,19 @@ getRequestSubprotocols rh = maybe [] parse mproto
     where
         mproto = lookup "Sec-WebSocket-Protocol" $ requestHeaders rh
         parse = filter (not . B.null) . BC.splitWith (\o -> o == ',' || o == ' ')
+
+
+--------------------------------------------------------------------------------
+-- | Get the @Sec-WebSocket-Extensions@ header
+getRequestSecWebSocketExtensions
+    :: RequestHead -> Either HandshakeException Extensions.ExtensionDescriptions
+getRequestSecWebSocketExtensions rq =
+    case lookup "Sec-WebSocket-Extensions" (requestHeaders rq) of
+        Nothing -> Right []
+        Just ext -> case Extensions.parseExtensionDescriptions ext of
+            Right x  -> Right x
+            Left err -> Left $ MalformedRequest rq $
+                "Malformed Sec-WebSockets-Extensions: " ++ err
 
 
 --------------------------------------------------------------------------------

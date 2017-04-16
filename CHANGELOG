@@ -1,3 +1,9 @@
+- 0.11.0.0
+    * Faster masking (by Dmitry Ivanov)
+    * Support for IPv6 in the built-in server, client and tests (by agentm)
+    * Support for `permessage-deflate` extension (by Marcin Tolysz)
+    * Strict unicode checking and proper extension mechanism
+
 - 0.10.0.0
     * Fix client specifying empty path
     * Allow sending collections of messages (by David Turner)

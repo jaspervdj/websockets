@@ -1,5 +1,5 @@
 Name:    websockets
-Version: 0.10.0.0
+Version: 0.11.0.0
 
 Synopsis:
   A sensible and clean way to write WebSocket-capable servers in Haskell.
@@ -175,7 +175,7 @@ Executable websockets-autobahn
 
   Hs-source-dirs: tests/autobahn
   Main-is:        server.hs
-  Ghc-options:    -Wall -threaded -Werror -O2 -rtsopts "-with-rtsopts=-N"
+  Ghc-options:    -Wall -threaded -O2 -rtsopts "-with-rtsopts=-N"
 
   Build-depends:
     websockets,

@@ -37,11 +37,12 @@ Jeugt, who is also the current maintainer.
 Contributors:
 
 - Alex Lang
+- Carl Chatfield
 - Fedor Gogolev
+- Marcin Tolysz
 - Nathan Howell
 - Steffen Schuldenzucker
 - Yi Huang
-- Carl Chatfield
 
 Development
 -----------
@@ -51,6 +52,11 @@ Pull requests are always welcome!
 This library is production-quality. Therefore we have very high standards in
 terms of code style, API quality and testing.
 
-We have two kinds of tests: Haskell-based tests (`tests/haskell`), which use the
-`test-framework` library. Additionally, there are integration tests available
-in `tests/javascript`, which require a browser to run.
+We have three kinds of tests:
+
+- Haskell-based tests (`tests/haskell`), which use the `test-framework` library
+- Integration tests, available in `tests/javascript`. These require a browser to
+  run.
+- We also run the extensive [autobahn testsuite].
+
+[autobahn testsuite]: https://github.com/crossbario/autobahn-testsuite

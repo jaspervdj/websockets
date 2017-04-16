@@ -1,10 +1,11 @@
-function createWebSocket(path) {
-    var host = window.location.hostname;
-    if(host == '') host = 'localhost';
-    var uri = 'ws://' + host + ':9160' + path;
-
-    var Socket = "MozWebSocket" in window ? MozWebSocket : WebSocket;
-    return new Socket(uri);
+function createChatSocket() {
+    if(window.location.host == '') {
+        /* Running on localhost */
+        return new WebSocket('ws://localhost:9160/');
+    } else {
+        /* Running in "production" */
+        return new WebSocket('wss://jaspervdj.be/websockets/example/chat/');
+    }
 }
 
 var users = [];
@@ -40,7 +41,7 @@ $(document).ready(function () {
     $('#join-form').submit(function () {
         $('#warnings').html('');
         var user = $('#user').val();
-        var ws = createWebSocket('/');
+        var ws = createChatSocket();
 
         ws.onopen = function() {
             ws.send('Hi! I am ' + user);

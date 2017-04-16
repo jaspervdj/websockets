@@ -7,38 +7,17 @@ module Main where
 
 
 --------------------------------------------------------------------------------
-import           Control.Exception      (SomeException, handle)
 import           Hakyll
-import           System.Posix.Directory (changeWorkingDirectory)
-import           System.Posix.Files     (createSymbolicLink)
-import           System.Process         (rawSystem)
-
-
---------------------------------------------------------------------------------
-createSymbolicLink' :: FilePath -> FilePath -> IO ()
-createSymbolicLink' dst src = handle handler $ createSymbolicLink dst src
-  where
-    handler :: SomeException -> IO ()
-    handler _ = putStrLn $ "Could not link " ++ src ++ " -> " ++ dst ++
-        ", perhaps link already exists?"
-
-
---------------------------------------------------------------------------------
-makeLinks :: IO ()
-makeLinks = do
-    createSymbolicLink' "../README"                   "README.markdown"
-    createSymbolicLink' "../example/server.lhs"       "example.lhs"
-    createSymbolicLink' "../dist/doc/html/websockets" "reference"
+import           System.FilePath   (joinPath, splitFileName, splitPath, (</>))
+import           System.Process    (rawSystem)
 
 
 --------------------------------------------------------------------------------
 makeHaddock :: IO ()
 makeHaddock = do
     putStrLn "Generating documentation..."
-    changeWorkingDirectory ".."
     sh "cabal" ["configure"]
     sh "cabal" ["haddock", "--hyperlink-source"]
-    changeWorkingDirectory "web"
   where
     -- Ignore exit code
     sh c as = rawSystem c as >>= \_ -> return ()
@@ -47,38 +26,54 @@ makeHaddock = do
 --------------------------------------------------------------------------------
 pageCompiler :: Compiler (Item String)
 pageCompiler =
-    pandocCompiler                                               >>=
-    loadAndApplyTemplate "templates/default.html" defaultContext >>=
+    pandocCompiler                                                   >>=
+    loadAndApplyTemplate "web/templates/default.html" defaultContext >>=
     relativizeUrls
 
 
 --------------------------------------------------------------------------------
 main :: IO ()
 main = hakyllWith config $ do
-    preprocess $ do
-        makeLinks
-        makeHaddock
+    preprocess $ makeHaddock
 
-    match "README.markdown" $ do
-        route $ customRoute $ \_ -> "index.html"
-        compile pageCompiler
+    match "README.md" $ do
+        route $ constRoute "index.html"
+        compile $ pageCompiler >>= relativizeUrls
 
-    match "example.lhs" $ do
-        route $ setExtension "html"
-        compile pageCompiler
+    match "example/server.lhs" $ do
+        route $ setExtension ".html"
+        compile $ pageCompiler >>= relativizeUrls
 
-    match "reference/*" $ do
-        route idRoute
+    match (fromList
+            [ "example/client.html"
+            , "example/client.js"
+            , "example/screen.css"
+            ]) $ do
+        route $ idRoute
         compile copyFileCompiler
 
-    match "css/*" $ do
-        route idRoute
+    match "dist/doc/html/websockets/*" $ do
+        route $ customRoute $ \ident ->
+            let (_dir, file) = splitFileName (toFilePath ident) in
+            "reference" </> file
+        compile copyFileCompiler
+
+    match "web/css/*" $ do
+        route dropWebRoute
         compile compressCssCompiler
 
-    match "templates/*" $
+    match "web/templates/*" $
         compile templateCompiler
   where
     config = defaultConfiguration
         { deployCommand = "rsync --checksum -ave 'ssh -p 2222' _site/* \
                           \jaspervdj@jaspervdj.be:jaspervdj.be/websockets"
         }
+
+-- | Drop the `web/` part from a route.
+dropWebRoute :: Routes
+dropWebRoute = customRoute $ \ident ->
+    let path0 = toFilePath ident in
+    case splitPath path0 of
+        "web/" : path1 -> joinPath path1
+        _              -> path0

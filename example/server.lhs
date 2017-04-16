@@ -3,9 +3,8 @@ websockets example
 
 This is the Haskell implementation of the example for the WebSockets library. We
 implement a simple multi-user chat program. A live demo of the example is
-available [here](http://jaspervdj.be/websockets-example). In order to understand
-this example, keep the [reference](http://jaspervdj.be/websockets/reference)
-nearby to check out the functions we use.
+available [here](/example/client.html).  In order to understand this example,
+keep the [reference](/reference/) nearby to check out the functions we use.
 
 > {-# LANGUAGE OverloadedStrings #-}
 > module Main where
@@ -71,7 +70,7 @@ actual server. For this purpose, we use the simple server provided by
 > main :: IO ()
 > main = do
 >     state <- newMVar newServerState
->     WS.runServer "0.0.0.0" 9160 $ application state
+>     WS.runServer "127.0.0.1" 9160 $ application state
 
 Our main application has the type:
 

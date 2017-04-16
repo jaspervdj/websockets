@@ -8,16 +8,13 @@ module Main
 
 
 --------------------------------------------------------------------------------
+import           Control.Exception          (catch)
 import           Control.Monad              (forM_, forever, void)
 import           Control.Monad.Trans        (liftIO)
-import           Control.Exception          (catch)
 import           Data.ByteString            (ByteString)
 import           Data.ByteString.Lazy.Char8 ()
 import           Data.Text                  (Text)
 import qualified Data.Text.Lazy             as TL
-
-
---------------------------------------------------------------------------------
 import qualified Network.WebSockets         as WS
 
 
@@ -80,7 +77,8 @@ application pc = do
     -- When a client succesfully connects, lookup the requested test and
     -- run it
     conn <- case name of
-        "/subprotocol" -> WS.acceptRequestWith pc $ WS.AcceptRequest $ Just "abc"
+        "/subprotocol" -> WS.acceptRequestWith pc $ WS.defaultAcceptRequest
+            {WS.acceptSubprotocol =  Just "abc"}
         _ -> WS.acceptRequest pc
     -- version'' <- WS.getVersion
     liftIO $ putStrLn $ "==================================="
@@ -99,6 +97,8 @@ application pc = do
         putStrLn "Unexpected connection closed exception"
     handleClose (WS.ParseException e) =
         putStrLn $ "Recevied parse exception: " ++ show e
+    handleClose (WS.UnicodeException e) =
+        putStrLn $ "Recevied unicode exception: " ++ show e
 
 
 --------------------------------------------------------------------------------
@@ -107,5 +107,3 @@ main :: IO ()
 main = WS.runServerWith "0.0.0.0" 8000 options application
   where
     options = WS.defaultConnectionOptions
-        { WS.connectionPingInterval = 2
-        }

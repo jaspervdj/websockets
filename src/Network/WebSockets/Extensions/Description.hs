@@ -10,10 +10,12 @@ module Network.WebSockets.Extensions.Description
     , encodeExtensionDescriptions
     ) where
 
+import           Control.Applicative              ((*>), (<*))
 import qualified Data.Attoparsec.ByteString       as A
 import qualified Data.Attoparsec.ByteString.Char8 as AC8
 import qualified Data.ByteString                  as B
-import           Data.Monoid                      ((<>))
+import           Data.Monoid                      (mconcat, (<>))
+import           Prelude
 
 type ExtensionParam = (B.ByteString, Maybe B.ByteString)
 

@@ -42,6 +42,7 @@ module Network.WebSockets.Connection
 
 --------------------------------------------------------------------------------
 import qualified Blaze.ByteString.Builder                        as Builder
+import           Control.Applicative                             ((<$>))
 import           Control.Concurrent                              (forkIO,
                                                                   threadDelay)
 import           Control.Exception                               (AsyncException,
@@ -60,6 +61,7 @@ import           Data.List                                       (find)
 import           Data.Maybe                                      (catMaybes)
 import qualified Data.Text                                       as T
 import           Data.Word                                       (Word16)
+import           Prelude
 
 
 --------------------------------------------------------------------------------

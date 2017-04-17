@@ -11,6 +11,7 @@ module Network.WebSockets.Extensions.PermessageDeflate
 
 
 --------------------------------------------------------------------------------
+import           Control.Applicative                       ((<$>))
 import           Control.Exception                         (throwIO)
 import           Control.Monad                             (foldM)
 import qualified Data.ByteString                           as B
@@ -25,6 +26,8 @@ import           Network.WebSockets.Extensions.Description
 import           Network.WebSockets.Http
 import           Network.WebSockets.Types
 import           Text.Read                                 (readMaybe)
+import           Prelude
+
 
 --------------------------------------------------------------------------------
 -- | Four extension parameters are defined for "permessage-deflate" to

@@ -2,3 +2,33 @@ resolver: lts-7.14
 flags:
   websockets:
     example: true
+
+# For building with an old GHC
+# resolver: ghc-7.8
+# extra-deps:
+# - 'SHA-1.6.4.2'
+# - 'async-2.1.1'
+# - 'attoparsec-0.13.1.0'
+# - 'base64-bytestring-1.0.0.1'
+# - 'blaze-builder-0.4.0.2'
+# - 'bytestring-builder-0.10.8.1.0'
+# - 'case-insensitive-1.2.0.8'
+# - 'entropy-0.3.7'
+# - 'fail-4.9.0.0'
+# - 'hashable-1.2.6.0'
+# - 'integer-logarithms-1.0.1'
+# - 'nats-1.1.1'
+# - 'network-2.6.3.1'
+# - 'primitive-0.6.2.0'
+# - 'random-1.1'
+# - 'scientific-0.3.4.11'
+# - 'semigroups-0.18.3'
+# - 'stm-2.4.4.1'
+# - 'streaming-commons-0.1.17'
+# - 'tagged-0.8.5'
+# - 'text-1.2.2.1'
+# - 'transformers-compat-0.5.1.4'
+# - 'transformers-0.5.4.0'
+# - 'unordered-containers-0.2.8.0'
+# - 'vector-0.12.0.1'
+# - 'zlib-0.6.1.2'

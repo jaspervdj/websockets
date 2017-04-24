@@ -57,6 +57,15 @@ data ControlMessage
 -- | For an end-user of this library, dealing with 'Frame's would be a bit
 -- low-level. This is why define another type on top of it, which represents
 -- data for the application layer.
+--
+-- There are currently two kinds of data messages supported by the WebSockets
+-- protocol:
+--
+-- * Textual UTF-8 encoded data.  This corresponds roughly to sending a String
+-- in JavaScript.
+--
+-- * Binary data.  This corresponds roughly to send an ArrayBuffer in
+-- JavaScript.
 data DataMessage
     -- | A textual message.  The second field /might/ contain the decoded UTF-8
     -- text for caching reasons.  This field is computed lazily so if it's not

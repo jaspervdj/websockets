@@ -37,9 +37,16 @@ type ServerApp = PendingConnection -> IO ()
 
 
 --------------------------------------------------------------------------------
--- | Provides a simple server. This function blocks forever. Note that this
--- is merely provided for quick-and-dirty standalone applications, for real
+-- | Provides a simple server. This function blocks forever.  Note that this
+-- is merely provided for quick-and-dirty or internal applications, but for real
 -- applications, you should use a real server.
+--
+-- For example:
+--
+-- * Performance is reasonable under load, but:
+-- * No protection against DoS attacks is provided.
+-- * No logging is performed.
+-- * ...
 --
 -- Glue for using this package with real servers is provided by:
 --

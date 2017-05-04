@@ -51,6 +51,7 @@ Flag Example
 Library
   Hs-source-dirs: src
   Ghc-options:    -Wall
+  C-sources:      cbits/cbits.c
 
   Exposed-modules:
     Network.WebSockets
@@ -93,6 +94,7 @@ Test-suite websockets-tests
   Hs-source-dirs: src tests/haskell
   Main-is:        TestSuite.hs
   Ghc-options:    -Wall
+  C-sources:      cbits/cbits.c
 
   Other-modules:
     Network.WebSockets

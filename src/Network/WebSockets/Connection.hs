@@ -267,6 +267,11 @@ data ConnectionOptions = ConnectionOptions
 
 
 --------------------------------------------------------------------------------
+-- | The default connection options:
+--
+-- * Nothing happens when a pong is received.
+-- * Compression is disabled.
+-- * Lenient unicode decoding.
 defaultConnectionOptions :: ConnectionOptions
 defaultConnectionOptions = ConnectionOptions
     { connectionOnPong             = return ()
@@ -341,34 +346,41 @@ sendAll conn msgs = do
     isCloseMessage _                            = False
 
 --------------------------------------------------------------------------------
--- | Send a 'DataMessage'
+-- | Send a 'DataMessage'.  This allows you send both human-readable text and
+-- binary data.  This is a slightly more low-level interface than 'sendTextData'
+-- or 'sendBinaryData'.
 sendDataMessage :: Connection -> DataMessage -> IO ()
 sendDataMessage conn = sendDataMessages conn . return
 
 --------------------------------------------------------------------------------
--- | Send a collection of 'DataMessage's
+-- | Send a collection of 'DataMessage's.  This is more efficient than calling
+-- 'sendDataMessage' many times.
 sendDataMessages :: Connection -> [DataMessage] -> IO ()
 sendDataMessages conn = sendAll conn . map (DataMessage False False False)
 
 --------------------------------------------------------------------------------
--- | Send a message as text
+-- | Send a textual message.  The message will be encoded as UTF-8.  This should
+-- be the default choice for human-readable text-based protocols such as JSON.
 sendTextData :: WebSocketsData a => Connection -> a -> IO ()
 sendTextData conn = sendTextDatas conn . return
 
 --------------------------------------------------------------------------------
--- | Send a collection of messages as text
+-- | Send a number of textual messages.  This is more efficient than calling
+-- 'sendTextData' many times.
 sendTextDatas :: WebSocketsData a => Connection -> [a] -> IO ()
 sendTextDatas conn =
     sendDataMessages conn .
     map (\x -> Text (toLazyByteString x) Nothing)
 
 --------------------------------------------------------------------------------
--- | Send a message as binary data
+-- | Send a binary message.  This is useful for sending binary blobs, e.g.
+-- images, data encoded with MessagePack, images...
 sendBinaryData :: WebSocketsData a => Connection -> a -> IO ()
 sendBinaryData conn = sendBinaryDatas conn . return
 
 --------------------------------------------------------------------------------
--- | Send a collection of messages as binary data
+-- | Send a number of binary messages.  This is more efficient than calling
+-- 'sendBinaryData' many times.
 sendBinaryDatas :: WebSocketsData a => Connection -> [a] -> IO ()
 sendBinaryDatas conn = sendDataMessages conn . map (Binary . toLazyByteString)
 
@@ -404,6 +416,10 @@ sendPing conn = send conn . ControlMessage . Ping . toLazyByteString
 --------------------------------------------------------------------------------
 -- | Forks a ping thread, sending a ping message every @n@ seconds over the
 -- connection. The thread dies silently if the connection crashes or is closed.
+--
+-- This is useful to keep idle connections open through proxies and whatnot.
+-- Many (but not all) proxies have a 60 second default timeout, so based on that
+-- sending a ping every 30 seconds is a good idea.
 forkPingThread :: Connection -> Int -> IO ()
 forkPingThread conn n
     | n <= 0    = return ()

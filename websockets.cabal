@@ -199,6 +199,7 @@ Executable websockets-autobahn
 Benchmark bench-mask
     type:       exitcode-stdio-1.0
     main-is:    mask.hs
+    C-sources:      cbits/cbits.c
     hs-source-dirs: benchmarks, src
     build-depends:
         base,

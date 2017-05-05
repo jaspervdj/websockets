@@ -22,7 +22,7 @@ import           Control.Monad                         (forM, liftM, when)
 import           Data.Binary.Get                       (getWord16be,
                                                         getInt64be,
                                                         Get, getLazyByteString,
-                                                        getWord8, getByteString)
+                                                        getWord8, getWord32host)
 import           Data.Binary.Put                       (putWord16be, runPut)
 import           Data.Bits                             ((.&.), (.|.))
 import           Data.ByteString                       (ByteString)
@@ -136,7 +136,7 @@ encodeFrame mask f = B.fromWord8 byte0 `mappend`
 
     (maskflag, maskbytes) = case mask of
         Nothing -> (0x00, mempty)
-        Just m  -> (0x80, B.fromByteString m)
+        Just m  -> (0x80, B.fromStorable m)
 
     byte1 = maskflag .|. lenflag
     len'  = BL.length (framePayload f)
@@ -196,7 +196,7 @@ parseFrame = do
         127 -> getInt64be
         _   -> return (fromIntegral lenflag)
 
-    masker <- maskPayload <$> if mask then Just <$> getByteString 4 else pure Nothing
+    masker <- maskPayload <$> if mask then Just <$> getWord32host else pure Nothing
 
     chunks <- getLazyByteString len
 

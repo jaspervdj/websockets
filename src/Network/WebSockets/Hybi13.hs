@@ -19,9 +19,10 @@ import qualified Blaze.ByteString.Builder              as B
 import           Control.Applicative                   (pure, (<$>))
 import           Control.Exception                     (throwIO)
 import           Control.Monad                         (forM, liftM, when)
-import qualified Data.Attoparsec.ByteString            as A
 import           Data.Binary.Get                       (getWord16be,
-                                                        getWord64be, runGet)
+                                                        getInt64be,
+                                                        Get, getLazyByteString,
+                                                        getWord8, getByteString)
 import           Data.Binary.Put                       (putWord16be, runPut)
 import           Data.Bits                             ((.&.), (.|.))
 import           Data.ByteString                       (ByteString)
@@ -29,7 +30,6 @@ import qualified Data.ByteString.Base64                as B64
 import           Data.ByteString.Char8                 ()
 import qualified Data.ByteString.Lazy                  as BL
 import           Data.Digest.Pure.SHA                  (bytestringDigest, sha1)
-import           Data.Int                              (Int64)
 import           Data.IORef
 import           Data.Monoid                           (mappend, mconcat,
                                                         mempty)
@@ -155,7 +155,7 @@ decodeMessages stream = do
     return $ go dmRef
   where
     go dmRef = do
-        mbFrame <- Stream.parse stream parseFrame
+        mbFrame <- Stream.parseBin stream parseFrame
         case mbFrame of
             Nothing    -> return Nothing
             Just frame -> do
@@ -169,9 +169,9 @@ decodeMessages stream = do
 
 --------------------------------------------------------------------------------
 -- | Parse a frame
-parseFrame :: A.Parser Frame
+parseFrame :: Get Frame
 parseFrame = do
-    byte0 <- A.anyWord8
+    byte0 <- getWord8
     let fin    = byte0 .&. 0x80 == 0x80
         rsv1   = byte0 .&. 0x40 == 0x40
         rsv2   = byte0 .&. 0x20 == 0x20
@@ -187,34 +187,20 @@ parseFrame = do
             0x0a -> return PongFrame
             _    -> fail $ "Unknown opcode: " ++ show opcode
 
-    byte1 <- A.anyWord8
+    byte1 <- getWord8
     let mask = byte1 .&. 0x80 == 0x80
-        lenflag = fromIntegral (byte1 .&. 0x7f)
+        lenflag = byte1 .&. 0x7f
 
     len <- case lenflag of
-        126 -> fromIntegral . runGet' getWord16be <$> A.take 2
-        127 -> fromIntegral . runGet' getWord64be <$> A.take 8
-        _   -> return lenflag
+        126 -> fromIntegral <$> getWord16be
+        127 -> getInt64be
+        _   -> return (fromIntegral lenflag)
 
-    masker <- maskPayload <$> if mask then Just <$> A.take 4 else pure Nothing
+    masker <- maskPayload <$> if mask then Just <$> getByteString 4 else pure Nothing
 
-    chunks <- take64 len
+    chunks <- getLazyByteString len
 
-    return $ Frame fin rsv1 rsv2 rsv3 ft (masker $ BL.fromChunks chunks)
-  where
-    runGet' g = runGet g . BL.fromChunks . return
-
-    take64 :: Int64 -> A.Parser [ByteString]
-    take64 n
-        | n <= 0    = return []
-        | otherwise = do
-            let n' = min intMax n
-            chunk <- A.take (fromIntegral n')
-            (chunk :) <$> take64 (n - n')
-      where
-        intMax :: Int64
-        intMax = fromIntegral (maxBound :: Int)
-
+    return $ Frame fin rsv1 rsv2 rsv3 ft (masker chunks)
 
 --------------------------------------------------------------------------------
 hashKey :: ByteString -> ByteString

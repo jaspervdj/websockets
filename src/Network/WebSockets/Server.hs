@@ -95,7 +95,7 @@ makeListenSocket host port = do
         return sock
         )
   where
-    hints = S.defaultHints { S.addrSocketType = S.Stream }  
+    hints = S.defaultHints { S.addrSocketType = S.Stream }
 
 
 --------------------------------------------------------------------------------

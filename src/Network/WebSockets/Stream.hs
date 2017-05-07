@@ -104,7 +104,7 @@ makeSocketStream :: S.Socket -> IO Stream
 makeSocketStream socket = makeStream receive send
   where
     receive = do
-        bs <- SB.recv socket 1024
+        bs <- SB.recv socket 8192
         return $ if B.null bs then Nothing else Just bs
 
     send Nothing   = return ()

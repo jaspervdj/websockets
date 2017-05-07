@@ -49,7 +49,7 @@ void _hs_mask_chunk(
 
     /* This is the slow path which also handles the un-aligned suffix. */
     while (p != payload_end) {
-        *target = *p ^ (uint8_t)(((uint8_t *)&mask)[mask_shift % 4]);
+        *target = *p ^ (((uint8_t *)&mask)[mask_shift % 4]);
         p++;target++;
         mask_shift++;
     }

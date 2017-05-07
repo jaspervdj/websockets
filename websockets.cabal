@@ -111,6 +111,7 @@ Test-suite websockets-tests
     Network.WebSockets.Hybi13
     Network.WebSockets.Hybi13.Demultiplex
     Network.WebSockets.Hybi13.Mask
+    Network.WebSockets.Mask.Tests
     Network.WebSockets.Protocol
     Network.WebSockets.Server
     Network.WebSockets.Server.Tests
@@ -206,3 +207,4 @@ Benchmark bench-mask
         bytestring,
         criterion,
         random
+    other-modules:  Network.WebSockets.Hybi13.Mask

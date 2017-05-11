@@ -51,6 +51,7 @@ Flag Example
 Library
   Hs-source-dirs: src
   Ghc-options:    -Wall
+  C-sources:      cbits/cbits.c
 
   Exposed-modules:
     Network.WebSockets
@@ -93,6 +94,7 @@ Test-suite websockets-tests
   Hs-source-dirs: src tests/haskell
   Main-is:        TestSuite.hs
   Ghc-options:    -Wall
+  C-sources:      cbits/cbits.c
 
   Other-modules:
     Network.WebSockets
@@ -109,6 +111,7 @@ Test-suite websockets-tests
     Network.WebSockets.Hybi13
     Network.WebSockets.Hybi13.Demultiplex
     Network.WebSockets.Hybi13.Mask
+    Network.WebSockets.Mask.Tests
     Network.WebSockets.Protocol
     Network.WebSockets.Server
     Network.WebSockets.Server.Tests
@@ -197,9 +200,11 @@ Executable websockets-autobahn
 Benchmark bench-mask
     type:       exitcode-stdio-1.0
     main-is:    mask.hs
+    C-sources:      cbits/cbits.c
     hs-source-dirs: benchmarks, src
     build-depends:
         base,
         bytestring,
         criterion,
         random
+    other-modules:  Network.WebSockets.Hybi13.Mask

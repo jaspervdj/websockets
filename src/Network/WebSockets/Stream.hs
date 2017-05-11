@@ -7,10 +7,12 @@ module Network.WebSockets.Stream
     , makeSocketStream
     , makeEchoStream
     , parse
+    , parseBin
     , write
     , close
     ) where
 
+import qualified Data.Binary.Get                as BIN
 import           Control.Concurrent.MVar        (MVar, newEmptyMVar, newMVar,
                                                  putMVar, takeMVar, withMVar)
 import           Control.Exception              (onException, throwIO)
@@ -102,7 +104,7 @@ makeSocketStream :: S.Socket -> IO Stream
 makeSocketStream socket = makeStream receive send
   where
     receive = do
-        bs <- SB.recv socket 1024
+        bs <- SB.recv socket 8192
         return $ if B.null bs then Nothing else Just bs
 
     send Nothing   = return ()
@@ -124,6 +126,38 @@ makeEchoStream = do
 
 
 --------------------------------------------------------------------------------
+parseBin :: Stream -> BIN.Get a -> IO (Maybe a)
+parseBin stream parser = do
+    state <- readIORef (streamState stream)
+    case state of
+        Closed remainder
+            | B.null remainder -> return Nothing
+            | otherwise        -> go (BIN.runGetIncremental parser `BIN.pushChunk` remainder) True
+        Open buffer
+            | B.null buffer -> do
+                mbBs <- streamIn stream
+                case mbBs of
+                    Nothing -> do
+                        writeIORef (streamState stream) (Closed B.empty)
+                        return Nothing
+                    Just bs -> go (BIN.runGetIncremental parser `BIN.pushChunk` bs) False
+            | otherwise     -> go (BIN.runGetIncremental parser `BIN.pushChunk` buffer) False
+  where
+    -- Buffer is empty when entering this function.
+    go (BIN.Done remainder _ x) closed = do
+        writeIORef (streamState stream) $
+            if closed then Closed remainder else Open remainder
+        return (Just x)
+    go (BIN.Partial f) closed
+        | closed    = go (f Nothing) True
+        | otherwise = do
+            mbBs <- streamIn stream
+            case mbBs of
+                Nothing -> go (f Nothing) True
+                Just bs -> go (f (Just bs)) False
+    go (BIN.Fail _ _ err) _ = throwIO (ParseException err)
+
+
 parse :: Stream -> Atto.Parser a -> IO (Maybe a)
 parse stream parser = do
     state <- readIORef (streamState stream)

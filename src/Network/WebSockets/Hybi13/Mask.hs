@@ -12,19 +12,21 @@ module Network.WebSockets.Hybi13.Mask
 
 
 --------------------------------------------------------------------------------
-import qualified Data.ByteString.Lazy as BL
-import           Data.Word            (Word32, Word8)
-import           Foreign.C.Types      (CChar (..), CInt (..), CSize (..))
-import           Foreign.Ptr          (Ptr, plusPtr)
-import           System.Random        (RandomGen, random)
-import           Data.ByteString.Lazy.Internal as BL
-import           Data.ByteString.Internal as BS
-import           Foreign.ForeignPtr (withForeignPtr)
+import qualified Data.ByteString.Internal      as B
+import qualified Data.ByteString.Lazy          as BL
+import qualified Data.ByteString.Lazy.Internal as BL
+import           Data.Word                     (Word32, Word8)
+import           Foreign.C.Types               (CChar (..), CInt (..),
+                                                CSize (..))
+import           Foreign.ForeignPtr            (withForeignPtr)
+import           Foreign.Ptr                   (Ptr, plusPtr)
+import           System.Random                 (RandomGen, random)
 
 
 --------------------------------------------------------------------------------
 foreign import ccall unsafe "_hs_mask_chunk" c_mask_chunk
     :: Word32 -> CInt -> Ptr CChar -> CSize -> Ptr Word8 -> IO ()
+
 
 --------------------------------------------------------------------------------
 -- | ByteString should be exactly 4 bytes long
@@ -40,17 +42,21 @@ randomMask gen = (Just int, gen')
 
 
 --------------------------------------------------------------------------------
--- | This is very dangerous because it modifies the contents of the original
--- bytestring rather than returning a new one.  Use at your own risk.
+-- | Mask a lazy bytestring.  Uses 'c_mask_chunk' under the hood.
 maskPayload :: Mask -> BL.ByteString -> BL.ByteString
-maskPayload Nothing                   = id
-maskPayload (Just 0) = id
+maskPayload Nothing     = id
+maskPayload (Just 0)    = id
 maskPayload (Just mask) = go 0
   where
-    go _ Empty = Empty
-    go n (Chunk (BS.PS payload off len) rest) =
-        Chunk c1 (go (n + len) rest)
+    go _          BL.Empty                               = BL.Empty
+    go !maskShift (BL.Chunk (B.PS payload off len) rest) =
+        BL.Chunk maskedChunk (go ((maskShift + len) `rem` 4) rest)
       where
-        c1 = unsafeCreate len $ \tgt ->
-              withForeignPtr payload $ \ptr ->
-                  c_mask_chunk mask (fromIntegral $ n `rem` 4) (ptr `plusPtr` off) (fromIntegral len) tgt
+        maskedChunk =
+            B.unsafeCreate len $ \dst ->
+            withForeignPtr payload $ \src ->
+                c_mask_chunk mask
+                    (fromIntegral maskShift)
+                    (src `plusPtr` off)
+                    (fromIntegral len)
+                    dst

@@ -3,6 +3,7 @@
 
 import Criterion
 import Criterion.Main
+import qualified Data.Binary.Get as Get
 
 import Network.WebSockets.Hybi13.Mask
 
@@ -28,42 +29,44 @@ main = defaultMain [
     env setupEnv $ \ ~(kilo, mega, megaU, megaS) -> bgroup "main"
         [ bgroup "kilobyte payload"
             [ bgroup "zero_mask"
-                [ bench "current" $ nf (maskPayload (Just 0)) kilo
+                [ bench "current" $ nf (maskPayload (mkMask $ "\x00\x00\x00\x00")) kilo
                 , bench "old" $ nf (maskPayload' (Just "\x00\x00\x00\x00")) kilo
                 ]
             ,  bgroup "full_mask"
-                [ bench "current" $ nf (maskPayload (Just 0xffffffff)) kilo
-                , bench "current-unaligned" $ nf (maskPayload (Just 0xffffffff)) (BL.drop 1 kilo)
+                [ bench "current" $ nf (maskPayload (mkMask "\xFF\xFF\xFF\xFF")) kilo
+                , bench "current-unaligned" $ nf (maskPayload (mkMask "\xFF\xFF\xFF\xFF")) (BL.drop 1 kilo)
                 , bench "old" $ nf (maskPayload' (Just "\xFF\xFF\xFF\xFF")) kilo
                 ]
             ,  bgroup "one_byte_mask"
-                [ bench "current" $ nf (maskPayload (Just 0xcccccccc)) kilo
+                [ bench "current" $ nf (maskPayload (mkMask "\xCC\xCC\xCC\xCC")) kilo
                 , bench "old" $ nf (maskPayload' (Just "\xCC\xCC\xCC\xCC")) kilo
                 ]
             ,  bgroup "other_mask"
-                [ bench "current" $ nf (maskPayload (Just 0xa2b0a2b0)) kilo
+                [ bench "current" $ nf (maskPayload (mkMask "\xB0\xA2\xB0\xA2")) kilo
                 , bench "old" $ nf (maskPayload' (Just "\xB0\xA2\xB0\xA2")) kilo
                 ]
             ]
         , bgroup "megabyte payload"
             [ bgroup "zero_mask"
-                [ bench "current" $ nf (maskPayload (Just 0)) mega
+                [ bench "current" $ nf (maskPayload (mkMask "\x00\x00\x00\x00")) mega
                 , bench "old" $ nf (maskPayload' (Just "\x00\x00\x00\x00")) mega
                 ]
             ,  bgroup "full_mask"
-                [ bench "current" $ nf (maskPayload (Just 0xffffffff)) mega
-                , bench "current-unaligned" $ nf (maskPayload (Just 0xffffffff)) megaU
-                , bench "current-aligned" $ nf (maskPayload (Just 0xffffffff)) megaS
+                [ bench "current" $ nf (maskPayload (mkMask "\xFF\xFF\xFF\xFF")) mega
+                , bench "current-unaligned" $ nf (maskPayload (mkMask "\xFF\xFF\xFF\xFF")) megaU
+                , bench "current-aligned" $ nf (maskPayload (mkMask "\xFF\xFF\xFF\xFF")) megaS
                 , bench "old" $ nf (maskPayload' (Just "\xFF\xFF\xFF\xFF")) mega
                 ]
             ,  bgroup "one_byte_mask"
-                [ bench "current" $ nf (maskPayload (Just 0xcccccccc)) mega
+                [ bench "current" $ nf (maskPayload (mkMask "\xCC\xCC\xCC\xCC")) mega
                 , bench "old" $ nf (maskPayload' (Just "\xCC\xCC\xCC\xCC")) mega
                 ]
             ,  bgroup "other_mask"
-                [ bench "current" $ nf (maskPayload (Just 0xa2b0a2b0)) mega
+                [ bench "current" $ nf (maskPayload (mkMask "\xB0\xA2\xB0\xA2")) mega
                 , bench "old" $ nf (maskPayload' (Just "\xB0\xA2\xB0\xA2")) mega
                 ]
             ]
         ]
     ]
+  where
+    mkMask b = Just $ Get.runGet parseMask b

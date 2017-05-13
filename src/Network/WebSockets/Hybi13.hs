@@ -17,12 +17,12 @@ module Network.WebSockets.Hybi13
 --------------------------------------------------------------------------------
 import qualified Blaze.ByteString.Builder              as B
 import           Control.Applicative                   (pure, (<$>))
+import           Control.Arrow                         (first)
 import           Control.Exception                     (throwIO)
 import           Control.Monad                         (forM, liftM, when)
-import           Data.Binary.Get                       (getWord16be,
-                                                        getInt64be,
-                                                        Get, getLazyByteString,
-                                                        getWord8, getWord32host)
+import           Data.Binary.Get                       (Get, getInt64be,
+                                                        getLazyByteString,
+                                                        getWord16be, getWord8)
 import           Data.Binary.Put                       (putWord16be, runPut)
 import           Data.Bits                             ((.&.), (.|.))
 import           Data.ByteString                       (ByteString)
@@ -93,7 +93,7 @@ encodeMessage conType gen msg = (gen', builder)
     mkFrame      = Frame True False False False
     (mask, gen') = case conType of
         ServerConnection -> (Nothing, gen)
-        ClientConnection -> randomMask gen
+        ClientConnection -> first Just (randomMask gen)
     builder      = encodeFrame mask $ case msg of
         (ControlMessage (Close code pl)) -> mkFrame CloseFrame $
             runPut (putWord16be code) `mappend` pl
@@ -115,8 +115,9 @@ encodeMessages conType stream = do
           atomicModifyIORef genRef $ \s -> encodeMessage conType s msg
         Stream.write stream (B.toLazyByteString $ mconcat builders)
 
+
 --------------------------------------------------------------------------------
-encodeFrame :: Mask -> Frame -> B.Builder
+encodeFrame :: Maybe Mask -> Frame -> B.Builder
 encodeFrame mask f = B.fromWord8 byte0 `mappend`
     B.fromWord8 byte1 `mappend` len `mappend` maskbytes `mappend`
     B.fromLazyByteString (maskPayload mask (framePayload f))
@@ -136,7 +137,7 @@ encodeFrame mask f = B.fromWord8 byte0 `mappend`
 
     (maskflag, maskbytes) = case mask of
         Nothing -> (0x00, mempty)
-        Just m  -> (0x80, B.fromStorable m)
+        Just m  -> (0x80, encodeMask m)
 
     byte1 = maskflag .|. lenflag
     len'  = BL.length (framePayload f)
@@ -196,7 +197,7 @@ parseFrame = do
         127 -> getInt64be
         _   -> return (fromIntegral lenflag)
 
-    masker <- maskPayload <$> if mask then Just <$> getWord32host else pure Nothing
+    masker <- maskPayload <$> if mask then Just <$> parseMask else pure Nothing
 
     chunks <- getLazyByteString len
 

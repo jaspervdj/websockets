@@ -13,15 +13,17 @@ static inline uint32_t rotr32(uint32_t n, unsigned int c) {
     return (n>>c) | (n<<( (-c)&mask ));
 }
 
-/* - `mask is the 4-byte mask to apply to the source.
- * - `mask_shift` is the initial shift of the mask.  It is specified in bytes.
- *   This is necessary for when we are dealing with multiple chunks.
+/* - `mask` is the 4-byte mask to apply to the source.  It is stored in the
+ *   hosts' native byte ordering.
+ * - `mask_offset` is the initial offset in the mask.  It is specified in bytes
+ *   and should be between 0 and 3 (inclusive).  This is necessary for when we
+ *   are dealing with multiple chunks.
  * - `src` is the source pointer.
  * - `len` is the size of the source (and destination) in bytes.
  * - `dst` is the destination.
  */
 void _hs_mask_chunk(
-        uint32_t mask, int mask_shift,
+        uint32_t mask, int mask_offset,
         uint8_t *src, size_t len,
         uint8_t *dst) {
     const uint8_t *src_end = src + len;
@@ -38,7 +40,7 @@ void _hs_mask_chunk(
 #if defined(__x86_64__)
     uint64_t mask64;
     /* Set up 64 byte mask. */
-    mask64 = (uint64_t)(rotr32(mask, 8 * mask_shift));
+    mask64 = (uint64_t)(rotr32(mask, 8 * mask_offset));
     mask64 |= (mask64 << 32);
     /* Take the fast road. */
     while (src < src_end - 7) {
@@ -49,7 +51,7 @@ void _hs_mask_chunk(
 #elif defined(__i386__)
     /* Set up 32 byte mask. */
     uint32_t mask32;
-    mask32 = (uint32_t)(rotr32(mask, 8 * mask_shift));
+    mask32 = (uint32_t)(rotr32(mask, 8 * mask_offset));
 
     /* Take the fast road. */
     while (src < src_end - 3) {
@@ -60,10 +62,11 @@ void _hs_mask_chunk(
 #endif
 
     /* This is the slow path which also handles the un-aligned suffix. */
+    uint8_t *mask_ptr = (uint8_t *) &mask;
     while (src != src_end) {
-        *dst = *src ^ (uint8_t)(mask >> (8 * mask_shift));
+        *dst = *src ^ *(mask_ptr + mask_offset);
         src++;
         dst++;
-        mask_shift = (mask_shift + 1) & 0x3;
+        mask_offset = (mask_offset + 1) & 0x3;
     }
 }

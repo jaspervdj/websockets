@@ -1,5 +1,5 @@
-{-# LANGUAGE BangPatterns      #-}
 --------------------------------------------------------------------------------
+{-# LANGUAGE BangPatterns      #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Network.WebSockets.Mask.Tests
     ( tests
@@ -7,7 +7,7 @@ module Network.WebSockets.Mask.Tests
 
 
 --------------------------------------------------------------------------------
-import qualified Data.Binary.Get                      as BIN
+import qualified Data.Binary.Get                      as Get
 import           Data.Bits                            (xor)
 import qualified Data.ByteString                      as B
 import qualified Data.ByteString.Lazy                 as BL
@@ -17,8 +17,10 @@ import           Test.Framework.Providers.QuickCheck2 (testProperty)
 import           Test.QuickCheck                      (Arbitrary (..), (===))
 import qualified Test.QuickCheck                      as QC
 
-import           Network.WebSockets.Tests.Util
+
 --------------------------------------------------------------------------------
+import           Network.WebSockets.Tests.Util
+
 tests :: Test
 tests = testGroup "Network.WebSockets.Masks.Tests"
     [ testProperty "correct fast masking" testMasking ]
@@ -51,5 +53,5 @@ instance Arbitrary APkt where
 testMasking :: QC.Property
 testMasking =
   QC.forAllShrink QC.arbitrary QC.shrink $ \(AMask mask, APkt pkt) ->
-    let wmask = BIN.runGet BIN.getWord32host (BL.fromStrict mask)
+    let wmask = Get.runGet parseMask (BL.fromStrict mask)
     in maskPayload' (Just mask) pkt === maskPayload (Just wmask) pkt

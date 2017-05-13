@@ -198,13 +198,27 @@ Executable websockets-autobahn
     entropy           >= 0.2.1  && < 0.4
 
 Benchmark bench-mask
-    type:       exitcode-stdio-1.0
-    main-is:    mask.hs
+    Type:           exitcode-stdio-1.0
+    Main-is:        mask.hs
     C-sources:      cbits/cbits.c
-    hs-source-dirs: benchmarks, src
-    build-depends:
-        base,
-        bytestring,
+    Hs-source-dirs: benchmarks, src
+
+    Other-modules:
+      Network.WebSockets.Hybi13.Mask
+
+    Build-depends:
         criterion,
-        random
-    other-modules:  Network.WebSockets.Hybi13.Mask
+        -- Copied from regular dependencies...
+        attoparsec        >= 0.10   && < 0.14,
+        base              >= 4      && < 5,
+        base64-bytestring >= 0.1    && < 1.1,
+        binary            >= 0.5    && < 0.9,
+        blaze-builder     >= 0.3    && < 0.5,
+        bytestring        >= 0.9    && < 0.11,
+        case-insensitive  >= 0.3    && < 1.3,
+        containers        >= 0.3    && < 0.6,
+        network           >= 2.3    && < 2.7,
+        random            >= 1.0    && < 1.2,
+        SHA               >= 1.5    && < 1.7,
+        text              >= 0.10   && < 1.3,
+        entropy           >= 0.2.1  && < 0.4

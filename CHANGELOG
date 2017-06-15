@@ -1,3 +1,10 @@
+- 0.11.2.0
+    * Fix 0-width reason phrase parsing
+    * Change receive buffer from 1024 to 8192 bytes (by Ondrej Palkovsky)
+    * Implement fast masking in C (by Ondrej Palkovsky and myself)
+    * Some haddock improvements
+    * Bump `HUnit` dependency to 1.6
+
 - 0.11.1.0
     * Fix compilation issue with GHC-7.8
 

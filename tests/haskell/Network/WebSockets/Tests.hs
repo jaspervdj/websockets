@@ -11,11 +11,14 @@ import qualified Blaze.ByteString.Builder              as Builder
 import           Control.Applicative                   ((<$>))
 import           Control.Concurrent                    (forkIO)
 import           Control.Exception                     (try)
-import           Control.Monad                         (replicateM)
+import           Control.Monad                         (forM_, replicateM)
+import           Data.Binary.Get                       (runGetOrFail)
 import qualified Data.ByteString.Lazy                  as BL
 import           Data.List                             (intersperse)
 import           Data.Maybe                            (catMaybes)
+import           System.Random                         (mkStdGen)
 import           Test.Framework                        (Test, testGroup)
+import           Test.Framework.Providers.HUnit        (testCase)
 import           Test.Framework.Providers.QuickCheck2  (testProperty)
 import           Test.HUnit                            ((@=?))
 import           Test.QuickCheck                       (Arbitrary (..), Gen,
@@ -39,8 +42,9 @@ tests :: Test
 tests = testGroup "Network.WebSockets.Test"
     [ testProperty "simple encode/decode Hybi13" (testSimpleEncodeDecode Hybi13)
     , testProperty "fragmented Hybi13"           testFragmentedHybi13
+    , testRfc_6455_5_5_1
+    , testRfc_6455_5_5_2
     ]
-
 
 --------------------------------------------------------------------------------
 testSimpleEncodeDecode :: Protocol -> Property
@@ -87,6 +91,40 @@ testFragmentedHybi13 = QC.monadicIO $
             Right (Just msg)       -> (msg :) <$> parseAll parse
             Right Nothing          -> return []
 
+--------------------------------------------------------------------------------
+testRfc_6455_5_5_1 :: Test
+testRfc_6455_5_5_1 =
+    testCase "RFC 6455, 5.5: Frame encoder shall truncate control frame payload to 125 bytes" $ do
+        260 @=? BL.length (encodedFrame ContinuationFrame)
+        260 @=? BL.length (encodedFrame TextFrame)
+        260 @=? BL.length (encodedFrame BinaryFrame)
+        127 @=? BL.length (encodedFrame CloseFrame)
+        127 @=? BL.length (encodedFrame PingFrame)
+        127 @=? BL.length (encodedFrame PongFrame)
+    where
+        payload256 = BL.replicate 256 0
+        encodedFrame ft
+            = Builder.toLazyByteString
+            $ Hybi13.encodeFrame Nothing (Frame True False False False ft payload256)
+
+--------------------------------------------------------------------------------
+testRfc_6455_5_5_2 :: Test
+testRfc_6455_5_5_2 =
+    testCase "RFC 6455, 5.5: Frame decoder shall fail if control frame payload length > 125 bytes" $
+        Left (BL.drop 4 ping126, 4, errMsg) @=? runGetOrFail Hybi13.parseFrame ping126
+    where
+        errMsg = "Control Frames must not carry payload > 125 bytes!"
+        ping126 = mconcat
+           [ "\137\254\NUL~\219\SI\190\252\219\SI\190\252\219\SI\190\252\219"
+           , "\SI\190\252\219\SI\190\252\219\SI\190\252\219\SI\190\252\219"
+           , "\SI\190\252\219\SI\190\252\219\SI\190\252\219\SI\190\252\219"
+           , "\SI\190\252\219\SI\190\252\219\SI\190\252\219\SI\190\252\219"
+           , "\SI\190\252\219\SI\190\252\219\SI\190\252\219\SI\190\252\219"
+           , "\SI\190\252\219\SI\190\252\219\SI\190\252\219\SI\190\252\219"
+           , "\SI\190\252\219\SI\190\252\219\SI\190\252\219\SI\190\252\219"
+           , "\SI\190\252\219\SI\190\252\219\SI\190\252\219\SI\190\252\219"
+           , "\SI\190\252\219\SI"
+           ]
 
 --------------------------------------------------------------------------------
 instance Arbitrary Message where

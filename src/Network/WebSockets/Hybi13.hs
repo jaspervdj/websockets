@@ -5,12 +5,14 @@ module Network.WebSockets.Hybi13
     ( headerVersions
     , finishRequest
     , finishResponse
+    , encodeMessage
     , encodeMessages
     , decodeMessages
     , createRequest
 
       -- Internal (used for testing)
     , encodeFrame
+    , parseFrame
     ) where
 
 
@@ -120,13 +122,21 @@ encodeMessages conType stream = do
 encodeFrame :: Maybe Mask -> Frame -> B.Builder
 encodeFrame mask f = B.fromWord8 byte0 `mappend`
     B.fromWord8 byte1 `mappend` len `mappend` maskbytes `mappend`
-    B.fromLazyByteString (maskPayload mask (framePayload f))
+    B.fromLazyByteString (maskPayload mask payload)
   where
+
     byte0  = fin .|. rsv1 .|. rsv2 .|. rsv3 .|. opcode
     fin    = if frameFin f  then 0x80 else 0x00
     rsv1   = if frameRsv1 f then 0x40 else 0x00
     rsv2   = if frameRsv2 f then 0x20 else 0x00
     rsv3   = if frameRsv3 f then 0x10 else 0x00
+    payload = case frameType f of
+        ContinuationFrame -> framePayload f
+        TextFrame         -> framePayload f
+        BinaryFrame       -> framePayload f
+        CloseFrame        -> BL.take 125 $ framePayload f
+        PingFrame         -> BL.take 125 $ framePayload f
+        PongFrame         -> BL.take 125 $ framePayload f
     opcode = case frameType f of
         ContinuationFrame -> 0x00
         TextFrame         -> 0x01
@@ -134,13 +144,12 @@ encodeFrame mask f = B.fromWord8 byte0 `mappend`
         CloseFrame        -> 0x08
         PingFrame         -> 0x09
         PongFrame         -> 0x0a
-
     (maskflag, maskbytes) = case mask of
         Nothing -> (0x00, mempty)
         Just m  -> (0x80, encodeMask m)
 
     byte1 = maskflag .|. lenflag
-    len'  = BL.length (framePayload f)
+    len'  = BL.length payload
     (lenflag, len)
         | len' < 126     = (fromIntegral len', mempty)
         | len' < 0x10000 = (126, B.fromWord16be (fromIntegral len'))
@@ -179,15 +188,6 @@ parseFrame = do
         rsv3   = byte0 .&. 0x10 == 0x10
         opcode = byte0 .&. 0x0f
 
-    ft <- case opcode of
-            0x00 -> return ContinuationFrame
-            0x01 -> return TextFrame
-            0x02 -> return BinaryFrame
-            0x08 -> return CloseFrame
-            0x09 -> return PingFrame
-            0x0a -> return PongFrame
-            _    -> fail $ "Unknown opcode: " ++ show opcode
-
     byte1 <- getWord8
     let mask = byte1 .&. 0x80 == 0x80
         lenflag = byte1 .&. 0x7f
@@ -197,11 +197,26 @@ parseFrame = do
         127 -> getInt64be
         _   -> return (fromIntegral lenflag)
 
+    ft <- case opcode of
+        0x00 -> return ContinuationFrame
+        0x01 -> return TextFrame
+        0x02 -> return BinaryFrame
+        0x08 -> enforceControlFrameRestrictions len fin >> return CloseFrame
+        0x09 -> enforceControlFrameRestrictions len fin >> return PingFrame
+        0x0a -> enforceControlFrameRestrictions len fin >> return PongFrame
+        _    -> fail $ "Unknown opcode: " ++ show opcode
+
     masker <- maskPayload <$> if mask then Just <$> parseMask else pure Nothing
 
     chunks <- getLazyByteString len
 
     return $ Frame fin rsv1 rsv2 rsv3 ft (masker chunks)
+
+    where
+        enforceControlFrameRestrictions len fin
+          | not fin   = fail "Control Frames must not be fragmented!"
+          | len > 125 = fail "Control Frames must not carry payload > 125 bytes!"
+          | otherwise = pure ()
 
 --------------------------------------------------------------------------------
 hashKey :: ByteString -> ByteString

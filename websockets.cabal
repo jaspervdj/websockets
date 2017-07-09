@@ -62,6 +62,7 @@ Library
 
   Other-modules:
     Network.WebSockets.Client
+    Network.WebSockets.Connection.Options
     Network.WebSockets.Extensions.Description
     Network.WebSockets.Extensions.PermessageDeflate
     Network.WebSockets.Extensions.StrictUnicode

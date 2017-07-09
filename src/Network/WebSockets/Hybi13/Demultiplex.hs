@@ -13,16 +13,15 @@ module Network.WebSockets.Hybi13.Demultiplex
 
 
 --------------------------------------------------------------------------------
-import           Blaze.ByteString.Builder (Builder)
-import qualified Blaze.ByteString.Builder as B
-import           Control.Exception        (Exception)
-import           Data.Binary.Get          (getWord16be, runGet)
-import qualified Data.ByteString.Lazy     as BL
-import           Data.Monoid              (mappend)
-import           Data.Typeable            (Typeable)
-
-
---------------------------------------------------------------------------------
+import           Blaze.ByteString.Builder              (Builder)
+import qualified Blaze.ByteString.Builder              as B
+import           Control.Exception                     (Exception)
+import           Data.Binary.Get                       (getWord16be, runGet)
+import qualified Data.ByteString.Lazy                  as BL
+import           Data.Int                              (Int64)
+import           Data.Monoid                           (mappend)
+import           Data.Typeable                         (Typeable)
+import           Network.WebSockets.Connection.Options
 import           Network.WebSockets.Types
 
 
@@ -64,7 +63,7 @@ instance Exception DemultiplexException
 -- | Internal state used by the demultiplexer
 data DemultiplexState
     = EmptyDemultiplexState
-    | DemultiplexState !Builder !(Builder -> Message)
+    | DemultiplexState !Int64 !Builder !(Builder -> Message)
 
 
 --------------------------------------------------------------------------------
@@ -81,20 +80,21 @@ data DemultiplexResult
 
 
 --------------------------------------------------------------------------------
-demultiplex :: DemultiplexState
+demultiplex :: MessageDataSizeLimit
+            -> DemultiplexState
             -> Frame
             -> (DemultiplexResult, DemultiplexState)
 
-demultiplex state (Frame True False False False PingFrame pl)
+demultiplex _ state (Frame True False False False PingFrame pl)
     | BL.length pl > 125 =
         (DemultiplexError $ CloseRequest 1002 "Protocol Error", emptyDemultiplexState)
     | otherwise =
         (DemultiplexSuccess $ ControlMessage (Ping pl), state)
 
-demultiplex state (Frame True False False False PongFrame pl) =
+demultiplex _ state (Frame True False False False PongFrame pl) =
     (DemultiplexSuccess (ControlMessage (Pong pl)), state)
 
-demultiplex _     (Frame True False False False CloseFrame pl) =
+demultiplex _ _ (Frame True False False False CloseFrame pl) =
     (DemultiplexSuccess (ControlMessage (uncurry Close parsedClose)), emptyDemultiplexState)
   where
     -- The Close frame MAY contain a body (the "Application data" portion of the
@@ -114,32 +114,52 @@ demultiplex _     (Frame True False False False CloseFrame pl) =
        | BL.length pl == 1 = (1002, BL.empty)
        | otherwise         = (1000, BL.empty)
 
-demultiplex EmptyDemultiplexState (Frame fin rsv1 rsv2 rsv3 tp pl) = case tp of
+demultiplex sizeLimit EmptyDemultiplexState (Frame fin rsv1 rsv2 rsv3 tp pl) = case tp of
+    _ | sizeProblem ->
+        ( DemultiplexError $ ParseException $
+            "Message of size " ++ show size ++ " exceeded limit"
+        , emptyDemultiplexState
+        )
 
     TextFrame
         | fin       ->
             (DemultiplexSuccess (text pl), emptyDemultiplexState)
         | otherwise ->
-            (DemultiplexContinue, DemultiplexState plb (text . B.toLazyByteString))
+            (DemultiplexContinue, DemultiplexState size plb (text . B.toLazyByteString))
 
 
     BinaryFrame
         | fin       -> (DemultiplexSuccess (binary pl), emptyDemultiplexState)
-        | otherwise -> (DemultiplexContinue, DemultiplexState plb (binary . B.toLazyByteString))
+        | otherwise -> (DemultiplexContinue, DemultiplexState size plb (binary . B.toLazyByteString))
 
     _ -> (DemultiplexError $ CloseRequest 1002 "Protocol Error", emptyDemultiplexState)
 
   where
-    plb    = B.fromLazyByteString pl
+    size     = BL.length pl
+    plb      = B.fromLazyByteString pl
     text   x = DataMessage rsv1 rsv2 rsv3 (Text x Nothing)
     binary x = DataMessage rsv1 rsv2 rsv3 (Binary x)
 
-demultiplex (DemultiplexState b f) (Frame fin False False False ContinuationFrame pl)
-    | fin       = (DemultiplexSuccess (f b'), emptyDemultiplexState)
-    | otherwise = (DemultiplexContinue, DemultiplexState b' f)
-  where
-    b' = b `mappend` plb
-    plb = B.fromLazyByteString pl
+    sizeProblem = case sizeLimit of
+        NoMessageDataSizeLimit -> False
+        MessageDataSizeLimit n -> size > n
 
-demultiplex _ _ =
+demultiplex sizeLimit (DemultiplexState size0 b f) (Frame fin False False False ContinuationFrame pl)
+    | sizeProblem =
+        ( DemultiplexError $ ParseException $
+            "Message of size " ++ show size1 ++ " exceeded limit"
+        , emptyDemultiplexState
+        )
+    | fin         = (DemultiplexSuccess (f b'), emptyDemultiplexState)
+    | otherwise   = (DemultiplexContinue, DemultiplexState size1 b' f)
+  where
+    size1 = size0 + BL.length pl
+    b'    = b `mappend` plb
+    plb   = B.fromLazyByteString pl
+
+    sizeProblem = case sizeLimit of
+        NoMessageDataSizeLimit -> False
+        MessageDataSizeLimit n -> size1 > n
+
+demultiplex _ _ _ =
     (DemultiplexError (CloseRequest 1002 "Protocol Error"), emptyDemultiplexState)

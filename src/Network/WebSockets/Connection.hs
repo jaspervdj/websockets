@@ -37,6 +37,9 @@ module Network.WebSockets.Connection
     , CompressionOptions (..)
     , PermessageDeflate (..)
     , defaultPermessageDeflate
+
+    , FrameSizeLimit (..)
+    , MessageDataSizeLimit (..)
     ) where
 
 
@@ -65,6 +68,7 @@ import           Prelude
 
 
 --------------------------------------------------------------------------------
+import           Network.WebSockets.Connection.Options
 import           Network.WebSockets.Extensions                   as Extensions
 import           Network.WebSockets.Extensions.PermessageDeflate
 import           Network.WebSockets.Extensions.StrictUnicode
@@ -142,7 +146,7 @@ acceptRequestWith pc ar = case find (flip compatible request) protocols of
         pmdExt <- case connectionCompressionOptions (pendingOptions pc) of
             NoCompression                     -> return Nothing
             PermessageDeflateCompression pmd0 ->
-                case negotiateDeflate (Just pmd0) rqExts of
+                case negotiateDeflate (connectionMessageDataSizeLimit options) (Just pmd0) rqExts of
                     Left err   -> do
                         rejectRequestWith pc defaultRejectRequest {rejectMessage = B8.pack err}
                         throwIO NotSupported
@@ -162,7 +166,11 @@ acceptRequestWith pc ar = case find (flip compatible request) protocols of
 
         either throwIO (sendResponse pc) response
 
-        parseRaw <- decodeMessages protocol (pendingStream pc)
+        parseRaw <- decodeMessages
+            protocol
+            (connectionFrameSizeLimit options)
+            (connectionMessageDataSizeLimit options)
+            (pendingStream pc)
         writeRaw <- encodeMessages protocol ServerConnection (pendingStream pc)
 
         write <- foldM (\x ext -> extWrite ext x) writeRaw exts
@@ -170,7 +178,7 @@ acceptRequestWith pc ar = case find (flip compatible request) protocols of
 
         sentRef    <- newIORef False
         let connection = Connection
-                { connectionOptions   = pendingOptions pc
+                { connectionOptions   = options
                 , connectionType      = ServerConnection
                 , connectionProtocol  = protocol
                 , connectionParse     = parse
@@ -181,6 +189,7 @@ acceptRequestWith pc ar = case find (flip compatible request) protocols of
         pendingOnAccept pc connection
         return connection
   where
+    options       = pendingOptions pc
     request       = pendingRequest pc
     versionHeader = [("Sec-WebSocket-Version",
         B.intercalate ", " $ concatMap headerVersions protocols)]
@@ -249,42 +258,6 @@ data Connection = Connection
     -- the server is in charge of closing the TCP connection.  This IORef tracks
     -- if we have sent a close message and are waiting for the peer to respond.
     }
-
-
---------------------------------------------------------------------------------
--- | Set options for a 'Connection'.
-data ConnectionOptions = ConnectionOptions
-    { connectionOnPong             :: !(IO ())
-      -- ^ Whenever a 'pong' is received, this IO action is executed. It can be
-      -- used to tickle connections or fire missiles.
-    , connectionCompressionOptions :: !CompressionOptions
-      -- ^ Enable 'PermessageDeflate'.
-    , connectionStrictUnicode      :: !Bool
-      -- ^ Enable strict unicode on the connection.  This means that if a client
-      -- (or server) sends invalid UTF-8, we will throw a 'UnicodeException'
-      -- rather than replacing it by the unicode replacement character U+FFFD.
-    }
-
-
---------------------------------------------------------------------------------
--- | The default connection options:
---
--- * Nothing happens when a pong is received.
--- * Compression is disabled.
--- * Lenient unicode decoding.
-defaultConnectionOptions :: ConnectionOptions
-defaultConnectionOptions = ConnectionOptions
-    { connectionOnPong             = return ()
-    , connectionCompressionOptions = NoCompression
-    , connectionStrictUnicode      = False
-    }
-
-
---------------------------------------------------------------------------------
-data CompressionOptions
-    = NoCompression
-    | PermessageDeflateCompression PermessageDeflate
-    deriving (Eq, Show)
 
 
 --------------------------------------------------------------------------------

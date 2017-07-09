@@ -16,14 +16,15 @@ module Network.WebSockets.Protocol
 
 
 --------------------------------------------------------------------------------
-import           Data.ByteString           (ByteString)
-import qualified Data.ByteString           as B
+import           Data.ByteString                       (ByteString)
+import qualified Data.ByteString                       as B
 
 
 --------------------------------------------------------------------------------
+import           Network.WebSockets.Connection.Options
 import           Network.WebSockets.Http
-import qualified Network.WebSockets.Hybi13 as Hybi13
-import           Network.WebSockets.Stream (Stream)
+import qualified Network.WebSockets.Hybi13             as Hybi13
+import           Network.WebSockets.Stream             (Stream)
 import           Network.WebSockets.Types
 
 
@@ -77,9 +78,12 @@ encodeMessages Hybi13 = Hybi13.encodeMessages
 
 --------------------------------------------------------------------------------
 decodeMessages
-    :: Protocol -> Stream
+    :: Protocol
+    -> FrameSizeLimit -> MessageDataSizeLimit
+    -> Stream
     -> IO (IO (Maybe Message))
-decodeMessages Hybi13 = Hybi13.decodeMessages
+decodeMessages Hybi13 frameLimit messageLimit =
+    Hybi13.decodeMessages frameLimit messageLimit
 
 
 --------------------------------------------------------------------------------

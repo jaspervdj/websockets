@@ -19,36 +19,16 @@ import qualified Data.ByteString.Char8                     as B8
 import qualified Data.ByteString.Lazy                      as BL
 import qualified Data.ByteString.Lazy.Char8                as BL8
 import qualified Data.ByteString.Lazy.Internal             as BL
+import           Data.Int                                  (Int64)
 import           Data.Monoid
 import qualified Data.Streaming.Zlib                       as Zlib
+import           Network.WebSockets.Connection.Options
 import           Network.WebSockets.Extensions
 import           Network.WebSockets.Extensions.Description
 import           Network.WebSockets.Http
 import           Network.WebSockets.Types
-import           Text.Read                                 (readMaybe)
 import           Prelude
-
-
---------------------------------------------------------------------------------
--- | Four extension parameters are defined for "permessage-deflate" to
--- help endpoints manage per-connection resource usage.
---
--- - "server_no_context_takeover"
--- - "client_no_context_takeover"
--- - "server_max_window_bits"
--- - "client_max_window_bits"
-data PermessageDeflate = PermessageDeflate
-    { serverNoContextTakeover :: Bool
-    , clientNoContextTakeover :: Bool
-    , serverMaxWindowBits     :: Int
-    , clientMaxWindowBits     :: Int
-    , pdCompressionLevel      :: Int
-    } deriving (Eq, Show)
-
-
---------------------------------------------------------------------------------
-defaultPermessageDeflate :: PermessageDeflate
-defaultPermessageDeflate = PermessageDeflate False False 15 15 8
+import           Text.Read                                 (readMaybe)
 
 
 --------------------------------------------------------------------------------
@@ -77,8 +57,9 @@ toHeaders pmd =
 
 
 --------------------------------------------------------------------------------
-negotiateDeflate :: Maybe PermessageDeflate -> NegotiateExtension
-negotiateDeflate pmd0 exts0 = do
+negotiateDeflate
+    :: MessageDataSizeLimit -> Maybe PermessageDeflate -> NegotiateExtension
+negotiateDeflate messageLimit pmd0 exts0 = do
     (headers, pmd1) <- negotiateDeflateOpts exts0 pmd0
     return Extension
         { extHeaders = headers
@@ -91,7 +72,7 @@ negotiateDeflate pmd0 exts0 = do
                     Just m  -> fmap Just (inflate m)
 
         , extWrite   = \writeRaw -> do
-            deflate <- makeMessageDeflater pmd1
+            deflate <- makeMessageDeflater messageLimit pmd1
             return $ \msgs ->
                 mapM deflate msgs >>= writeRaw
         }
@@ -193,9 +174,10 @@ rejectExtensions x = return x
 
 --------------------------------------------------------------------------------
 makeMessageDeflater
-    :: Maybe PermessageDeflate -> IO (Message -> IO Message)
-makeMessageDeflater Nothing = return rejectExtensions
-makeMessageDeflater (Just pmd)
+    :: MessageDataSizeLimit -> Maybe PermessageDeflate
+    -> IO (Message -> IO Message)
+makeMessageDeflater _ Nothing = return rejectExtensions
+makeMessageDeflater messageLimit (Just pmd)
     | serverNoContextTakeover pmd = do
         return $ \msg -> do
             ptr <- initDeflate pmd
@@ -228,12 +210,26 @@ makeMessageDeflater (Just pmd)
 
     ----------------------------------------------------------------------------
     deflateBody :: Zlib.Deflate -> BL.ByteString -> IO BL.ByteString
-    deflateBody ptr = fmap maybeStrip . go . BL.toChunks
+    deflateBody ptr = fmap maybeStrip . go 0 . BL.toChunks
       where
-        go []       = dePopper (Zlib.flushDeflate ptr)
-        go (c : cs) = do
-            bl <- Zlib.feedDeflate ptr c >>= dePopper
-            (bl <>) <$> go cs
+        go size0 [] = do
+            chunk <- dePopper (Zlib.flushDeflate ptr)
+            checkSize (BL.length chunk + size0)
+            return chunk
+        go size0 (c : cs) = do
+            chunk <- Zlib.feedDeflate ptr c >>= dePopper
+            let size1 = size0 + BL.length chunk
+            checkSize size1
+            (chunk <>) <$> go size1 cs
+
+    ----------------------------------------------------------------------------
+    checkSize :: Int64 -> IO ()
+    checkSize size = case messageLimit of
+        NoMessageDataSizeLimit -> return ()
+        MessageDataSizeLimit n
+            | size <= n        -> return ()
+            | otherwise        -> throwIO $ ParseException $
+                "Message of size " ++ show size ++ " exceeded limit"
 
 
 --------------------------------------------------------------------------------

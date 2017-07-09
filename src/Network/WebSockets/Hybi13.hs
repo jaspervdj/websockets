@@ -39,6 +39,7 @@ import           System.Random                         (RandomGen, newStdGen)
 
 
 --------------------------------------------------------------------------------
+import           Network.WebSockets.Connection.Options
 import           Network.WebSockets.Http
 import           Network.WebSockets.Hybi13.Demultiplex
 import           Network.WebSockets.Hybi13.Mask
@@ -149,19 +150,21 @@ encodeFrame mask f = B.fromWord8 byte0 `mappend`
 
 --------------------------------------------------------------------------------
 decodeMessages
-    :: Stream
+    :: FrameSizeLimit
+    -> MessageDataSizeLimit
+    -> Stream
     -> IO (IO (Maybe Message))
-decodeMessages stream = do
+decodeMessages frameLimit messageLimit stream = do
     dmRef <- newIORef emptyDemultiplexState
     return $ go dmRef
   where
     go dmRef = do
-        mbFrame <- Stream.parseBin stream parseFrame
+        mbFrame <- Stream.parseBin stream (parseFrame frameLimit)
         case mbFrame of
             Nothing    -> return Nothing
             Just frame -> do
                 demultiplexResult <- atomicModifyIORef' dmRef $
-                    \s -> swap $ demultiplex s frame
+                    \s -> swap $ demultiplex messageLimit s frame
                 case demultiplexResult of
                     DemultiplexError err    -> throwIO err
                     DemultiplexContinue     -> go dmRef
@@ -170,8 +173,8 @@ decodeMessages stream = do
 
 --------------------------------------------------------------------------------
 -- | Parse a frame
-parseFrame :: Get Frame
-parseFrame = do
+parseFrame :: FrameSizeLimit -> Get Frame
+parseFrame frameSizeLimit = do
     byte0 <- getWord8
     let fin    = byte0 .&. 0x80 == 0x80
         rsv1   = byte0 .&. 0x40 == 0x40
@@ -196,6 +199,13 @@ parseFrame = do
         126 -> fromIntegral <$> getWord16be
         127 -> getInt64be
         _   -> return (fromIntegral lenflag)
+
+    -- Check size against limit.
+    case frameSizeLimit of
+        NoFrameSizeLimit           -> return ()
+        FrameSizeLimit n | len > n -> fail $
+            "Frame of size " ++ show len ++ " exceeded limit"
+        FrameSizeLimit _           -> return ()
 
     masker <- maskPayload <$> if mask then Just <$> parseMask else pure Nothing
 

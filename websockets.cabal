@@ -101,6 +101,7 @@ Test-suite websockets-tests
     Network.WebSockets
     Network.WebSockets.Client
     Network.WebSockets.Connection
+    Network.WebSockets.Connection.Options
     Network.WebSockets.Extensions
     Network.WebSockets.Extensions.Description
     Network.WebSockets.Extensions.PermessageDeflate

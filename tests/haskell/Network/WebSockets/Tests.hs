@@ -11,12 +11,18 @@ import qualified Blaze.ByteString.Builder              as Builder
 import           Control.Applicative                   ((<$>))
 import           Control.Concurrent                    (forkIO)
 import           Control.Exception                     (try)
-import           Control.Monad                         (forM_, replicateM)
+import           Control.Monad                         (replicateM)
 import           Data.Binary.Get                       (runGetOrFail)
 import qualified Data.ByteString.Lazy                  as BL
 import           Data.List                             (intersperse)
 import           Data.Maybe                            (catMaybes)
-import           System.Random                         (mkStdGen)
+import           Network.WebSockets
+import qualified Network.WebSockets.Hybi13             as Hybi13
+import           Network.WebSockets.Hybi13.Demultiplex
+import           Network.WebSockets.Protocol
+import qualified Network.WebSockets.Stream             as Stream
+import           Network.WebSockets.Tests.Util
+import           Network.WebSockets.Types
 import           Test.Framework                        (Test, testGroup)
 import           Test.Framework.Providers.HUnit        (testCase)
 import           Test.Framework.Providers.QuickCheck2  (testProperty)
@@ -25,16 +31,7 @@ import           Test.QuickCheck                       (Arbitrary (..), Gen,
                                                         Property)
 import qualified Test.QuickCheck                       as QC
 import qualified Test.QuickCheck.Monadic               as QC
-
-
---------------------------------------------------------------------------------
-import           Network.WebSockets
-import qualified Network.WebSockets.Hybi13             as Hybi13
-import           Network.WebSockets.Hybi13.Demultiplex
-import           Network.WebSockets.Protocol
-import qualified Network.WebSockets.Stream             as Stream
-import           Network.WebSockets.Tests.Util
-import           Network.WebSockets.Types
+import           Prelude
 
 
 --------------------------------------------------------------------------------
@@ -51,7 +48,7 @@ testSimpleEncodeDecode :: Protocol -> Property
 testSimpleEncodeDecode protocol = QC.monadicIO $
     QC.forAllM QC.arbitrary $ \msgs -> QC.run $ do
         echo  <- Stream.makeEchoStream
-        parse <- decodeMessages protocol echo
+        parse <- decodeMessages protocol NoFrameSizeLimit NoMessageDataSizeLimit echo
         write <- encodeMessages protocol ClientConnection echo
         _     <- forkIO $ write msgs
         msgs' <- catMaybes <$> replicateM (length msgs) parse
@@ -64,7 +61,7 @@ testFragmentedHybi13 :: Property
 testFragmentedHybi13 = QC.monadicIO $
     QC.forAllM QC.arbitrary $ \fragmented -> QC.run $ do
         echo     <- Stream.makeEchoStream
-        parse    <- Hybi13.decodeMessages echo
+        parse    <- Hybi13.decodeMessages NoFrameSizeLimit NoMessageDataSizeLimit echo
         -- is'      <- Streams.filter isDataMessage =<< Hybi13.decodeMessages is
 
         -- Simple hacky encoding of all frames
@@ -111,7 +108,7 @@ testRfc_6455_5_5_1 =
 testRfc_6455_5_5_2 :: Test
 testRfc_6455_5_5_2 =
     testCase "RFC 6455, 5.5: Frame decoder shall fail if control frame payload length > 125 bytes" $
-        Left (BL.drop 4 ping126, 4, errMsg) @=? runGetOrFail Hybi13.parseFrame ping126
+        Left (BL.drop 4 ping126, 4, errMsg) @=? runGetOrFail (Hybi13.parseFrame NoFrameSizeLimit) ping126
     where
         errMsg = "Control Frames must not carry payload > 125 bytes!"
         ping126 = mconcat

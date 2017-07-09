@@ -41,6 +41,7 @@ tests = testGroup "Network.WebSockets.Test"
     , testProperty "fragmented Hybi13"           testFragmentedHybi13
     , testRfc_6455_5_5_1
     , testRfc_6455_5_5_2
+    , testFramePayloadSizeLimit
     ]
 
 --------------------------------------------------------------------------------
@@ -48,7 +49,7 @@ testSimpleEncodeDecode :: Protocol -> Property
 testSimpleEncodeDecode protocol = QC.monadicIO $
     QC.forAllM QC.arbitrary $ \msgs -> QC.run $ do
         echo  <- Stream.makeEchoStream
-        parse <- decodeMessages protocol NoFrameSizeLimit NoMessageDataSizeLimit echo
+        parse <- decodeMessages protocol NoFramePayloadSizeLimit NoMessageDataSizeLimit echo
         write <- encodeMessages protocol ClientConnection echo
         _     <- forkIO $ write msgs
         msgs' <- catMaybes <$> replicateM (length msgs) parse
@@ -61,7 +62,7 @@ testFragmentedHybi13 :: Property
 testFragmentedHybi13 = QC.monadicIO $
     QC.forAllM QC.arbitrary $ \fragmented -> QC.run $ do
         echo     <- Stream.makeEchoStream
-        parse    <- Hybi13.decodeMessages NoFrameSizeLimit NoMessageDataSizeLimit echo
+        parse    <- Hybi13.decodeMessages NoFramePayloadSizeLimit NoMessageDataSizeLimit echo
         -- is'      <- Streams.filter isDataMessage =<< Hybi13.decodeMessages is
 
         -- Simple hacky encoding of all frames
@@ -108,7 +109,7 @@ testRfc_6455_5_5_1 =
 testRfc_6455_5_5_2 :: Test
 testRfc_6455_5_5_2 =
     testCase "RFC 6455, 5.5: Frame decoder shall fail if control frame payload length > 125 bytes" $
-        Left (BL.drop 4 ping126, 4, errMsg) @=? runGetOrFail (Hybi13.parseFrame NoFrameSizeLimit) ping126
+        Left (BL.drop 4 ping126, 4, errMsg) @=? runGetOrFail (Hybi13.parseFrame NoFramePayloadSizeLimit) ping126
     where
         errMsg = "Control Frames must not carry payload > 125 bytes!"
         ping126 = mconcat
@@ -122,6 +123,24 @@ testRfc_6455_5_5_2 =
            , "\SI\190\252\219\SI\190\252\219\SI\190\252\219\SI\190\252\219"
            , "\SI\190\252\219\SI"
            ]
+
+testFramePayloadSizeLimit :: Test
+testFramePayloadSizeLimit = testGroup "FramePayloadSizeLimit Hybi13"
+    [ testCase "OK 1" $ case parse (frame 99) of
+        Right _ -> return ()
+        Left _  -> fail "Expecting successful parse."
+    , testCase "OK 2" $ case parse (frame 100) of
+        Right _ -> return ()
+        Left _  -> fail "Expecting successful parse."
+    , testCase "Exceed" $ case parse (frame 101) of
+        Right _ -> fail "Expecting parse to fail."
+        Left _  -> return ()
+    ]
+  where
+    parse   = runGetOrFail (Hybi13.parseFrame (FramePayloadSizeLimit 100))
+    frame n = Builder.toLazyByteString $ Hybi13.encodeFrame Nothing $
+        Frame True False False False BinaryFrame (BL.replicate n 20)
+
 
 --------------------------------------------------------------------------------
 instance Arbitrary Message where

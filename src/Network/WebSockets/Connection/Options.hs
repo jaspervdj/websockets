@@ -7,7 +7,7 @@ module Network.WebSockets.Connection.Options
     , PermessageDeflate (..)
     , defaultPermessageDeflate
 
-    , FrameSizeLimit (..)
+    , FramePayloadSizeLimit (..)
     , MessageDataSizeLimit (..)
     ) where
 
@@ -19,19 +19,19 @@ import           Data.Int (Int64)
 --------------------------------------------------------------------------------
 -- | Set options for a 'Connection'.
 data ConnectionOptions = ConnectionOptions
-    { connectionOnPong               :: !(IO ())
+    { connectionOnPong                :: !(IO ())
       -- ^ Whenever a 'pong' is received, this IO action is executed. It can be
       -- used to tickle connections or fire missiles.
-    , connectionCompressionOptions   :: !CompressionOptions
+    , connectionCompressionOptions    :: !CompressionOptions
       -- ^ Enable 'PermessageDeflate'.
-    , connectionStrictUnicode        :: !Bool
+    , connectionStrictUnicode         :: !Bool
       -- ^ Enable strict unicode on the connection.  This means that if a client
       -- (or server) sends invalid UTF-8, we will throw a 'UnicodeException'
       -- rather than replacing it by the unicode replacement character U+FFFD.
-    , connectionFrameSizeLimit       :: !FrameSizeLimit
-      -- ^ The maximum size for incoming frames, in bytes.  If a frame exceeds
-      -- this limit, a 'ParseException' is thrown.
-    , connectionMessageDataSizeLimit :: !MessageDataSizeLimit
+    , connectionFramePayloadSizeLimit :: !FramePayloadSizeLimit
+      -- ^ The maximum size for incoming frame payload size in bytes.  If a
+      -- frame exceeds this limit, a 'ParseException' is thrown.
+    , connectionMessageDataSizeLimit  :: !MessageDataSizeLimit
       -- ^ 'connectionFrameSizeLimit' is often not enough since a malicious
       -- client can send many small frames to create a huge message.  This limit
       -- allows you to protect from that.  If a message exceeds this limit, a
@@ -55,7 +55,7 @@ defaultConnectionOptions = ConnectionOptions
     { connectionOnPong               = return ()
     , connectionCompressionOptions   = NoCompression
     , connectionStrictUnicode        = False
-    , connectionFrameSizeLimit       = NoFrameSizeLimit
+    , connectionFramePayloadSizeLimit       = NoFramePayloadSizeLimit
     , connectionMessageDataSizeLimit = NoMessageDataSizeLimit
     }
 
@@ -90,9 +90,9 @@ defaultPermessageDeflate = PermessageDeflate False False 15 15 8
 
 
 --------------------------------------------------------------------------------
-data FrameSizeLimit
-    = NoFrameSizeLimit
-    | FrameSizeLimit !Int64
+data FramePayloadSizeLimit
+    = NoFramePayloadSizeLimit
+    | FramePayloadSizeLimit !Int64
     deriving (Eq, Show)
 
 

@@ -38,7 +38,7 @@ module Network.WebSockets.Connection
     , PermessageDeflate (..)
     , defaultPermessageDeflate
 
-    , FrameSizeLimit (..)
+    , FramePayloadSizeLimit (..)
     , MessageDataSizeLimit (..)
     ) where
 
@@ -168,7 +168,7 @@ acceptRequestWith pc ar = case find (flip compatible request) protocols of
 
         parseRaw <- decodeMessages
             protocol
-            (connectionFrameSizeLimit options)
+            (connectionFramePayloadSizeLimit options)
             (connectionMessageDataSizeLimit options)
             (pendingStream pc)
         writeRaw <- encodeMessages protocol ServerConnection (pendingStream pc)

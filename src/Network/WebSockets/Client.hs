@@ -103,7 +103,7 @@ runClientWithStream stream host path opts customHeaders app = do
             "response from server"
     void $ either throwIO return $ finishResponse protocol request response
     parse   <- decodeMessages protocol
-                (connectionFrameSizeLimit opts)
+                (connectionFramePayloadSizeLimit opts)
                 (connectionMessageDataSizeLimit opts) stream
     write   <- encodeMessages protocol ClientConnection stream
     sentRef <- newIORef False

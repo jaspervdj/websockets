@@ -159,7 +159,7 @@ encodeFrame mask f = B.fromWord8 byte0 `mappend`
 
 --------------------------------------------------------------------------------
 decodeMessages
-    :: FrameSizeLimit
+    :: FramePayloadSizeLimit
     -> MessageDataSizeLimit
     -> Stream
     -> IO (IO (Maybe Message))
@@ -182,7 +182,7 @@ decodeMessages frameLimit messageLimit stream = do
 
 --------------------------------------------------------------------------------
 -- | Parse a frame
-parseFrame :: FrameSizeLimit -> Get Frame
+parseFrame :: FramePayloadSizeLimit -> Get Frame
 parseFrame frameSizeLimit = do
     byte0 <- getWord8
     let fin    = byte0 .&. 0x80 == 0x80
@@ -202,10 +202,10 @@ parseFrame frameSizeLimit = do
 
     -- Check size against limit.
     case frameSizeLimit of
-        NoFrameSizeLimit           -> return ()
-        FrameSizeLimit n | len > n -> fail $
+        NoFramePayloadSizeLimit           -> return ()
+        FramePayloadSizeLimit n | len > n -> fail $
             "Frame of size " ++ show len ++ " exceeded limit"
-        FrameSizeLimit _           -> return ()
+        FramePayloadSizeLimit _           -> return ()
 
     ft <- case opcode of
         0x00 -> return ContinuationFrame

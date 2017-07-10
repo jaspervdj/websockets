@@ -114,7 +114,7 @@ encodeMessages conType stream = do
     genRef <- newIORef =<< newStdGen
     return $ \msgs -> do
         builders <- forM msgs $ \msg ->
-          atomicModifyIORef genRef $ \s -> encodeMessage conType s msg
+          atomicModifyIORef' genRef $ \s -> encodeMessage conType s msg
         Stream.write stream (B.toLazyByteString $ mconcat builders)
 
 

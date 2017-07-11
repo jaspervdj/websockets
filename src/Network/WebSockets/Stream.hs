@@ -20,7 +20,7 @@ import           Control.Monad                  (forM_, when)
 import qualified Data.Attoparsec.ByteString     as Atto
 import qualified Data.ByteString                as B
 import qualified Data.ByteString.Lazy           as BL
-import           Data.IORef                     (IORef, atomicModifyIORef,
+import           Data.IORef                     (IORef, atomicModifyIORef',
                                                  newIORef, readIORef,
                                                  writeIORef)
 import qualified Network.Socket                 as S
@@ -75,7 +75,7 @@ makeStream receive send = do
     return $ Stream (receive' ref receiveLock) (send' ref sendLock) ref
   where
     closeRef :: IORef StreamState -> IO ()
-    closeRef ref = atomicModifyIORef ref $ \state -> case state of
+    closeRef ref = atomicModifyIORef' ref $ \state -> case state of
         Open   buf -> (Closed buf, ())
         Closed buf -> (Closed buf, ())
 

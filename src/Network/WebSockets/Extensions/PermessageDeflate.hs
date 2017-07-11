@@ -7,6 +7,10 @@ module Network.WebSockets.Extensions.PermessageDeflate
     ( defaultPermessageDeflate
     , PermessageDeflate(..)
     , negotiateDeflate
+
+      -- * Considered internal
+    , makeMessageInflater
+    , makeMessageDeflater
     ) where
 
 
@@ -64,7 +68,7 @@ negotiateDeflate messageLimit pmd0 exts0 = do
     return Extension
         { extHeaders = headers
         , extParse   = \parseRaw -> do
-            inflate <- makeMessageInflater pmd1
+            inflate <- makeMessageInflater messageLimit pmd1
             return $ do
                 msg <- parseRaw
                 case msg of
@@ -72,7 +76,7 @@ negotiateDeflate messageLimit pmd0 exts0 = do
                     Just m  -> fmap Just (inflate m)
 
         , extWrite   = \writeRaw -> do
-            deflate <- makeMessageDeflater messageLimit pmd1
+            deflate <- makeMessageDeflater pmd1
             return $ \msgs ->
                 mapM deflate msgs >>= writeRaw
         }
@@ -174,10 +178,9 @@ rejectExtensions x = return x
 
 --------------------------------------------------------------------------------
 makeMessageDeflater
-    :: MessageDataSizeLimit -> Maybe PermessageDeflate
-    -> IO (Message -> IO Message)
-makeMessageDeflater _ Nothing = return rejectExtensions
-makeMessageDeflater messageLimit (Just pmd)
+    :: Maybe PermessageDeflate -> IO (Message -> IO Message)
+makeMessageDeflater Nothing = return rejectExtensions
+makeMessageDeflater (Just pmd)
     | serverNoContextTakeover pmd = do
         return $ \msg -> do
             ptr <- initDeflate pmd
@@ -210,26 +213,13 @@ makeMessageDeflater messageLimit (Just pmd)
 
     ----------------------------------------------------------------------------
     deflateBody :: Zlib.Deflate -> BL.ByteString -> IO BL.ByteString
-    deflateBody ptr = fmap maybeStrip . go 0 . BL.toChunks
+    deflateBody ptr = fmap maybeStrip . go . BL.toChunks
       where
-        go size0 [] = do
-            chunk <- dePopper (Zlib.flushDeflate ptr)
-            checkSize (BL.length chunk + size0)
-            return chunk
-        go size0 (c : cs) = do
+        go [] =
+            dePopper (Zlib.flushDeflate ptr)
+        go (c : cs) = do
             chunk <- Zlib.feedDeflate ptr c >>= dePopper
-            let size1 = size0 + BL.length chunk
-            checkSize size1
-            (chunk <>) <$> go size1 cs
-
-    ----------------------------------------------------------------------------
-    checkSize :: Int64 -> IO ()
-    checkSize size = case messageLimit of
-        NoMessageDataSizeLimit -> return ()
-        MessageDataSizeLimit n
-            | size <= n        -> return ()
-            | otherwise        -> throwIO $ ParseException $
-                "Message of size " ++ show size ++ " exceeded limit"
+            (chunk <>) <$> go cs
 
 
 --------------------------------------------------------------------------------
@@ -241,9 +231,11 @@ dePopper p = p >>= \case
 
 
 --------------------------------------------------------------------------------
-makeMessageInflater :: Maybe PermessageDeflate -> IO (Message -> IO Message)
-makeMessageInflater Nothing = return rejectExtensions
-makeMessageInflater (Just pmd)
+makeMessageInflater
+    :: MessageDataSizeLimit -> Maybe PermessageDeflate
+    -> IO (Message -> IO Message)
+makeMessageInflater _ Nothing = return rejectExtensions
+makeMessageInflater messageLimit (Just pmd)
     | clientNoContextTakeover pmd =
         return $ \msg -> do
             ptr <- initInflate pmd
@@ -276,9 +268,25 @@ makeMessageInflater (Just pmd)
     ----------------------------------------------------------------------------
     inflateBody :: Zlib.Inflate -> BL.ByteString -> IO BL.ByteString
     inflateBody ptr =
-        go . BL.toChunks . (<> appTailL)
+        go 0 . BL.toChunks . (<> appTailL)
       where
-        go []       = BL.fromStrict <$> Zlib.flushInflate ptr
-        go (c : cs) = do
-            bl <- Zlib.feedInflate ptr c >>= dePopper
-            (bl <>) <$> go cs
+        go :: Int64 -> [B.ByteString] -> IO BL.ByteString
+        go size0 []       = do
+            chunk <- Zlib.flushInflate ptr
+            checkSize (fromIntegral (B.length chunk) + size0)
+            return (BL.fromStrict chunk)
+        go size0 (c : cs) = do
+            chunk <- Zlib.feedInflate ptr c >>= dePopper
+            let size1 = size0 + BL.length chunk
+            checkSize size1
+            (chunk <>) <$> go size1 cs
+
+
+    ----------------------------------------------------------------------------
+    checkSize :: Int64 -> IO ()
+    checkSize size = case messageLimit of
+        NoMessageDataSizeLimit -> return ()
+        MessageDataSizeLimit n
+            | size <= n        -> return ()
+            | otherwise        -> throwIO $ ParseException $
+                "Message of size " ++ show size ++ " exceeded limit"

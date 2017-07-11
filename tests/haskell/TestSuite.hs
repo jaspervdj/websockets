@@ -1,5 +1,6 @@
 --------------------------------------------------------------------------------
 import qualified Network.WebSockets.Extensions.Tests
+import qualified Network.WebSockets.Extensions.PermessageDeflate.Tests
 import qualified Network.WebSockets.Handshake.Tests
 import qualified Network.WebSockets.Http.Tests
 import qualified Network.WebSockets.Hybi13.Demultiplex.Tests
@@ -13,6 +14,7 @@ import           Test.Framework                              (defaultMain)
 main :: IO ()
 main = defaultMain
     [ Network.WebSockets.Extensions.Tests.tests
+    , Network.WebSockets.Extensions.PermessageDeflate.Tests.tests
     , Network.WebSockets.Handshake.Tests.tests
     , Network.WebSockets.Http.Tests.tests
     , Network.WebSockets.Hybi13.Demultiplex.Tests.tests

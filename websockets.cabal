@@ -105,6 +105,7 @@ Test-suite websockets-tests
     Network.WebSockets.Extensions
     Network.WebSockets.Extensions.Description
     Network.WebSockets.Extensions.PermessageDeflate
+    Network.WebSockets.Extensions.PermessageDeflate.Tests
     Network.WebSockets.Extensions.StrictUnicode
     Network.WebSockets.Extensions.Tests
     Network.WebSockets.Handshake.Tests

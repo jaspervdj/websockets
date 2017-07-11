@@ -160,7 +160,7 @@ data ConnectionException
     -- | The client sent invalid UTF-8.  Note that this exception will only be
     -- thrown if strict decoding is set in the connection options.
     | UnicodeException String
-    deriving (Show, Typeable)
+    deriving (Eq, Show, Typeable)
 
 
 --------------------------------------------------------------------------------

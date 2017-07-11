@@ -112,6 +112,7 @@ Test-suite websockets-tests
     Network.WebSockets.Http.Tests
     Network.WebSockets.Hybi13
     Network.WebSockets.Hybi13.Demultiplex
+    Network.WebSockets.Hybi13.Demultiplex.Tests
     Network.WebSockets.Hybi13.Mask
     Network.WebSockets.Mask.Tests
     Network.WebSockets.Protocol

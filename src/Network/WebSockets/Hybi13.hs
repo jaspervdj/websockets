@@ -21,7 +21,8 @@ import qualified Blaze.ByteString.Builder              as B
 import           Control.Applicative                   (pure, (<$>))
 import           Control.Arrow                         (first)
 import           Control.Exception                     (throwIO)
-import           Control.Monad                         (forM, liftM, when)
+import           Control.Monad                         (forM, liftM, unless,
+                                                        when)
 import           Data.Binary.Get                       (Get, getInt64be,
                                                         getLazyByteString,
                                                         getWord16be, getWord8)
@@ -159,8 +160,8 @@ encodeFrame mask f = B.fromWord8 byte0 `mappend`
 
 --------------------------------------------------------------------------------
 decodeMessages
-    :: FramePayloadSizeLimit
-    -> MessageDataSizeLimit
+    :: SizeLimit
+    -> SizeLimit
     -> Stream
     -> IO (IO (Maybe Message))
 decodeMessages frameLimit messageLimit stream = do
@@ -182,7 +183,7 @@ decodeMessages frameLimit messageLimit stream = do
 
 --------------------------------------------------------------------------------
 -- | Parse a frame
-parseFrame :: FramePayloadSizeLimit -> Get Frame
+parseFrame :: SizeLimit -> Get Frame
 parseFrame frameSizeLimit = do
     byte0 <- getWord8
     let fin    = byte0 .&. 0x80 == 0x80
@@ -201,11 +202,8 @@ parseFrame frameSizeLimit = do
         _   -> return (fromIntegral lenflag)
 
     -- Check size against limit.
-    case frameSizeLimit of
-        NoFramePayloadSizeLimit           -> return ()
-        FramePayloadSizeLimit n | len > n -> fail $
-            "Frame of size " ++ show len ++ " exceeded limit"
-        FramePayloadSizeLimit _           -> return ()
+    unless (atMostSizeLimit len frameSizeLimit) $
+        fail $ "Frame of size " ++ show len ++ " exceeded limit"
 
     ft <- case opcode of
         0x00 -> return ContinuationFrame

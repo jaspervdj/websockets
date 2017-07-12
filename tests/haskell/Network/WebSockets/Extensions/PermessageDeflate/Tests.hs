@@ -23,13 +23,13 @@ tests :: Test
 tests = testGroup "Network.WebSockets.Extensions.PermessageDeflate.Tests"
     [ testCase "OK 1" $ do
         inflater <- makeMessageInflater
-            (MessageDataSizeLimit 100) (Just defaultPermessageDeflate)
+            (SizeLimit 100) (Just defaultPermessageDeflate)
         message <- inflater $ DataMessage True False False (Binary deflated100)
         message @?=
             DataMessage False False False (Binary inflated100)
     , testCase "Exceed 1" $ do
         inflater <- makeMessageInflater
-            (MessageDataSizeLimit 99) (Just defaultPermessageDeflate)
+            (SizeLimit 99) (Just defaultPermessageDeflate)
         assertParseException $
             inflater $ DataMessage True False False (Binary deflated100)
     ]

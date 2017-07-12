@@ -26,8 +26,7 @@ module Network.WebSockets
     , defaultPermessageDeflate
 
       -- ** Protection limits
-    , FramePayloadSizeLimit (..)
-    , MessageDataSizeLimit (..)
+    , SizeLimit (..)
 
       -- * Sending and receiving messages
     , receive

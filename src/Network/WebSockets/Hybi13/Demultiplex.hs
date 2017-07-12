@@ -80,7 +80,7 @@ data DemultiplexResult
 
 
 --------------------------------------------------------------------------------
-demultiplex :: MessageDataSizeLimit
+demultiplex :: SizeLimit
             -> DemultiplexState
             -> Frame
             -> (DemultiplexResult, DemultiplexState)
@@ -115,7 +115,7 @@ demultiplex _ _ (Frame True False False False CloseFrame pl) =
        | otherwise         = (1000, BL.empty)
 
 demultiplex sizeLimit EmptyDemultiplexState (Frame fin rsv1 rsv2 rsv3 tp pl) = case tp of
-    _ | sizeProblem ->
+    _ | not (atMostSizeLimit size sizeLimit) ->
         ( DemultiplexError $ ParseException $
             "Message of size " ++ show size ++ " exceeded limit"
         , emptyDemultiplexState
@@ -140,12 +140,8 @@ demultiplex sizeLimit EmptyDemultiplexState (Frame fin rsv1 rsv2 rsv3 tp pl) = c
     text   x = DataMessage rsv1 rsv2 rsv3 (Text x Nothing)
     binary x = DataMessage rsv1 rsv2 rsv3 (Binary x)
 
-    sizeProblem = case sizeLimit of
-        NoMessageDataSizeLimit -> False
-        MessageDataSizeLimit n -> size > n
-
 demultiplex sizeLimit (DemultiplexState size0 b f) (Frame fin False False False ContinuationFrame pl)
-    | sizeProblem =
+    | not (atMostSizeLimit size1 sizeLimit) =
         ( DemultiplexError $ ParseException $
             "Message of size " ++ show size1 ++ " exceeded limit"
         , emptyDemultiplexState
@@ -156,10 +152,6 @@ demultiplex sizeLimit (DemultiplexState size0 b f) (Frame fin False False False 
     size1 = size0 + BL.length pl
     b'    = b `mappend` plb
     plb   = B.fromLazyByteString pl
-
-    sizeProblem = case sizeLimit of
-        NoMessageDataSizeLimit -> False
-        MessageDataSizeLimit n -> size1 > n
 
 demultiplex _ _ _ =
     (DemultiplexError (CloseRequest 1002 "Protocol Error"), emptyDemultiplexState)

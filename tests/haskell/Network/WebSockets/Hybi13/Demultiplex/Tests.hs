@@ -28,19 +28,19 @@ testMessageDataSizeLimit :: Test
 testMessageDataSizeLimit = testGroup "testMessageDataSizeLimit Hybi13"
     [ testCase "OK 1" $
         Right [DataMessage False False False (Binary (mkZeroes 100))] @=?
-        testDemultiplex (MessageDataSizeLimit 100) (fragmented 5 20)
+        testDemultiplex (SizeLimit 100) (fragmented 5 20)
     , testCase "Exceeds 1" $
         assertLeft $
-        testDemultiplex (MessageDataSizeLimit 99) (fragmented 5 20)
+        testDemultiplex (SizeLimit 99) (fragmented 5 20)
     , testCase "Exceeds 2" $
         assertLeft $
-        testDemultiplex (MessageDataSizeLimit 100) (fragmented 6 20)
+        testDemultiplex (SizeLimit 100) (fragmented 6 20)
     , testCase "Exceeds 3" $
         assertLeft $
-        testDemultiplex (MessageDataSizeLimit 100) (fragmented 101 1)
+        testDemultiplex (SizeLimit 100) (fragmented 101 1)
     , testCase "Exceeds 4" $
         assertLeft $
-        testDemultiplex (MessageDataSizeLimit 100) (fragmented 1 101)
+        testDemultiplex (SizeLimit 100) (fragmented 1 101)
     ]
   where
     fragmented :: Int -> Int -> [Frame]
@@ -60,7 +60,7 @@ testMessageDataSizeLimit = testGroup "testMessageDataSizeLimit Hybi13"
 
 --------------------------------------------------------------------------------
 testDemultiplex
-    :: MessageDataSizeLimit
+    :: SizeLimit
     -> [Frame]
     -> Either ConnectionException [Message]
 testDemultiplex messageLimit = go emptyDemultiplexState

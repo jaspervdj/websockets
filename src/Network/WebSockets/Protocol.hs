@@ -78,9 +78,7 @@ encodeMessages Hybi13 = Hybi13.encodeMessages
 
 --------------------------------------------------------------------------------
 decodeMessages
-    :: Protocol
-    -> FramePayloadSizeLimit -> MessageDataSizeLimit
-    -> Stream
+    :: Protocol -> SizeLimit -> SizeLimit -> Stream
     -> IO (IO (Maybe Message))
 decodeMessages Hybi13 frameLimit messageLimit =
     Hybi13.decodeMessages frameLimit messageLimit

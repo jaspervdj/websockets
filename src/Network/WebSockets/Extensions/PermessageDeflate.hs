@@ -17,7 +17,7 @@ module Network.WebSockets.Extensions.PermessageDeflate
 --------------------------------------------------------------------------------
 import           Control.Applicative                       ((<$>))
 import           Control.Exception                         (throwIO)
-import           Control.Monad                             (foldM)
+import           Control.Monad                             (foldM, unless)
 import qualified Data.ByteString                           as B
 import qualified Data.ByteString.Char8                     as B8
 import qualified Data.ByteString.Lazy                      as BL
@@ -62,7 +62,7 @@ toHeaders pmd =
 
 --------------------------------------------------------------------------------
 negotiateDeflate
-    :: MessageDataSizeLimit -> Maybe PermessageDeflate -> NegotiateExtension
+    :: SizeLimit -> Maybe PermessageDeflate -> NegotiateExtension
 negotiateDeflate messageLimit pmd0 exts0 = do
     (headers, pmd1) <- negotiateDeflateOpts exts0 pmd0
     return Extension
@@ -232,7 +232,7 @@ dePopper p = p >>= \case
 
 --------------------------------------------------------------------------------
 makeMessageInflater
-    :: MessageDataSizeLimit -> Maybe PermessageDeflate
+    :: SizeLimit -> Maybe PermessageDeflate
     -> IO (Message -> IO Message)
 makeMessageInflater _ Nothing = return rejectExtensions
 makeMessageInflater messageLimit (Just pmd)
@@ -284,9 +284,5 @@ makeMessageInflater messageLimit (Just pmd)
 
     ----------------------------------------------------------------------------
     checkSize :: Int64 -> IO ()
-    checkSize size = case messageLimit of
-        NoMessageDataSizeLimit -> return ()
-        MessageDataSizeLimit n
-            | size <= n        -> return ()
-            | otherwise        -> throwIO $ ParseException $
-                "Message of size " ++ show size ++ " exceeded limit"
+    checkSize size = unless (atMostSizeLimit size messageLimit) $ throwIO $
+        ParseException $ "Message of size " ++ show size ++ " exceeded limit"

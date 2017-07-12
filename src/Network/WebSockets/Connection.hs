@@ -38,8 +38,7 @@ module Network.WebSockets.Connection
     , PermessageDeflate (..)
     , defaultPermessageDeflate
 
-    , FramePayloadSizeLimit (..)
-    , MessageDataSizeLimit (..)
+    , SizeLimit (..)
     ) where
 
 

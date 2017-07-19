@@ -17,7 +17,13 @@ import           Data.Int (Int64)
 
 
 --------------------------------------------------------------------------------
--- | Set options for a 'Connection'.
+-- | Set options for a 'Connection'.  Please do not use this constructor
+-- directly, but rather use 'defaultConnectionOptions' and then set the fields
+-- you want, e.g.:
+--
+-- > myOptions = defaultConnectionOptions {connectionStrictUnicode = True}
+--
+-- This way your code does not break if the library introduces new fields.
 data ConnectionOptions = ConnectionOptions
     { connectionOnPong                :: !(IO ())
       -- ^ Whenever a 'pong' is received, this IO action is executed. It can be

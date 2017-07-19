@@ -1,3 +1,9 @@
+- 0.12.0.0
+    * Add limit options for frame and message size to prevent against (D)DoS
+      attacks
+    * Fix space leak in encodeMessages (by Roman Borschel)
+    * Stricter frame/encoding decoding for ping/close frames (by Lars Petersen)
+
 - 0.11.2.0
     * Fix 0-width reason phrase parsing
     * Change receive buffer from 1024 to 8192 bytes (by Ondrej Palkovsky)

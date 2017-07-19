@@ -62,6 +62,7 @@ Library
 
   Other-modules:
     Network.WebSockets.Client
+    Network.WebSockets.Connection.Options
     Network.WebSockets.Extensions.Description
     Network.WebSockets.Extensions.PermessageDeflate
     Network.WebSockets.Extensions.StrictUnicode
@@ -100,9 +101,11 @@ Test-suite websockets-tests
     Network.WebSockets
     Network.WebSockets.Client
     Network.WebSockets.Connection
+    Network.WebSockets.Connection.Options
     Network.WebSockets.Extensions
     Network.WebSockets.Extensions.Description
     Network.WebSockets.Extensions.PermessageDeflate
+    Network.WebSockets.Extensions.PermessageDeflate.Tests
     Network.WebSockets.Extensions.StrictUnicode
     Network.WebSockets.Extensions.Tests
     Network.WebSockets.Handshake.Tests
@@ -110,6 +113,7 @@ Test-suite websockets-tests
     Network.WebSockets.Http.Tests
     Network.WebSockets.Hybi13
     Network.WebSockets.Hybi13.Demultiplex
+    Network.WebSockets.Hybi13.Demultiplex.Tests
     Network.WebSockets.Hybi13.Mask
     Network.WebSockets.Mask.Tests
     Network.WebSockets.Protocol

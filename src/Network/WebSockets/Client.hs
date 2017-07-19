@@ -102,9 +102,11 @@ runClientWithStream stream host path opts customHeaders app = do
             "Network.WebSockets.Client.runClientWithStream: no handshake " ++
             "response from server"
     void $ either throwIO return $ finishResponse protocol request response
-    parse        <- decodeMessages protocol stream
-    write        <- encodeMessages protocol ClientConnection stream
-    sentRef      <- newIORef False
+    parse   <- decodeMessages protocol
+                (connectionFramePayloadSizeLimit opts)
+                (connectionMessageDataSizeLimit opts) stream
+    write   <- encodeMessages protocol ClientConnection stream
+    sentRef <- newIORef False
 
     app Connection
         { connectionOptions   = opts

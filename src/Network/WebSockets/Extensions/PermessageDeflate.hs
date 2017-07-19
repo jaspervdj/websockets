@@ -7,48 +7,32 @@ module Network.WebSockets.Extensions.PermessageDeflate
     ( defaultPermessageDeflate
     , PermessageDeflate(..)
     , negotiateDeflate
+
+      -- * Considered internal
+    , makeMessageInflater
+    , makeMessageDeflater
     ) where
 
 
 --------------------------------------------------------------------------------
 import           Control.Applicative                       ((<$>))
 import           Control.Exception                         (throwIO)
-import           Control.Monad                             (foldM)
+import           Control.Monad                             (foldM, unless)
 import qualified Data.ByteString                           as B
 import qualified Data.ByteString.Char8                     as B8
 import qualified Data.ByteString.Lazy                      as BL
 import qualified Data.ByteString.Lazy.Char8                as BL8
 import qualified Data.ByteString.Lazy.Internal             as BL
+import           Data.Int                                  (Int64)
 import           Data.Monoid
 import qualified Data.Streaming.Zlib                       as Zlib
+import           Network.WebSockets.Connection.Options
 import           Network.WebSockets.Extensions
 import           Network.WebSockets.Extensions.Description
 import           Network.WebSockets.Http
 import           Network.WebSockets.Types
-import           Text.Read                                 (readMaybe)
 import           Prelude
-
-
---------------------------------------------------------------------------------
--- | Four extension parameters are defined for "permessage-deflate" to
--- help endpoints manage per-connection resource usage.
---
--- - "server_no_context_takeover"
--- - "client_no_context_takeover"
--- - "server_max_window_bits"
--- - "client_max_window_bits"
-data PermessageDeflate = PermessageDeflate
-    { serverNoContextTakeover :: Bool
-    , clientNoContextTakeover :: Bool
-    , serverMaxWindowBits     :: Int
-    , clientMaxWindowBits     :: Int
-    , pdCompressionLevel      :: Int
-    } deriving (Eq, Show)
-
-
---------------------------------------------------------------------------------
-defaultPermessageDeflate :: PermessageDeflate
-defaultPermessageDeflate = PermessageDeflate False False 15 15 8
+import           Text.Read                                 (readMaybe)
 
 
 --------------------------------------------------------------------------------
@@ -77,13 +61,14 @@ toHeaders pmd =
 
 
 --------------------------------------------------------------------------------
-negotiateDeflate :: Maybe PermessageDeflate -> NegotiateExtension
-negotiateDeflate pmd0 exts0 = do
+negotiateDeflate
+    :: SizeLimit -> Maybe PermessageDeflate -> NegotiateExtension
+negotiateDeflate messageLimit pmd0 exts0 = do
     (headers, pmd1) <- negotiateDeflateOpts exts0 pmd0
     return Extension
         { extHeaders = headers
         , extParse   = \parseRaw -> do
-            inflate <- makeMessageInflater pmd1
+            inflate <- makeMessageInflater messageLimit pmd1
             return $ do
                 msg <- parseRaw
                 case msg of
@@ -230,10 +215,11 @@ makeMessageDeflater (Just pmd)
     deflateBody :: Zlib.Deflate -> BL.ByteString -> IO BL.ByteString
     deflateBody ptr = fmap maybeStrip . go . BL.toChunks
       where
-        go []       = dePopper (Zlib.flushDeflate ptr)
+        go [] =
+            dePopper (Zlib.flushDeflate ptr)
         go (c : cs) = do
-            bl <- Zlib.feedDeflate ptr c >>= dePopper
-            (bl <>) <$> go cs
+            chunk <- Zlib.feedDeflate ptr c >>= dePopper
+            (chunk <>) <$> go cs
 
 
 --------------------------------------------------------------------------------
@@ -245,9 +231,11 @@ dePopper p = p >>= \case
 
 
 --------------------------------------------------------------------------------
-makeMessageInflater :: Maybe PermessageDeflate -> IO (Message -> IO Message)
-makeMessageInflater Nothing = return rejectExtensions
-makeMessageInflater (Just pmd)
+makeMessageInflater
+    :: SizeLimit -> Maybe PermessageDeflate
+    -> IO (Message -> IO Message)
+makeMessageInflater _ Nothing = return rejectExtensions
+makeMessageInflater messageLimit (Just pmd)
     | clientNoContextTakeover pmd =
         return $ \msg -> do
             ptr <- initInflate pmd
@@ -280,9 +268,21 @@ makeMessageInflater (Just pmd)
     ----------------------------------------------------------------------------
     inflateBody :: Zlib.Inflate -> BL.ByteString -> IO BL.ByteString
     inflateBody ptr =
-        go . BL.toChunks . (<> appTailL)
+        go 0 . BL.toChunks . (<> appTailL)
       where
-        go []       = BL.fromStrict <$> Zlib.flushInflate ptr
-        go (c : cs) = do
-            bl <- Zlib.feedInflate ptr c >>= dePopper
-            (bl <>) <$> go cs
+        go :: Int64 -> [B.ByteString] -> IO BL.ByteString
+        go size0 []       = do
+            chunk <- Zlib.flushInflate ptr
+            checkSize (fromIntegral (B.length chunk) + size0)
+            return (BL.fromStrict chunk)
+        go size0 (c : cs) = do
+            chunk <- Zlib.feedInflate ptr c >>= dePopper
+            let size1 = size0 + BL.length chunk
+            checkSize size1
+            (chunk <>) <$> go size1 cs
+
+
+    ----------------------------------------------------------------------------
+    checkSize :: Int64 -> IO ()
+    checkSize size = unless (atMostSizeLimit size messageLimit) $ throwIO $
+        ParseException $ "Message of size " ++ show size ++ " exceeded limit"

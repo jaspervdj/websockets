@@ -21,7 +21,8 @@ import qualified Blaze.ByteString.Builder              as B
 import           Control.Applicative                   (pure, (<$>))
 import           Control.Arrow                         (first)
 import           Control.Exception                     (throwIO)
-import           Control.Monad                         (forM, liftM, when)
+import           Control.Monad                         (forM, liftM, unless,
+                                                        when)
 import           Data.Binary.Get                       (Get, getInt64be,
                                                         getLazyByteString,
                                                         getWord16be, getWord8)
@@ -41,6 +42,7 @@ import           System.Random                         (RandomGen, newStdGen)
 
 
 --------------------------------------------------------------------------------
+import           Network.WebSockets.Connection.Options
 import           Network.WebSockets.Http
 import           Network.WebSockets.Hybi13.Demultiplex
 import           Network.WebSockets.Hybi13.Mask
@@ -158,19 +160,21 @@ encodeFrame mask f = B.fromWord8 byte0 `mappend`
 
 --------------------------------------------------------------------------------
 decodeMessages
-    :: Stream
+    :: SizeLimit
+    -> SizeLimit
+    -> Stream
     -> IO (IO (Maybe Message))
-decodeMessages stream = do
+decodeMessages frameLimit messageLimit stream = do
     dmRef <- newIORef emptyDemultiplexState
     return $ go dmRef
   where
     go dmRef = do
-        mbFrame <- Stream.parseBin stream parseFrame
+        mbFrame <- Stream.parseBin stream (parseFrame frameLimit)
         case mbFrame of
             Nothing    -> return Nothing
             Just frame -> do
                 demultiplexResult <- atomicModifyIORef' dmRef $
-                    \s -> swap $ demultiplex s frame
+                    \s -> swap $ demultiplex messageLimit s frame
                 case demultiplexResult of
                     DemultiplexError err    -> throwIO err
                     DemultiplexContinue     -> go dmRef
@@ -179,8 +183,8 @@ decodeMessages stream = do
 
 --------------------------------------------------------------------------------
 -- | Parse a frame
-parseFrame :: Get Frame
-parseFrame = do
+parseFrame :: SizeLimit -> Get Frame
+parseFrame frameSizeLimit = do
     byte0 <- getWord8
     let fin    = byte0 .&. 0x80 == 0x80
         rsv1   = byte0 .&. 0x40 == 0x40
@@ -196,6 +200,10 @@ parseFrame = do
         126 -> fromIntegral <$> getWord16be
         127 -> getInt64be
         _   -> return (fromIntegral lenflag)
+
+    -- Check size against limit.
+    unless (atMostSizeLimit len frameSizeLimit) $
+        fail $ "Frame of size " ++ show len ++ " exceeded limit"
 
     ft <- case opcode of
         0x00 -> return ContinuationFrame

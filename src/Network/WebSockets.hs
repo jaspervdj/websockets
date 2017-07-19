@@ -25,6 +25,9 @@ module Network.WebSockets
     , PermessageDeflate (..)
     , defaultPermessageDeflate
 
+      -- ** Protection limits
+    , SizeLimit (..)
+
       -- * Sending and receiving messages
     , receive
     , receiveDataMessage

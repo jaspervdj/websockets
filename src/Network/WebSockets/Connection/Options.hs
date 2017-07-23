@@ -13,7 +13,9 @@ module Network.WebSockets.Connection.Options
 
 
 --------------------------------------------------------------------------------
-import           Data.Int (Int64)
+import           Data.Int    (Int64)
+import           Data.Monoid (Monoid (..))
+import           Prelude
 
 
 --------------------------------------------------------------------------------

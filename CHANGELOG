@@ -1,3 +1,7 @@
+- 0.12.1.0 (2017-07-22)
+    * Fix Monoid import on older base versions
+    * Increase lower bound on `binary` to 0.8.1 (by Jonathan Daugherty)
+
 - 0.12.0.0
     * Add limit options for frame and message size to prevent against (D)DoS
       attacks

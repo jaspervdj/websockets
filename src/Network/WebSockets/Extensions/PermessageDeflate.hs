@@ -1,5 +1,4 @@
 --------------------------------------------------------------------------------
-{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TupleSections     #-}
@@ -224,7 +223,7 @@ makeMessageDeflater (Just pmd)
 
 --------------------------------------------------------------------------------
 dePopper :: Zlib.Popper -> IO BL.ByteString
-dePopper p = p >>= \case
+dePopper p = p >>= \res -> case res of
     Zlib.PRDone    -> return BL.empty
     Zlib.PRNext c  -> BL.chunk c <$> dePopper p
     Zlib.PRError x -> throwIO $ CloseRequest 1002 (BL8.pack (show x))

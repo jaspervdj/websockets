@@ -1,3 +1,6 @@
+- 0.12.2.0 (2017-07-28)
+    * Don't use LambdaCase, we want to support older GHC versions
+
 - 0.12.1.0 (2017-07-22)
     * Fix Monoid import on older base versions
     * Increase lower bound on `binary` to 0.8.1 (by Jonathan Daugherty)

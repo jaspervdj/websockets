@@ -12,7 +12,10 @@ module Network.WebSockets.Client
 
 --------------------------------------------------------------------------------
 import qualified Blaze.ByteString.Builder      as Builder
-import           Control.Exception             (bracket, finally, throwIO)
+import           Control.Exception             (SomeException,
+                                                SomeAsyncException, catch,
+                                                finally, fromException, mask,
+                                                throwIO)
 import           Control.Monad                 (void)
 import           Data.IORef                    (newIORef)
 import qualified Data.Text                     as T
@@ -130,8 +133,21 @@ runClientWithSocket :: S.Socket           -- ^ Socket
                     -> Headers            -- ^ Custom headers to send
                     -> ClientApp a        -- ^ Client application
                     -> IO a
-runClientWithSocket sock host path opts customHeaders app = bracket
-    (Stream.makeSocketStream sock)
-    Stream.close
-    (\stream ->
-        runClientWithStream stream host path opts customHeaders app)
+runClientWithSocket sock host path opts customHeaders app =
+    mask $ \restore -> do
+      stream <- Stream.makeSocketStream sock
+      r <- restore (runClientWithStream stream host path opts customHeaders app)
+           `catch` handleAppExceptions stream
+      void $ Stream.close stream
+      pure r
+  where
+    handleAppExceptions :: Stream -> SomeException -> IO b
+    handleAppExceptions stream e = do
+        Stream.close stream `catch` ignoreSynchronous
+        throwIO e
+
+    ignoreSynchronous :: SomeException -> IO ()
+    ignoreSynchronous e =
+        case fromException e of
+          Nothing -> pure ()
+          Just a -> throwIO (a :: SomeAsyncException)

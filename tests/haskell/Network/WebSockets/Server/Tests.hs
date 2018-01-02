@@ -7,7 +7,7 @@ module Network.WebSockets.Server.Tests
 
 
 --------------------------------------------------------------------------------
-import           Control.Applicative            ((<$>))
+import           Control.Applicative            ((<$>), (<|>))
 import           Control.Concurrent             (forkIO, killThread,
                                                  threadDelay)
 import           Control.Exception              (SomeException, catch, handle)
@@ -39,7 +39,7 @@ tests = testGroup "Network.WebSockets.Server.Tests"
     [ testCase "simple server/client" testSimpleServerClient
     , testCase "bulk server/client"   testBulkServerClient
     , testCase "onPong"               testOnPong
-    , testCase "ipv6 server"          testIPv6Server
+    , testCase "ipv6 server"          testIpv6Server
     ]
 
 
@@ -49,18 +49,17 @@ testSimpleServerClient = testServerClient "127.0.0.1" $ \conn -> mapM_ (sendText
 
 
 --------------------------------------------------------------------------------
--- | <travis-ci.org> sets the TRAVIS environment variable to "true".
-skipTravis :: Assertion -> Assertion
-skipTravis assertion = do
+-- | This is a bit ugly but it seems CI services don't support ipv6 in 2018.
+skipIpv6Incompatible :: Assertion -> Assertion
+skipIpv6Incompatible assertion = do
     env <- getEnvironment
-    case lookup "TRAVIS" env of
+    case lookup "TRAVIS" env <|> lookup "CIRCLECI" env of
         Just "true" -> return ()
         _           -> assertion
 
 --------------------------------------------------------------------------------
--- | IPV6 is currently NOT supported on travis
-testIPv6Server :: Assertion
-testIPv6Server = skipTravis $
+testIpv6Server :: Assertion
+testIpv6Server = skipIpv6Incompatible $
     testServerClient "::1" $ \conn -> mapM_ (sendTextData conn)
 
 --------------------------------------------------------------------------------

@@ -1,3 +1,9 @@
+- 0.12.3.0 (2018-01-02)
+    * Fix error thrown from runClient functions
+    * Bump `QuickCheck` dependency to 2.10
+    * Bump `entropy` dependency to 0.4
+    * Bump `binary` dependency to 0.10
+
 - 0.12.2.0 (2017-07-28)
     * Don't use LambdaCase, we want to support older GHC versions
 

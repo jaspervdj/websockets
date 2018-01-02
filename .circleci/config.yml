@@ -1,0 +1,36 @@
+version: 2
+
+workflows:
+  version: 2
+  simple-workflow:
+    jobs:
+      - build:
+          filters:
+            tags:
+              only: /.*/
+
+jobs:
+  build:
+    # This image has most Haskell stuff preinstalled.
+    docker:
+      - image: 'fpco/stack-build:latest'
+
+    steps:
+      - checkout
+      - restore_cache:
+          key: 'v1-websockets-{{ arch }}-{{ .Branch }}'
+      - run:
+          name: 'Install virtualenv for autobahn'
+          command: 'apt-get update && apt-get install --yes virtualenv python2.7-dev'
+      - run:
+          name: 'Install and test'
+          command: 'stack --no-terminal --skip-ghc-check --copy-bins test --pedantic'
+      - run:
+          name: 'Run autobahn tests'
+          command: 'bash tests/autobahn/autobahn.sh'
+      - save_cache:
+          key: 'v1-websockets-{{ arch }}-{{ .Branch }}-{{ .Revision }}'
+          paths:
+            - '~/.stack'
+            - '~/.virtualenvs'
+            - '.stack-work'

@@ -12,12 +12,12 @@ module Network.WebSockets.Stream
     , close
     ) where
 
-import qualified Data.Binary.Get                as BIN
 import           Control.Concurrent.MVar        (MVar, newEmptyMVar, newMVar,
                                                  putMVar, takeMVar, withMVar)
 import           Control.Exception              (onException, throwIO)
-import           Control.Monad                  (forM_, when)
+import           Control.Monad                  (forM_)
 import qualified Data.Attoparsec.ByteString     as Atto
+import qualified Data.Binary.Get                as BIN
 import qualified Data.ByteString                as B
 import qualified Data.ByteString.Lazy           as BL
 import           Data.IORef                     (IORef, atomicModifyIORef',
@@ -79,23 +79,27 @@ makeStream receive send = do
         Open   buf -> (Closed buf, ())
         Closed buf -> (Closed buf, ())
 
-    assertNotClosed :: IORef StreamState -> IO a -> IO a
-    assertNotClosed ref io = do
+    -- Throw a 'ConnectionClosed' is the connection is not 'Open'.
+    assertOpen :: IORef StreamState -> IO ()
+    assertOpen ref = do
         state <- readIORef ref
         case state of
             Closed _ -> throwIO ConnectionClosed
-            Open   _ -> io
+            Open   _ -> return ()
 
     receive' :: IORef StreamState -> MVar () -> IO (Maybe B.ByteString)
-    receive' ref lock = withMVar lock $ \() -> assertNotClosed ref $ do
+    receive' ref lock = withMVar lock $ \() -> do
+        assertOpen ref
         mbBs <- onException receive (closeRef ref)
         case mbBs of
             Nothing -> closeRef ref >> return Nothing
             Just bs -> return (Just bs)
 
     send' :: IORef StreamState -> MVar () -> (Maybe BL.ByteString -> IO ())
-    send' ref lock mbBs = withMVar lock $ \() -> assertNotClosed ref $ do
-        when (mbBs == Nothing) (closeRef ref)
+    send' ref lock mbBs = withMVar lock $ \() -> do
+        case mbBs of
+            Nothing -> closeRef ref
+            Just _  -> assertOpen ref
         onException (send mbBs) (closeRef ref)
 
 

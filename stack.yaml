@@ -2,3 +2,7 @@ resolver: nightly-2017-12-14
 flags:
   websockets:
     example: true
+extra-deps:
+- 'entropy-0.4'
+- 'binary-0.9.0.0'
+allow-newer: true

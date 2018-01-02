@@ -20,6 +20,9 @@ jobs:
       - restore_cache:
           key: 'v1-websockets-{{ arch }}-{{ .Branch }}'
       - run:
+          name: 'Install virtualenv for autobahn'
+          command: 'apt-get install virtualenv'
+      - run:
           name: 'Install and test'
           command: 'stack --no-terminal --skip-ghc-check --copy-bins test --pedantic'
       - run:

@@ -21,7 +21,7 @@ jobs:
           key: 'v1-websockets-{{ arch }}-{{ .Branch }}'
       - run:
           name: 'Install virtualenv for autobahn'
-          command: 'apt-get install virtualenv'
+          command: 'apt-get update && apt-get install --yes virtualenv'
       - run:
           name: 'Install and test'
           command: 'stack --no-terminal --skip-ghc-check --copy-bins test --pedantic'

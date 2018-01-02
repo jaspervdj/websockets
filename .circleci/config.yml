@@ -32,4 +32,5 @@ jobs:
           key: 'v1-websockets-{{ arch }}-{{ .Branch }}-{{ .Revision }}'
           paths:
             - '~/.stack'
+            - '~/.virtualenvs'
             - '.stack-work'

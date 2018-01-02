@@ -123,6 +123,7 @@ Test-suite websockets-tests
     Network.WebSockets.Tests
     Network.WebSockets.Tests.Util
     Network.WebSockets.Types
+    Paths_websockets
 
   Build-depends:
     HUnit                      >= 1.2 && < 1.7,
@@ -183,6 +184,9 @@ Executable websockets-autobahn
   Hs-source-dirs: tests/autobahn
   Main-is:        server.hs
   Ghc-options:    -Wall -threaded -O2 -rtsopts "-with-rtsopts=-N"
+
+  Other-modules:
+    Paths_websockets
 
   Build-depends:
     websockets,

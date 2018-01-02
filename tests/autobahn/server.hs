@@ -63,8 +63,10 @@ application pc = do
     echoDataMessage conn `catch` handleClose
 
   where
+    handleClose (WS.CloseRequest i "") =
+        putStrLn $ "Clean close (" ++ show i ++ ")"
     handleClose (WS.CloseRequest i msg) =
-        putStrLn $ "Recevied close request " ++ show i ++ " : " ++ show msg
+        putStrLn $ "Clean close (" ++ show i ++ "): " ++ show msg
     handleClose WS.ConnectionClosed =
         putStrLn "Unexpected connection closed exception"
     handleClose (WS.ParseException e) =

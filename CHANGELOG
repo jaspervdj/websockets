@@ -1,3 +1,7 @@
+- 0.12.3.1 (2018-01-10)
+    * Bump CHANGELOG with IPv6 warning
+    * Run all autobahn tests during CI
+
 - 0.12.3.0 (2018-01-02)
     * Fix error thrown from runClient functions
     * Bump `QuickCheck` dependency to 2.10

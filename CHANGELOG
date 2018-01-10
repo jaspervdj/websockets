@@ -28,8 +28,11 @@
     * Fix compilation issue with GHC-7.8
 
 - 0.11.0.0
+    * Support for IPv6 in the built-in server, client and tests (by agentm).
+      This can cause issues on backends that do not enable IPv6.  For more
+      information and a workaround, see this issue:
+      <https://github.com/jaspervdj/websockets/issues/140#issuecomment-296732964>.
     * Faster masking (by Dmitry Ivanov)
-    * Support for IPv6 in the built-in server, client and tests (by agentm)
     * Support for `permessage-deflate` extension (by Marcin Tolysz)
     * Strict unicode checking and proper extension mechanism
 

@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 --------------------------------------------------------------------------------
 module Network.WebSockets.Connection.Options
     ( ConnectionOptions (..)
@@ -109,10 +110,16 @@ data SizeLimit
 instance Monoid SizeLimit where
     mempty = NoSizeLimit
 
+#if !MIN_VERSION_base(4,11,0)
     mappend NoSizeLimit   y             = y
     mappend x             NoSizeLimit   = x
     mappend (SizeLimit x) (SizeLimit y) = SizeLimit (min x y)
-
+#else
+instance Semigroup SizeLimit where
+    (<>)    NoSizeLimit   y             = y
+    (<>)    x             NoSizeLimit   = x
+    (<>)    (SizeLimit x) (SizeLimit y) = SizeLimit (min x y)
+#endif
 
 --------------------------------------------------------------------------------
 atMostSizeLimit :: Int64 -> SizeLimit -> Bool

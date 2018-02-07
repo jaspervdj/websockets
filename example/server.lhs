@@ -131,7 +131,7 @@ the list and broadcast the fact that he has joined. Then, we give control to the
 >                        T.intercalate ", " (map fst s)
 >                    broadcast (fst client `mappend` " joined") s'
 >                    return s'
->                talk conn state client
+>                talk client state
 >           where
 >             prefix     = "Hi! I am "
 >             client     = (T.drop (T.length prefix) msg, conn)
@@ -144,8 +144,8 @@ the list and broadcast the fact that he has joined. Then, we give control to the
 The talk function continues to read messages from a single client until he
 disconnects. All messages are broadcasted to the other clients.
 
-> talk :: WS.Connection -> MVar ServerState -> Client -> IO ()
-> talk conn state (user, _) = forever $ do
+> talk :: Client -> MVar ServerState -> IO ()
+> talk (user, conn) state = forever $ do
 >     msg <- WS.receiveData conn
 >     readMVar state >>= broadcast
 >         (user `mappend` ": " `mappend` msg)

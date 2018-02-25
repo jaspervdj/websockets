@@ -29,7 +29,6 @@ import           Test.QuickCheck.Random         (newQCGen)
 
 --------------------------------------------------------------------------------
 import           Network.WebSockets
-import           Network.WebSockets.Connection
 import           Network.WebSockets.Tests.Util
 
 

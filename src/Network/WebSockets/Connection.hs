@@ -309,6 +309,7 @@ send conn = sendAll conn . return
 
 --------------------------------------------------------------------------------
 sendAll :: Connection -> [Message] -> IO ()
+sendAll _    []   = return ()
 sendAll conn msgs = do
     when (any isCloseMessage msgs) $
       writeIORef (connectionSentClose conn) True

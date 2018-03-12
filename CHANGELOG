@@ -1,3 +1,7 @@
+- UNRELEASED
+    * Remove `blaze-builder` dependency
+    * Raise lower bound on `bytestring` dependency to `>= 0.10.4`
+
 - 0.12.3.1 (2018-01-10)
     * Bump CHANGELOG with IPv6 warning
     * Run all autobahn tests during CI

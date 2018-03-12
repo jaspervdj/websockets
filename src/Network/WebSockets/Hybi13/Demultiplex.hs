@@ -13,8 +13,8 @@ module Network.WebSockets.Hybi13.Demultiplex
 
 
 --------------------------------------------------------------------------------
-import           Blaze.ByteString.Builder              (Builder)
-import qualified Blaze.ByteString.Builder              as B
+import           Data.ByteString.Builder               (Builder)
+import qualified Data.ByteString.Builder               as B
 import           Control.Exception                     (Exception)
 import           Data.Binary.Get                       (getWord16be, runGet)
 import qualified Data.ByteString.Lazy                  as BL
@@ -136,7 +136,7 @@ demultiplex sizeLimit EmptyDemultiplexState (Frame fin rsv1 rsv2 rsv3 tp pl) = c
 
   where
     size     = BL.length pl
-    plb      = B.fromLazyByteString pl
+    plb      = B.lazyByteString pl
     text   x = DataMessage rsv1 rsv2 rsv3 (Text x Nothing)
     binary x = DataMessage rsv1 rsv2 rsv3 (Binary x)
 
@@ -151,7 +151,7 @@ demultiplex sizeLimit (DemultiplexState size0 b f) (Frame fin False False False 
   where
     size1 = size0 + BL.length pl
     b'    = b `mappend` plb
-    plb   = B.fromLazyByteString pl
+    plb   = B.lazyByteString pl
 
 demultiplex _ _ _ =
     (DemultiplexError (CloseRequest 1002 "Protocol Error"), emptyDemultiplexState)

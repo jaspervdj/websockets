@@ -31,8 +31,8 @@ module Network.WebSockets.Http
 
 
 --------------------------------------------------------------------------------
-import qualified Blaze.ByteString.Builder                  as Builder
-import qualified Blaze.ByteString.Builder.Char.Utf8        as Builder
+import qualified Data.ByteString.Builder                   as Builder
+import qualified Data.ByteString.Builder.Extra             as Builder
 import           Control.Applicative                       (pure, (*>), (<$>),
                                                             (<*), (<*>))
 import           Control.Exception                         (Exception)
@@ -114,21 +114,21 @@ instance Exception HandshakeException
 --------------------------------------------------------------------------------
 encodeRequestHead :: RequestHead -> Builder.Builder
 encodeRequestHead (RequestHead path headers _) =
-    Builder.copyByteString "GET "      `mappend`
-    Builder.copyByteString path        `mappend`
-    Builder.copyByteString " HTTP/1.1" `mappend`
-    Builder.fromByteString "\r\n"      `mappend`
+    Builder.byteStringCopy "GET "      `mappend`
+    Builder.byteStringCopy path        `mappend`
+    Builder.byteStringCopy " HTTP/1.1" `mappend`
+    Builder.byteString "\r\n"          `mappend`
     mconcat (map header headers)       `mappend`
-    Builder.copyByteString "\r\n"
+    Builder.byteStringCopy "\r\n"
   where
-    header (k, v) = mconcat $ map Builder.copyByteString
+    header (k, v) = mconcat $ map Builder.byteStringCopy
         [CI.original k, ": ", v, "\r\n"]
 
 
 --------------------------------------------------------------------------------
 encodeRequest :: Request -> Builder.Builder
 encodeRequest (Request head' body) =
-    encodeRequestHead head' `mappend` Builder.copyByteString body
+    encodeRequestHead head' `mappend` Builder.byteStringCopy body
 
 
 --------------------------------------------------------------------------------
@@ -151,22 +151,22 @@ decodeRequestHead isSecure = RequestHead
 -- | Encode an HTTP upgrade response
 encodeResponseHead :: ResponseHead -> Builder.Builder
 encodeResponseHead (ResponseHead code msg headers) =
-    Builder.copyByteString "HTTP/1.1 " `mappend`
-    Builder.fromString (show code)     `mappend`
-    Builder.fromChar ' '               `mappend`
-    Builder.fromByteString msg         `mappend`
-    Builder.fromByteString "\r\n"      `mappend`
+    Builder.byteStringCopy "HTTP/1.1 " `mappend`
+    Builder.stringUtf8 (show code)     `mappend`
+    Builder.charUtf8 ' '               `mappend`
+    Builder.byteString msg             `mappend`
+    Builder.byteString "\r\n"          `mappend`
     mconcat (map header headers)       `mappend`
-    Builder.copyByteString "\r\n"
+    Builder.byteStringCopy "\r\n"
   where
-    header (k, v) = mconcat $ map Builder.copyByteString
+    header (k, v) = mconcat $ map Builder.byteStringCopy
         [CI.original k, ": ", v, "\r\n"]
 
 
 --------------------------------------------------------------------------------
 encodeResponse :: Response -> Builder.Builder
 encodeResponse (Response head' body) =
-    encodeResponseHead head' `mappend` Builder.copyByteString body
+    encodeResponseHead head' `mappend` Builder.byteStringCopy body
 
 
 --------------------------------------------------------------------------------

@@ -11,7 +11,7 @@ module Network.WebSockets.Client
 
 
 --------------------------------------------------------------------------------
-import qualified Blaze.ByteString.Builder      as Builder
+import qualified Data.ByteString.Builder       as Builder
 import           Control.Exception             (bracket, finally, throwIO)
 import           Control.Monad                 (void)
 import           Data.IORef                    (newIORef)

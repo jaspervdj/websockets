@@ -16,6 +16,7 @@ import           Data.Binary.Get                       (runGetOrFail)
 import qualified Data.ByteString.Lazy                  as BL
 import           Data.List                             (intersperse)
 import           Data.Maybe                            (catMaybes)
+import           Data.Monoid                           (mempty, mconcat)
 import           Network.WebSockets
 import qualified Network.WebSockets.Hybi13             as Hybi13
 import           Network.WebSockets.Hybi13.Demultiplex

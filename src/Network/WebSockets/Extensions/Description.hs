@@ -14,7 +14,7 @@ import           Control.Applicative              ((*>), (<*))
 import qualified Data.Attoparsec.ByteString       as A
 import qualified Data.Attoparsec.ByteString.Char8 as AC8
 import qualified Data.ByteString                  as B
-import           Data.Monoid                      (mconcat, (<>))
+import           Data.Monoid                      (mconcat, mappend)
 import           Prelude
 
 type ExtensionParam = (B.ByteString, Maybe B.ByteString)
@@ -48,10 +48,10 @@ parseExtensionDescription = do
 
 encodeExtensionDescription :: ExtensionDescription -> B.ByteString
 encodeExtensionDescription ExtensionDescription {..} =
-    extName <> mconcat (map encodeParam extParams)
+    mconcat (extName : map encodeParam extParams)
   where
-    encodeParam (key, Nothing)  = ";" <> key
-    encodeParam (key, Just val) = ";" <> key <> "=" <> val
+    encodeParam (key, Nothing)  = ";" `mappend` key
+    encodeParam (key, Just val) = ";" `mappend` key `mappend` "=" `mappend` val
 
 type ExtensionDescriptions = [ExtensionDescription]
 

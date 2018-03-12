@@ -15,7 +15,8 @@ module Network.WebSockets.Hybi13.Mask
 
 
 --------------------------------------------------------------------------------
-import qualified Blaze.ByteString.Builder      as Builder
+import qualified Data.ByteString.Builder       as Builder
+import qualified Data.ByteString.Builder.Extra as Builder
 import           Data.Binary.Get               (Get, getWord32host)
 import qualified Data.ByteString.Internal      as B
 import qualified Data.ByteString.Lazy          as BL
@@ -48,7 +49,7 @@ parseMask = fmap Mask getWord32host
 --------------------------------------------------------------------------------
 -- | Encode a mask
 encodeMask :: Mask -> Builder.Builder
-encodeMask = Builder.fromStorable . unMask
+encodeMask = Builder.word32Host . unMask
 
 
 --------------------------------------------------------------------------------

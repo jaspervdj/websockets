@@ -1,3 +1,6 @@
+- UNRELEASED
+    * Remove `blaze-builder` dependency
+
 - 0.12.3.1 (2018-01-10)
     * Bump CHANGELOG with IPv6 warning
     * Run all autobahn tests during CI

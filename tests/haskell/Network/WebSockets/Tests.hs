@@ -7,7 +7,7 @@ module Network.WebSockets.Tests
 
 
 --------------------------------------------------------------------------------
-import qualified Blaze.ByteString.Builder              as Builder
+import qualified Data.ByteString.Builder               as Builder
 import           Control.Applicative                   ((<$>))
 import           Control.Concurrent                    (forkIO)
 import           Control.Exception                     (try)

@@ -43,7 +43,7 @@ module Network.WebSockets.Connection
 
 
 --------------------------------------------------------------------------------
-import qualified Blaze.ByteString.Builder                        as Builder
+import qualified Data.ByteString.Builder                         as Builder
 import           Control.Applicative                             ((<$>))
 import           Control.Concurrent                              (forkIO,
                                                                   threadDelay)

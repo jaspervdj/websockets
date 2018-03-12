@@ -17,7 +17,7 @@ module Network.WebSockets.Hybi13
 
 
 --------------------------------------------------------------------------------
-import qualified Blaze.ByteString.Builder              as B
+import qualified Data.ByteString.Builder               as B
 import           Control.Applicative                   (pure, (<$>))
 import           Control.Arrow                         (first)
 import           Control.Exception                     (throwIO)
@@ -122,9 +122,9 @@ encodeMessages conType stream = do
 
 --------------------------------------------------------------------------------
 encodeFrame :: Maybe Mask -> Frame -> B.Builder
-encodeFrame mask f = B.fromWord8 byte0 `mappend`
-    B.fromWord8 byte1 `mappend` len `mappend` maskbytes `mappend`
-    B.fromLazyByteString (maskPayload mask payload)
+encodeFrame mask f = B.word8 byte0 `mappend`
+    B.word8 byte1 `mappend` len `mappend` maskbytes `mappend`
+    B.lazyByteString (maskPayload mask payload)
   where
 
     byte0  = fin .|. rsv1 .|. rsv2 .|. rsv3 .|. opcode
@@ -154,8 +154,8 @@ encodeFrame mask f = B.fromWord8 byte0 `mappend`
     len'  = BL.length payload
     (lenflag, len)
         | len' < 126     = (fromIntegral len', mempty)
-        | len' < 0x10000 = (126, B.fromWord16be (fromIntegral len'))
-        | otherwise      = (127, B.fromWord64be (fromIntegral len'))
+        | len' < 0x10000 = (126, B.word16BE (fromIntegral len'))
+        | otherwise      = (127, B.word64BE (fromIntegral len'))
 
 
 --------------------------------------------------------------------------------

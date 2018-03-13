@@ -2,4 +2,6 @@ resolver: lts-10.4
 flags:
   websockets:
     example: true
-extra-deps: []
+extra-deps:
+- 'QuickCheck-2.11.3'
+- 'streaming-commons-0.2.0.0'

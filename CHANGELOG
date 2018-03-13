@@ -1,7 +1,14 @@
-- UNRELEASED
+- 0.12.4.0 (2018-03-13)
     * Remove `blaze-builder` dependency
-    * Relax `streaming-commons` dependency upper bound to < 0.3
-
+    * Bump `streaming-commons` dependency to 0.2
+    * Bump `QuickCheck` dependency to 2.11
+    * Fix compatibility with old GHC versions
+    * Re-export more functions from `Network.WebSockets`
+        - `sendDataMessages`
+        - `sendBinaryDatas`
+        - `sendCloseCode`
+    * Don't crash when sending the empty list of messages
+    * Add `SemiGroup` instance for `SizeLimit`
 
 - 0.12.3.1 (2018-01-10)
     * Bump CHANGELOG with IPv6 warning

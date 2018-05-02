@@ -1,5 +1,6 @@
-resolver: lts-10.6
+resolver: lts-11.5
 flags:
   websockets:
     example: true
-extra-deps: []
+extra-deps:
+- 'network-2.7.0.0'

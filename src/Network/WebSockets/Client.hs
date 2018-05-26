@@ -122,7 +122,7 @@ newClientConnection stream host path opts customHeaders = do
     response   <- case mbResponse of
         Just response -> return response
         Nothing       -> throwIO $ OtherHandshakeException $
-            "Network.WebSockets.Client.runClientWithStream: no handshake " ++
+            "Network.WebSockets.Client.newClientConnection: no handshake " ++
             "response from server"
     void $ either throwIO return $ finishResponse protocol request response
     parse   <- decodeMessages protocol

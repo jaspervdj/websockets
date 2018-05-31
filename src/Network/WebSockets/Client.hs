@@ -97,14 +97,14 @@ runClientWithStream stream host path opts customHeaders app = do
     newClientConnection stream host path opts customHeaders >>= app
 
 -- | Build a new 'Connection' from the client's point of view.
+--
+-- /WARNING/: Be sure to call 'Stream.close' on the given 'Stream' after you are
+-- done using the 'Connection' in order to properly close the communication
+-- channel. 'runClientWithStream' handles this for you, prefer to use it when
+-- possible.
 newClientConnection
     :: Stream
     -- ^ Stream that will be used by the new 'Connection'.
-    --
-    -- /WARNING/: Be sure to call 'Stream.close' on this stream after you are
-    -- done using the 'Connection' in order to properly close the communication
-    -- channel. 'runClientWithStream' handles this for you, prefer to use it
-    -- when possible.
     -> String
     -- ^ Host
     -> String

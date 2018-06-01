@@ -7,6 +7,7 @@ module Network.WebSockets.Client
     , runClientWith
     , runClientWithSocket
     , runClientWithStream
+    , newClientConnection
     ) where
 
 
@@ -77,6 +78,7 @@ runClientWith host port path0 opts customHeaders app = do
 
 
 --------------------------------------------------------------------------------
+
 runClientWithStream
     :: Stream
     -- ^ Stream
@@ -92,6 +94,27 @@ runClientWithStream
     -- ^ Client application
     -> IO a
 runClientWithStream stream host path opts customHeaders app = do
+    newClientConnection stream host path opts customHeaders >>= app
+
+-- | Build a new 'Connection' from the client's point of view.
+--
+-- /WARNING/: Be sure to call 'Stream.close' on the given 'Stream' after you are
+-- done using the 'Connection' in order to properly close the communication
+-- channel. 'runClientWithStream' handles this for you, prefer to use it when
+-- possible.
+newClientConnection
+    :: Stream
+    -- ^ Stream that will be used by the new 'Connection'.
+    -> String
+    -- ^ Host
+    -> String
+    -- ^ Path
+    -> ConnectionOptions
+    -- ^ Connection options
+    -> Headers
+    -- ^ Custom headers to send
+    -> IO Connection
+newClientConnection stream host path opts customHeaders = do
     -- Create the request and send it
     request    <- createRequest protocol bHost bPath False customHeaders
     Stream.write stream (Builder.toLazyByteString $ encodeRequestHead request)
@@ -99,7 +122,7 @@ runClientWithStream stream host path opts customHeaders app = do
     response   <- case mbResponse of
         Just response -> return response
         Nothing       -> throwIO $ OtherHandshakeException $
-            "Network.WebSockets.Client.runClientWithStream: no handshake " ++
+            "Network.WebSockets.Client.newClientConnection: no handshake " ++
             "response from server"
     void $ either throwIO return $ finishResponse protocol request response
     parse   <- decodeMessages protocol
@@ -108,7 +131,7 @@ runClientWithStream stream host path opts customHeaders app = do
     write   <- encodeMessages protocol ClientConnection stream
     sentRef <- newIORef False
 
-    app Connection
+    pure $ Connection
         { connectionOptions   = opts
         , connectionType      = ClientConnection
         , connectionProtocol  = protocol

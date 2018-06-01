@@ -1,7 +1,7 @@
 # CHANGELOG
 
-- 0.12.5.0 (TO BE RELEASED)
-    * Add `newClientConnection`
+- 0.12.5.0 (2018-06-01)
+    * Add `newClientConnection` (by Renzo Carbonara)
 
 - 0.12.4.1 (2018-05-11)
     * Bump `network` dependency to 2.7

@@ -131,7 +131,7 @@ newClientConnection stream host path opts customHeaders = do
     write   <- encodeMessages protocol ClientConnection stream
     sentRef <- newIORef False
 
-    pure $ Connection
+    return $ Connection
         { connectionOptions   = opts
         , connectionType      = ClientConnection
         , connectionProtocol  = protocol

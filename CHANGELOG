@@ -1,5 +1,8 @@
 # CHANGELOG
 
+- UNRELEASED
+    * Fix build with GHC 7.6 and 7.8
+
 - 0.12.5.0 (2018-06-01)
     * Add `newClientConnection` (by Renzo Carbonara)
 

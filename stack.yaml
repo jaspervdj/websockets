@@ -1,4 +1,5 @@
 resolver: lts-11.7
+save-hackage-creds: false
 flags:
   websockets:
     example: true

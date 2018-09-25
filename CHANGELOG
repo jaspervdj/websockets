@@ -1,5 +1,11 @@
 # CHANGELOG
 
+- 0.12.5.2 (2018-09-25)
+    * Bump `containers` dependency to 0.6
+    * Bump `network` dependency to 2.8
+    * Bump `QuickCheck` dependency to 2.12
+    * Bump `binary` dependency to 0.10
+
 - 0.12.5.1 (2018-06-12)
     * Fix build with GHC 7.6 and 7.8
 

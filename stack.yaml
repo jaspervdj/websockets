@@ -1,7 +1,7 @@
-resolver: lts-11.7
+resolver: lts-13.0
 save-hackage-creds: false
 flags:
   websockets:
     example: true
 extra-deps:
-- 'network-2.7.0.0'
+- 'network-3.0.0.0'

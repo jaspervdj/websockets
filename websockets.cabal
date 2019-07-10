@@ -59,13 +59,13 @@ Library
 
   Exposed-modules:
     Network.WebSockets
+    Network.WebSockets.Client
     Network.WebSockets.Connection
     Network.WebSockets.Extensions
     Network.WebSockets.Stream
     -- Network.WebSockets.Util.PubSub TODO
 
   Other-modules:
-    Network.WebSockets.Client
     Network.WebSockets.Connection.Options
     Network.WebSockets.Extensions.Description
     Network.WebSockets.Extensions.PermessageDeflate

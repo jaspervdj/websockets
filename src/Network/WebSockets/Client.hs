@@ -8,6 +8,12 @@ module Network.WebSockets.Client
     , runClientWithSocket
     , runClientWithStream
     , newClientConnection
+    -- * Low level functionality
+    , createRequest
+    , Protocol(..)
+    , defaultProtocol
+    , checkServerResponse
+    , streamToClientConnection
     ) where
 
 
@@ -118,6 +124,17 @@ newClientConnection stream host path opts customHeaders = do
     -- Create the request and send it
     request    <- createRequest protocol bHost bPath False customHeaders
     Stream.write stream (Builder.toLazyByteString $ encodeRequestHead request)
+    checkServerResponse stream request
+    streamToClientConnection stream opts
+  where
+    protocol = defaultProtocol  -- TODO
+    bHost    = T.encodeUtf8 $ T.pack host
+    bPath    = T.encodeUtf8 $ T.pack path
+
+-- | Check the response from the server.
+-- Throws 'OtherHandshakeException' on failure
+checkServerResponse :: Stream -> RequestHead -> IO ()
+checkServerResponse stream request = do
     mbResponse <- Stream.parse stream decodeResponseHead
     response   <- case mbResponse of
         Just response -> return response
@@ -125,12 +142,21 @@ newClientConnection stream host path opts customHeaders = do
             "Network.WebSockets.Client.newClientConnection: no handshake " ++
             "response from server"
     void $ either throwIO return $ finishResponse protocol request response
+  where
+    protocol = defaultProtocol -- TODO
+
+
+-- | Build a 'Connection' from a pre-established stream with already finished
+-- handshake.
+--
+-- /NB/: this will not perform any handshaking.
+streamToClientConnection :: Stream -> ConnectionOptions -> IO Connection
+streamToClientConnection stream opts = do
     parse   <- decodeMessages protocol
                 (connectionFramePayloadSizeLimit opts)
                 (connectionMessageDataSizeLimit opts) stream
     write   <- encodeMessages protocol ClientConnection stream
     sentRef <- newIORef False
-
     return $ Connection
         { connectionOptions   = opts
         , connectionType      = ClientConnection
@@ -140,9 +166,7 @@ newClientConnection stream host path opts customHeaders = do
         , connectionSentClose = sentRef
         }
   where
-    protocol = defaultProtocol  -- TODO
-    bHost    = T.encodeUtf8 $ T.pack host
-    bPath    = T.encodeUtf8 $ T.pack path
+    protocol = defaultProtocol
 
 
 --------------------------------------------------------------------------------

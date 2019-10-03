@@ -1,6 +1,6 @@
 --------------------------------------------------------------------------------
 -- | Lightweight abstraction over an input/output stream.
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP, ScopedTypeVariables #-}
 module Network.WebSockets.Stream
     ( Stream
     , makeStream
@@ -14,7 +14,7 @@ module Network.WebSockets.Stream
 
 import           Control.Concurrent.MVar        (MVar, newEmptyMVar, newMVar,
                                                  putMVar, takeMVar, withMVar)
-import           Control.Exception              (onException, throwIO)
+import           Control.Exception              (Handler(..), catches, throwIO)
 import           Control.Monad                  (forM_)
 import qualified Data.Attoparsec.ByteString     as Atto
 import qualified Data.Binary.Get                as BIN
@@ -90,7 +90,7 @@ makeStream receive send = do
     receive' :: IORef StreamState -> MVar () -> IO (Maybe B.ByteString)
     receive' ref lock = withMVar lock $ \() -> do
         assertOpen ref
-        mbBs <- onException receive (closeRef ref)
+        mbBs <- onWebSocketException receive (closeRef ref)
         case mbBs of
             Nothing -> closeRef ref >> return Nothing
             Just bs -> return (Just bs)
@@ -100,8 +100,15 @@ makeStream receive send = do
         case mbBs of
             Nothing -> closeRef ref
             Just _  -> assertOpen ref
-        onException (send mbBs) (closeRef ref)
+        onWebSocketException (send mbBs) (closeRef ref)
 
+
+--------------------------------------------------------------------------------
+onWebSocketException :: IO a -> IO b -> IO a
+onWebSocketException action handler = catches action [
+  Handler $ \(e :: ConnectionException) -> handler >> throwIO e
+  , Handler $ \(e :: HandshakeException) -> handler >> throwIO e
+  ]
 
 --------------------------------------------------------------------------------
 makeSocketStream :: S.Socket -> IO Stream

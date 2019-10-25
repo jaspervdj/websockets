@@ -32,6 +32,7 @@ module Network.WebSockets.Connection
     , sendCloseCode
     , sendPing
 
+    , withPingThread
     , forkPingThread
 
     , CompressionOptions (..)
@@ -43,10 +44,10 @@ module Network.WebSockets.Connection
 
 
 --------------------------------------------------------------------------------
-import qualified Data.ByteString.Builder                         as Builder
 import           Control.Applicative                             ((<$>))
 import           Control.Concurrent                              (forkIO,
                                                                   threadDelay)
+import qualified Control.Concurrent.Async                        as Async
 import           Control.Exception                               (AsyncException,
                                                                   fromException,
                                                                   handle,
@@ -54,6 +55,7 @@ import           Control.Exception                               (AsyncException
 import           Control.Monad                                   (foldM, unless,
                                                                   when)
 import qualified Data.ByteString                                 as B
+import qualified Data.ByteString.Builder                         as Builder
 import qualified Data.ByteString.Char8                           as B8
 import           Data.IORef                                      (IORef,
                                                                   newIORef,
@@ -388,22 +390,48 @@ sendPing conn = send conn . ControlMessage . Ping . toLazyByteString
 
 --------------------------------------------------------------------------------
 -- | Forks a ping thread, sending a ping message every @n@ seconds over the
--- connection. The thread dies silently if the connection crashes or is closed.
+-- connection.  The thread is killed when the inner IO action is finished.
+--
+-- This is useful to keep idle connections open through proxies and whatnot.
+-- Many (but not all) proxies have a 60 second default timeout, so based on that
+-- sending a ping every 30 seconds is a good idea.
+withPingThread
+    :: Connection
+    -> Int    -- ^ Second interval in which pings should be sent.
+    -> IO ()  -- ^ Repeat this after sending a ping.
+    -> IO a   -- ^ Application to wrap with a ping thread.
+    -> IO a   -- ^ Executes application and kills ping thread when done.
+withPingThread conn n action app =
+    Async.withAsync (pingThread conn n action) (\_ -> app)
+
+
+--------------------------------------------------------------------------------
+-- | DEPRECATED: Use 'withPingThread' instead.
+--
+-- Forks a ping thread, sending a ping message every @n@ seconds over the
+-- connection.  The thread dies silently if the connection crashes or is closed.
 --
 -- This is useful to keep idle connections open through proxies and whatnot.
 -- Many (but not all) proxies have a 60 second default timeout, so based on that
 -- sending a ping every 30 seconds is a good idea.
 forkPingThread :: Connection -> Int -> IO ()
-forkPingThread conn n
+forkPingThread conn n = do
+    _ <- forkIO $ pingThread conn n (return ())
+    return ()
+{-# DEPRECATED forkPingThread "Use 'withPingThread' instead" #-}
+
+
+--------------------------------------------------------------------------------
+pingThread :: Connection -> Int -> IO () -> IO ()
+pingThread conn n action
     | n <= 0    = return ()
-    | otherwise = do
-        _ <- forkIO (ignore `handle` go 1)
-        return ()
+    | otherwise = ignore `handle` go 1
   where
     go :: Int -> IO ()
     go i = do
         threadDelay (n * 1000 * 1000)
         sendPing conn (T.pack $ show i)
+        action
         go (i + 1)
 
     ignore e = case fromException e of

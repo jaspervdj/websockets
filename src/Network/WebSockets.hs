@@ -80,6 +80,7 @@ module Network.WebSockets
     , newClientConnection
 
       -- * Utilities
+    , withPingThread
     , forkPingThread
     ) where
 

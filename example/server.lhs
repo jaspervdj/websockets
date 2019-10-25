@@ -88,58 +88,58 @@ stays alive on some browsers.
 
 > application state pending = do
 >     conn <- WS.acceptRequest pending
->     WS.forkPingThread conn 30
+>     WS.withPingThread conn 30 (return ()) $ do
 
 When a client is succesfully connected, we read the first message. This should
 be in the format of "Hi! I am Jasper", where Jasper is the requested username.
 
->     msg <- WS.receiveData conn
->     clients <- readMVar state
->     case msg of
+>         msg <- WS.receiveData conn
+>         clients <- readMVar state
+>         case msg of
 
 Check that the first message has the right format:
 
->         _   | not (prefix `T.isPrefixOf` msg) ->
->                 WS.sendTextData conn ("Wrong announcement" :: Text)
+>             _   | not (prefix `T.isPrefixOf` msg) ->
+>                     WS.sendTextData conn ("Wrong announcement" :: Text)
 
 Check the validity of the username:
 
->             | any ($ fst client)
->                 [T.null, T.any isPunctuation, T.any isSpace] ->
->                     WS.sendTextData conn ("Name cannot " `mappend`
->                         "contain punctuation or whitespace, and " `mappend`
->                         "cannot be empty" :: Text)
+>                 | any ($ fst client)
+>                     [T.null, T.any isPunctuation, T.any isSpace] ->
+>                         WS.sendTextData conn ("Name cannot " <>
+>                             "contain punctuation or whitespace, and " <>
+>                             "cannot be empty" :: Text)
 
 Check that the given username is not already taken:
 
->             | clientExists client clients ->
->                 WS.sendTextData conn ("User already exists" :: Text)
+>                 | clientExists client clients ->
+>                     WS.sendTextData conn ("User already exists" :: Text)
 
 All is right! We're going to allow the client, but for safety reasons we *first*
 setup a `disconnect` function that will be run when the connection is closed.
 
->             | otherwise -> flip finally disconnect $ do
+>                 | otherwise -> flip finally disconnect $ do
 
 We send a "Welcome!", according to our own little protocol. We add the client to
 the list and broadcast the fact that he has joined. Then, we give control to the
 'talk' function.
 
->                modifyMVar_ state $ \s -> do
->                    let s' = addClient client s
->                    WS.sendTextData conn $
->                        "Welcome! Users: " `mappend`
->                        T.intercalate ", " (map fst s)
->                    broadcast (fst client `mappend` " joined") s'
->                    return s'
->                talk client state
->           where
->             prefix     = "Hi! I am "
->             client     = (T.drop (T.length prefix) msg, conn)
->             disconnect = do
->                 -- Remove client and return new state
->                 s <- modifyMVar state $ \s ->
->                     let s' = removeClient client s in return (s', s')
->                 broadcast (fst client `mappend` " disconnected") s
+>                    modifyMVar_ state $ \s -> do
+>                        let s' = addClient client s
+>                        WS.sendTextData conn $
+>                            "Welcome! Users: " <>
+>                            T.intercalate ", " (map fst s)
+>                        broadcast (fst client <> " joined") s'
+>                        return s'
+>                    talk client state
+>              where
+>                prefix     = "Hi! I am "
+>                client     = (T.drop (T.length prefix) msg, conn)
+>                disconnect = do
+>                    -- Remove client and return new state
+>                    s <- modifyMVar state $ \s ->
+>                        let s' = removeClient client s in return (s', s')
+>                    broadcast (fst client <> " disconnected") s
 
 The talk function continues to read messages from a single client until he
 disconnects. All messages are broadcasted to the other clients.

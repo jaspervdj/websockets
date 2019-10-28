@@ -11,9 +11,8 @@ workflows:
 
 jobs:
   build:
-    # This image has most Haskell stuff preinstalled.
     docker:
-      - image: 'fpco/stack-build:latest'
+      - image: 'haskell:8.6'
 
     steps:
       - checkout

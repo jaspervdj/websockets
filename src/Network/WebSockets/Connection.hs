@@ -34,6 +34,7 @@ module Network.WebSockets.Connection
 
     , withPingThread
     , forkPingThread
+    , pingThread
 
     , CompressionOptions (..)
     , PermessageDeflate (..)
@@ -422,6 +423,9 @@ forkPingThread conn n = do
 
 
 --------------------------------------------------------------------------------
+-- | Use this if you want to run the ping thread yourself.
+--
+-- See also 'withPingThread'.
 pingThread :: Connection -> Int -> IO () -> IO ()
 pingThread conn n action
     | n <= 0    = return ()

@@ -1,5 +1,14 @@
 # CHANGELOG
 
+- 0.12.6.0 (2019-10-28)
+    * Expose a lower-level API to construct client connections (by Philipp
+      Balzarek)
+    * Close underlying stream only on synchronous exceptions, not asynchronous
+      exceptions (by kamoii)
+    * Add a `withPingThread` and lower-level `pingThread` to replace
+      `forkPingThread`
+    * Bump `QuickCheck` dependency to 2.13
+
 - 0.12.5.3 (2019-01-31)
     * Bump `network` dependency to 3.0
 

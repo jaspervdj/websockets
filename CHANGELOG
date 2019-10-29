@@ -1,5 +1,8 @@
 # CHANGELOG
 
+- 0.12.6.1 (2019-10-29)
+    * Bump `network` dependency to 3.1
+
 - 0.12.6.0 (2019-10-28)
     * Expose a lower-level API to construct client connections (by Philipp
       Balzarek)

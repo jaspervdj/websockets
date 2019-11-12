@@ -14,7 +14,7 @@ module Network.WebSockets
     , rejectRequestWith
 
       -- * Main connection type
-    , Connection
+    , Connection(..)
 
       -- * Options for connections
     , ConnectionOptions (..)

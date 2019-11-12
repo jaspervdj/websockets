@@ -194,7 +194,8 @@ decodeResponseHead = ResponseHead
     space = A.word8 (c2w ' ')
     newline = A.string "\r\n"
 
-    code = A.string "HTTP/1.1" *> space *> A.takeWhile1 (/= c2w ' ') <* space
+    code    = A.string "HTTP/1.1" *> space *> A.takeWhile1 digit <* space
+    digit   = \x -> x >= c2w '0' && x <= c2w '9'
     message = A.takeWhile (/= c2w '\r') <* newline
 
 

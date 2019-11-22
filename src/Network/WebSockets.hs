@@ -65,6 +65,9 @@ module Network.WebSockets
     , ServerApp
     , runServer
     , runServerWith
+    , ServerOptions (..)
+    , defaultServerOptions
+    , runServerWithOptions
 
       -- * Utilities for writing your own server
     , makeListenSocket

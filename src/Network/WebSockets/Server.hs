@@ -6,21 +6,30 @@
 module Network.WebSockets.Server
     ( ServerApp
     , runServer
+    , ServerOptions (..)
+    , defaultServerOptions
+    , runServerWithOptions
     , runServerWith
     , makeListenSocket
     , makePendingConnection
     , makePendingConnectionFromStream
+
+    , PongTimeout
     ) where
 
 
 --------------------------------------------------------------------------------
-import           Control.Concurrent            (forkIOWithUnmask)
-import           Control.Exception             (allowInterrupt, bracket,
-                                                bracketOnError, finally, mask_,
-                                                throwIO)
-import           Control.Monad                 (forever, void)
+import           Control.Concurrent            (threadDelay)
+import qualified Control.Concurrent.Async      as Async
+import           Control.Exception             (Exception, allowInterrupt,
+                                                bracket, bracketOnError,
+                                                finally, mask_, throwIO)
+import           Control.Monad                 (forever, void, when)
+import qualified Data.IORef                    as IORef
+import           Data.Maybe                    (isJust)
 import           Network.Socket                (Socket)
 import qualified Network.Socket                as S
+import qualified System.Clock                  as Clock
 
 
 --------------------------------------------------------------------------------
@@ -63,18 +72,97 @@ runServer host port app = runServerWith host port defaultConnectionOptions app
 --------------------------------------------------------------------------------
 -- | A version of 'runServer' which allows you to customize some options.
 runServerWith :: String -> Int -> ConnectionOptions -> ServerApp -> IO ()
-runServerWith host port opts app = S.withSocketsDo $
-  bracket
-  (makeListenSocket host port)
-  S.close
-  (\sock ->
-    mask_ $ forever $ do
-      allowInterrupt
-      (conn, _) <- S.accept sock
-      void $ forkIOWithUnmask $ \unmask ->
-        finally (unmask $ runApp conn opts app) (S.close conn)
-    )
+runServerWith host port opts = runServerWithOptions defaultServerOptions
+    { serverHost              = host
+    , serverPort              = port
+    , serverConnectionOptions = opts
+    }
+{-# DEPRECATED runServerWith "Use 'runServerWithOptions' instead" #-}
 
+
+--------------------------------------------------------------------------------
+data ServerOptions = ServerOptions
+    { serverHost              :: String
+    , serverPort              :: Int
+    , serverConnectionOptions :: ConnectionOptions
+    -- | Require a pong from the client every N seconds; otherwise kill the
+    -- connection.  If you use this, you should also use 'withPingThread' to
+    -- send a ping at a smaller interval; for example N/2.
+    , serverRequirePong       :: Maybe Int
+    }
+
+
+--------------------------------------------------------------------------------
+defaultServerOptions :: ServerOptions
+defaultServerOptions = ServerOptions
+    { serverHost              = "127.0.0.1"
+    , serverPort              = 8080
+    , serverConnectionOptions = defaultConnectionOptions
+    , serverRequirePong       = Nothing
+    }
+
+
+--------------------------------------------------------------------------------
+-- | Customizable version of 'runServer'.  Never returns until killed.
+--
+-- Please use the 'defaultServerOptions' combined with record updates to set the
+-- fields you want.  This way your code is unlikely to break on future changes.
+runServerWithOptions :: ServerOptions -> ServerApp -> IO a
+runServerWithOptions opts app = S.withSocketsDo $
+    bracket
+    (makeListenSocket host port)
+    S.close $ \sock -> mask_ $ forever $ do
+        allowInterrupt
+        (conn, _) <- S.accept sock
+
+        -- This IORef holds a time at which the thread may be killed.  This time
+        -- can be extended by calling 'tickle'.
+        killRef <- IORef.newIORef =<< (+ killDelay) <$> getSecs
+        let tickle = IORef.writeIORef killRef =<< (+ killDelay) <$> getSecs
+
+        -- Update the connection options to call 'tickle' whenever a pong is
+        -- received.
+        let connOpts'
+                | not useKiller = connOpts
+                | otherwise     = connOpts
+                    { connectionOnPong = tickle >> connectionOnPong connOpts
+                    }
+
+        -- Run the application.
+        appAsync  <- Async.asyncWithUnmask $ \unmask ->
+            (unmask $ do
+                runApp conn connOpts' app) `finally`
+            (S.close conn)
+
+        -- Install the killer if required.
+        when useKiller $ void $ Async.async (killer killRef appAsync)
+  where
+    host     = serverHost opts
+    port     = serverPort opts
+    connOpts = serverConnectionOptions opts
+
+    -- Get the current number of seconds on some clock.
+    getSecs = Clock.sec <$> Clock.getTime Clock.Monotonic
+
+    -- Parse the 'serverRequirePong' options.
+    useKiller = isJust $ serverRequirePong opts
+    killDelay = maybe 0 fromIntegral (serverRequirePong opts)
+
+    -- Thread that reads the killRef, and kills the application if enough time
+    -- has passed.
+    killer killRef appAsync = do
+        killAt   <- IORef.readIORef killRef
+        now      <- getSecs
+        appState <- Async.poll appAsync
+        case appState of
+            -- Already finished/killed/crashed, we can give up.
+            Just _ -> return ()
+            -- Should not be killed yet.  Wait and try again.
+            Nothing | now < killAt -> do
+                threadDelay (fromIntegral killDelay * 1000 * 1000)
+                killer killRef appAsync
+            -- Time to kill.
+            _ -> Async.cancelWith appAsync PongTimeout
 
 
 --------------------------------------------------------------------------------
@@ -135,3 +223,13 @@ makePendingConnectionFromStream stream opts = do
             , pendingOnAccept = \_ -> return ()
             , pendingStream   = stream
             }
+
+
+--------------------------------------------------------------------------------
+-- | Internally used exception type used to kill connections if there
+-- is a pong timeout.
+data PongTimeout = PongTimeout deriving Show
+
+
+--------------------------------------------------------------------------------
+instance Exception PongTimeout

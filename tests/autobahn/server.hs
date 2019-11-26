@@ -78,10 +78,14 @@ application pc = do
 --------------------------------------------------------------------------------
 -- | Accepts clients, spawns a single handler for each one.
 main :: IO ()
-main = WS.runServerWith "0.0.0.0" 9001 options application
+main = WS.runServerWithOptions options application
   where
-    options = WS.defaultConnectionOptions
-        { WS.connectionCompressionOptions =
-            WS.PermessageDeflateCompression WS.defaultPermessageDeflate
-        , WS.connectionStrictUnicode      = True
+    options = WS.defaultServerOptions
+        { WS.serverHost              = "0.0.0.0"
+        , WS.serverPort              = 9001
+        , WS.serverConnectionOptions = WS.defaultConnectionOptions
+            { WS.connectionCompressionOptions =
+                WS.PermessageDeflateCompression WS.defaultPermessageDeflate
+            , WS.connectionStrictUnicode      = True
+            }
         }

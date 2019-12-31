@@ -1,5 +1,12 @@
 # CHANGELOG
 
+- 0.12.7.0 (2019-12-31)
+    * Bump `base` lower bound to 4.8, this drops support for GHC 7.6 and 7.8
+    * Add a new `runServerWithOptions` that can be extended in a more
+      future-compatible way
+    * Add a connection killer setting in `runServerWithOptions`
+    * Fix an unsafe read issue in `decodeResponseHead`
+
 - 0.12.6.1 (2019-10-29)
     * Bump `network` dependency to 3.1
 

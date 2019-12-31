@@ -81,7 +81,7 @@ Library
   Build-depends:
     async             >= 2.2    && < 2.3,
     attoparsec        >= 0.10   && < 0.14,
-    base              >= 4.6    && < 5,
+    base              >= 4.8    && < 5,
     base64-bytestring >= 0.1    && < 1.1,
     binary            >= 0.8.1  && < 0.11,
     bytestring        >= 0.9    && < 0.11,

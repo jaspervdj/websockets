@@ -1,5 +1,8 @@
 # CHANGELOG
 
+- 0.12.7.1 (2020-05-03)
+    * Bump `base64-bytestring` dependency upper bound to 1.2
+
 - 0.12.7.0 (2019-12-31)
     * Bump `base` lower bound to 4.8, this drops support for GHC 7.6 and 7.8
     * Add a new `runServerWithOptions` that can be extended in a more

@@ -133,7 +133,7 @@ Test-suite websockets-tests
 
   Build-depends:
     HUnit                      >= 1.2 && < 1.7,
-    QuickCheck                 >= 2.7 && < 2.14,
+    QuickCheck                 >= 2.7 && < 2.15,
     test-framework             >= 0.4 && < 0.9,
     test-framework-hunit       >= 0.2 && < 0.4,
     test-framework-quickcheck2 >= 0.2 && < 0.4,

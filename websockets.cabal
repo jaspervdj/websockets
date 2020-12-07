@@ -35,7 +35,7 @@ Maintainer:    Jasper Van der Jeugt <m@jaspervdj.be>
 Stability:     experimental
 Category:      Network
 Build-type:    Simple
-Cabal-version: >= 1.8
+Cabal-version: >= 1.10
 
 Homepage:    http://jaspervdj.be/websockets
 Bug-reports: https://github.com/jaspervdj/websockets/issues
@@ -54,8 +54,9 @@ Flag Example
 
 Library
   Hs-source-dirs: src
-  Ghc-options:    -Wall
-  C-sources:      cbits/cbits.c
+  Ghc-options:      -Wall
+  C-sources:        cbits/cbits.c
+  Default-language: Haskell2010
 
   Exposed-modules:
     Network.WebSockets
@@ -97,11 +98,12 @@ Library
     entropy           >= 0.2.1  && < 0.5
 
 Test-suite websockets-tests
-  Type:           exitcode-stdio-1.0
-  Hs-source-dirs: src tests/haskell
-  Main-is:        TestSuite.hs
-  Ghc-options:    -Wall
-  C-sources:      cbits/cbits.c
+  Type:             exitcode-stdio-1.0
+  Hs-source-dirs:   src tests/haskell
+  Main-is:          TestSuite.hs
+  Ghc-options:      -Wall
+  C-sources:        cbits/cbits.c
+  Default-language: Haskell2010
 
   Other-modules:
     Network.WebSockets
@@ -159,9 +161,10 @@ Executable websockets-example
   If !flag(Example)
     Buildable: False
 
-  Hs-source-dirs: example
-  Main-is:        server.lhs
-  Ghc-options:    -Wall
+  Hs-source-dirs:   example
+  Main-is:          server.lhs
+  Ghc-options:      -Wall
+  Default-language: Haskell2010
 
   Build-depends:
     websockets,
@@ -186,9 +189,10 @@ Executable websockets-autobahn
   If !flag(Example)
     Buildable: False
 
-  Hs-source-dirs: tests/autobahn
-  Main-is:        server.hs
-  Ghc-options:    -Wall -threaded -O2 -rtsopts "-with-rtsopts=-N"
+  Hs-source-dirs:   tests/autobahn
+  Main-is:          server.hs
+  Ghc-options:      -Wall -threaded -O2 -rtsopts "-with-rtsopts=-N"
+  Default-language: Haskell2010
 
   Other-modules:
     Paths_websockets
@@ -213,29 +217,30 @@ Executable websockets-autobahn
     entropy           >= 0.2.1  && < 0.5
 
 Benchmark bench-mask
-    Type:           exitcode-stdio-1.0
-    Main-is:        mask.hs
-    C-sources:      cbits/cbits.c
-    Hs-source-dirs: benchmarks, src
+  Type:             exitcode-stdio-1.0
+  Main-is:          mask.hs
+  C-sources:        cbits/cbits.c
+  Hs-source-dirs:   benchmarks, src
+  Default-language: Haskell2010
 
-    Other-modules:
-      Network.WebSockets.Hybi13.Mask
+  Other-modules:
+    Network.WebSockets.Hybi13.Mask
 
-    Build-depends:
-        criterion,
-        -- Copied from regular dependencies...
-        async             >= 2.2    && < 2.3,
-        attoparsec        >= 0.10   && < 0.14,
-        base              >= 4      && < 5,
-        base64-bytestring >= 0.1    && < 1.3,
-        binary            >= 0.8.1  && < 0.11,
-        bytestring        >= 0.9    && < 0.12,
-        bytestring-builder             < 0.11,
-        case-insensitive  >= 0.3    && < 1.3,
-        clock             >= 0.8    && < 0.9,
-        containers        >= 0.3    && < 0.7,
-        network           >= 2.3    && < 3.2,
-        random            >= 1.0    && < 1.3,
-        SHA               >= 1.5    && < 1.7,
-        text              >= 0.10   && < 1.3,
-        entropy           >= 0.2.1  && < 0.5
+  Build-depends:
+    criterion,
+    -- Copied from regular dependencies...
+    async             >= 2.2    && < 2.3,
+    attoparsec        >= 0.10   && < 0.14,
+    base              >= 4      && < 5,
+    base64-bytestring >= 0.1    && < 1.3,
+    binary            >= 0.8.1  && < 0.11,
+    bytestring        >= 0.9    && < 0.12,
+    bytestring-builder             < 0.11,
+    case-insensitive  >= 0.3    && < 1.3,
+    clock             >= 0.8    && < 0.9,
+    containers        >= 0.3    && < 0.7,
+    network           >= 2.3    && < 3.2,
+    random            >= 1.0    && < 1.3,
+    SHA               >= 1.5    && < 1.7,
+    text              >= 0.10   && < 1.3,
+    entropy           >= 0.2.1  && < 0.5

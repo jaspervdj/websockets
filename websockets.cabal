@@ -63,6 +63,7 @@ Library
     Network.WebSockets.Client
     Network.WebSockets.Connection
     Network.WebSockets.Extensions
+    Network.WebSockets.Http
     Network.WebSockets.Stream
     -- Network.WebSockets.Util.PubSub TODO
 
@@ -71,7 +72,6 @@ Library
     Network.WebSockets.Extensions.Description
     Network.WebSockets.Extensions.PermessageDeflate
     Network.WebSockets.Extensions.StrictUnicode
-    Network.WebSockets.Http
     Network.WebSockets.Hybi13
     Network.WebSockets.Hybi13.Demultiplex
     Network.WebSockets.Hybi13.Mask

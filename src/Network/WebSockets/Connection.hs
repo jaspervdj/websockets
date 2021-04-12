@@ -31,6 +31,7 @@ module Network.WebSockets.Connection
     , sendClose
     , sendCloseCode
     , sendPing
+    , sendPong
 
     , withPingThread
     , forkPingThread
@@ -388,6 +389,10 @@ sendCloseCode conn code =
 sendPing :: WebSocketsData a => Connection -> a -> IO ()
 sendPing conn = send conn . ControlMessage . Ping . toLazyByteString
 
+--------------------------------------------------------------------------------
+-- | Send a pong
+sendPong :: WebSocketsData a => Connection -> a -> IO ()
+sendPong conn = send conn . ControlMessage . Pong . toLazyByteString
 
 --------------------------------------------------------------------------------
 -- | Forks a ping thread, sending a ping message every @n@ seconds over the

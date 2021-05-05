@@ -10,6 +10,12 @@ module Network.WebSockets.Connection.Options
 
     , SizeLimit (..)
     , atMostSizeLimit
+
+    , TLSSettings (..)
+    , defaultTlsSettings
+
+    , CertSettings (..)
+    , defaultCertSettings
     ) where
 
 
@@ -17,6 +23,14 @@ module Network.WebSockets.Connection.Options
 import           Data.Int    (Int64)
 import           Data.Monoid (Monoid (..))
 import           Prelude
+
+import qualified Crypto.PubKey.DH           as DH
+import qualified Data.ByteString            as B
+import           Data.Default.Class           (def)
+import qualified Data.IORef                 as IO
+import qualified Network.TLS                as TLS
+import qualified Network.TLS.Extra          as TLSExtra
+import qualified Network.TLS.SessionManager as SM
 
 
 --------------------------------------------------------------------------------
@@ -50,6 +64,7 @@ data ConnectionOptions = ConnectionOptions
       -- compressed messages, as well as the size of the uncompressed messages
       -- as we are deflating them to ensure we don't use too much memory in any
       -- case.
+    , connectionTlsSettings           :: !(Maybe TLSSettings)
     }
 
 
@@ -66,6 +81,7 @@ defaultConnectionOptions = ConnectionOptions
     , connectionStrictUnicode         = False
     , connectionFramePayloadSizeLimit = mempty
     , connectionMessageDataSizeLimit  = mempty
+    , connectionTlsSettings           = Nothing
     }
 
 
@@ -126,3 +142,89 @@ atMostSizeLimit :: Int64 -> SizeLimit -> Bool
 atMostSizeLimit _ NoSizeLimit   = True
 atMostSizeLimit s (SizeLimit l) = s <= l
 {-# INLINE atMostSizeLimit #-}
+
+--------------------------------------------------------------------------------
+-- | Determines where to load the certificate, chain
+-- certificates, and key from.
+data CertSettings
+  = CertFromFile !FilePath ![FilePath] !FilePath
+  | CertFromMemory !B.ByteString ![B.ByteString] !B.ByteString
+  | CertFromRef !(IO.IORef B.ByteString) ![IO.IORef B.ByteString] !(IO.IORef B.ByteString)
+
+-- | The default 'CertSettings'.
+defaultCertSettings :: CertSettings
+defaultCertSettings = CertFromFile "certificate.pem" [] "key.pem"
+
+--------------------------------------------------------------------------------
+data TLSSettings = TLSSettings {
+    certSettings :: CertSettings
+    -- ^ Where are the certificate, chain certificates, and key
+    -- loaded from?
+    --
+    -- >>> certSettings defaultTlsSettings
+    -- tlsSettings "certificate.pem" "key.pem"
+  , tlsLogging :: TLS.Logging
+    -- ^ The level of logging to turn on.
+    --
+    -- Default: 'TLS.defaultLogging'.
+  , tlsAllowedVersions :: [TLS.Version]
+    -- ^ The TLS versions this server accepts.
+    --
+    -- >>> tlsAllowedVersions defaultTlsSettings
+    -- [TLS13,TLS12,TLS11,TLS10]
+  , tlsCiphers :: [TLS.Cipher]
+    -- ^ The TLS ciphers this server accepts.
+    --
+    -- >>> tlsCiphers defaultTlsSettings
+    -- [ECDHE-ECDSA-AES256GCM-SHA384,ECDHE-ECDSA-AES128GCM-SHA256,ECDHE-RSA-AES256GCM-SHA384,ECDHE-RSA-AES128GCM-SHA256,DHE-RSA-AES256GCM-SHA384,DHE-RSA-AES128GCM-SHA256,ECDHE-ECDSA-AES256CBC-SHA384,ECDHE-RSA-AES256CBC-SHA384,DHE-RSA-AES256-SHA256,ECDHE-ECDSA-AES256CBC-SHA,ECDHE-RSA-AES256CBC-SHA,DHE-RSA-AES256-SHA1,RSA-AES256GCM-SHA384,RSA-AES256-SHA256,RSA-AES256-SHA1,AES128GCM-SHA256,AES256GCM-SHA384]
+  , tlsWantClientCert :: Bool
+    -- ^ Whether or not to demand a certificate from the client.  If this
+    -- is set to True, you must handle received certificates in a server hook
+    -- or all connections will fail.
+    --
+    -- >>> tlsWantClientCert defaultTlsSettings
+    -- False
+  , tlsServerHooks :: TLS.ServerHooks
+    -- ^ The server-side hooks called by the tls package, including actions
+    -- to take when a client certificate is received.  See the "Network.TLS"
+    -- module for details.
+    --
+    -- Default: def
+  , tlsServerDHEParams :: Maybe DH.Params
+    -- ^ Configuration for ServerDHEParams
+    -- more function lives in `cryptonite` package
+    --
+    -- Default: Nothing
+  , tlsSessionManagerConfig :: Maybe SM.Config
+    -- ^ Configuration for in-memory TLS session manager.
+    -- If Nothing, 'TLS.noSessionManager' is used.
+    -- Otherwise, an in-memory TLS session manager is created
+    -- according to 'Config'.
+    --
+    -- Default: Nothing
+  , tlsCredentials :: Maybe TLS.Credentials
+    -- ^ Specifying 'TLS.Credentials' directly.  If this value is
+    --   specified, other fields such as 'certFile' are ignored.
+  , tlsSessionManager :: Maybe TLS.SessionManager
+    -- ^ Specifying 'TLS.SessionManager' directly. If this value is
+    --   specified, 'tlsSessionManagerConfig' is ignored.
+  }
+
+defaultTlsSettings :: TLSSettings
+defaultTlsSettings =
+  TLSSettings
+  { certSettings = defaultCertSettings
+  , tlsLogging = def
+  , tlsAllowedVersions = [TLS.TLS13,TLS.TLS12]
+  , tlsCiphers = ciphers
+  , tlsWantClientCert = False
+  , tlsServerHooks = def
+  , tlsServerDHEParams = Nothing
+  , tlsSessionManagerConfig = Nothing
+  , tlsCredentials = Nothing
+  , tlsSessionManager = Nothing
+  }
+ where
+   -- taken from stunnel example in tls-extra
+   ciphers :: [TLS.Cipher]
+   ciphers = TLSExtra.ciphersuite_strong

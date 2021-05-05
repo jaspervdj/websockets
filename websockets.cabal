@@ -62,12 +62,12 @@ Library
     Network.WebSockets
     Network.WebSockets.Client
     Network.WebSockets.Connection
+    Network.WebSockets.Connection.Options
     Network.WebSockets.Extensions
     Network.WebSockets.Stream
     -- Network.WebSockets.Util.PubSub TODO
 
   Other-modules:
-    Network.WebSockets.Connection.Options
     Network.WebSockets.Extensions.Description
     Network.WebSockets.Extensions.PermessageDeflate
     Network.WebSockets.Extensions.StrictUnicode
@@ -89,12 +89,17 @@ Library
     bytestring-builder             < 0.11,
     case-insensitive  >= 0.3    && < 1.3,
     clock             >= 0.8    && < 0.9,
+    connection,
     containers        >= 0.3    && < 0.7,
+    cryptonite,
+    data-default-class,
     network           >= 2.3    && < 3.2,
     random            >= 1.0    && < 1.3,
     SHA               >= 1.5    && < 1.7,
     streaming-commons >= 0.1    && < 0.3,
     text              >= 0.10   && < 1.3,
+    tls,
+    tls-session-manager,
     entropy           >= 0.2.1  && < 0.5
 
 Test-suite websockets-tests

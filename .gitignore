@@ -3,6 +3,7 @@
 
 .hpc
 dist
+dist-newstyle
 tests/coverage
 
 tests/haskell/TestSuite

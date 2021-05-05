@@ -204,7 +204,9 @@ runApp socket opts app =
 makePendingConnection
     :: Socket -> ConnectionOptions -> IO PendingConnection
 makePendingConnection socket opts = do
-    stream <- Stream.makeSocketStream socket
+    stream <- case connectionTlsSettings opts of
+      Nothing -> Stream.makeSocketStream socket
+      Just tls -> Stream.makeTlsSocketStream tls socket
     makePendingConnectionFromStream stream opts
 
 

@@ -1,6 +1,7 @@
 --------------------------------------------------------------------------------
 -- | Lightweight abstraction over an input/output stream.
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE RecordWildCards #-}
 module Network.WebSockets.Stream
     ( Stream
     , makeStream
@@ -10,16 +11,23 @@ module Network.WebSockets.Stream
     , parseBin
     , write
     , close
+    -- * TLS
+    , makeTlsSocketStream
+    , streamTlsContext
     ) where
 
+import           Control.Applicative            ((<|>))
 import           Control.Concurrent.MVar        (MVar, newEmptyMVar, newMVar,
                                                  putMVar, takeMVar, withMVar)
-import           Control.Exception              (SomeException, SomeAsyncException, throwIO, catch, fromException)
+import           Control.Exception              (SomeException, SomeAsyncException, catch, handle, throwIO, fromException)
 import           Control.Monad                  (forM_)
 import qualified Data.Attoparsec.ByteString     as Atto
 import qualified Data.Binary.Get                as BIN
 import qualified Data.ByteString                as B
 import qualified Data.ByteString.Lazy           as BL
+import           Data.Default.Class             (def)
+import           Data.Functor                   ((<&>))
+import qualified Data.IORef                     as IO
 import           Data.IORef                     (IORef, atomicModifyIORef',
                                                  newIORef, readIORef,
                                                  writeIORef)
@@ -32,7 +40,11 @@ import qualified Network.Socket.ByteString.Lazy as SBL (sendAll)
 import qualified Network.Socket.ByteString      as SB (sendAll)
 #endif
 
+import qualified Network.TLS                as TLS
+import qualified Network.TLS.SessionManager as SM
 import           Network.WebSockets.Types
+import           Network.WebSockets.Connection.Options
+import           System.IO.Error                (isEOFError)
 
 
 --------------------------------------------------------------------------------
@@ -45,11 +57,11 @@ data StreamState
 --------------------------------------------------------------------------------
 -- | Lightweight abstraction over an input/output stream.
 data Stream = Stream
-    { streamIn    :: IO (Maybe B.ByteString)
-    , streamOut   :: (Maybe BL.ByteString -> IO ())
-    , streamState :: !(IORef StreamState)
+    { streamIn         :: IO (Maybe B.ByteString)
+    , streamOut        :: (Maybe BL.ByteString -> IO ())
+    , streamState      :: !(IORef StreamState)
+    , streamTlsContext :: Maybe TLS.Context
     }
-
 
 --------------------------------------------------------------------------------
 -- | Create a stream from a "receive" and "send" action. The following
@@ -72,7 +84,7 @@ makeStream receive send = do
     ref         <- newIORef (Open B.empty)
     receiveLock <- newMVar ()
     sendLock    <- newMVar ()
-    return $ Stream (receive' ref receiveLock) (send' ref sendLock) ref
+    return $ Stream (receive' ref receiveLock) (send' ref sendLock) ref Nothing
   where
     closeRef :: IORef StreamState -> IO ()
     closeRef ref = atomicModifyIORef' ref $ \state -> case state of
@@ -110,7 +122,6 @@ makeStream receive send = do
                 Nothing -> what *> pure ()
             throwIO e
 
-
 --------------------------------------------------------------------------------
 makeSocketStream :: S.Socket -> IO Stream
 makeSocketStream socket = makeStream receive send
@@ -126,6 +137,85 @@ makeSocketStream socket = makeStream receive send
 #else
         forM_ (BL.toChunks bs) (SB.sendAll socket)
 #endif
+
+loadCredentials :: TLSSettings -> IO TLS.Credentials
+loadCredentials TLSSettings{ tlsCredentials = Just creds } = return creds
+loadCredentials TLSSettings{..} = case certSettings of
+  CertFromFile cert chainFiles key -> do
+    cred <- either error id <$> TLS.credentialLoadX509Chain cert chainFiles key
+    return $ TLS.Credentials [cred]
+  CertFromRef certRef chainCertsRef keyRef -> do
+    cert <- IO.readIORef certRef
+    chainCerts <- mapM IO.readIORef chainCertsRef
+    key <- IO.readIORef keyRef
+    cred <- either error return $ TLS.credentialLoadX509ChainFromMemory cert chainCerts key
+    return $ TLS.Credentials [cred]
+  CertFromMemory certMemory chainCertsMemory keyMemory -> do
+    cred <- either error return $ TLS.credentialLoadX509ChainFromMemory certMemory chainCertsMemory keyMemory
+    return $ TLS.Credentials [cred]
+
+makeTlsSocketStream :: TLSSettings -> S.Socket -> IO Stream
+makeTlsSocketStream stts socket = do
+  creds <- loadCredentials stts
+  mgr <- getSessionManager stts
+  ctx <- TLS.contextNew socket (params mgr creds)
+  TLS.contextHookSetLogging ctx (tlsLogging stts)
+  TLS.handshake ctx
+  makeStream (receive ctx) (send ctx) <&>
+    \s -> s { streamTlsContext = Just ctx }
+ where
+    receive ctx = handle onEOF go
+     where
+       onEOF e
+         | Just TLS.Error_EOF <- fromException e       = pure Nothing
+         | Just ioe <- fromException e, isEOFError ioe = pure Nothing
+         | otherwise                                   = throwIO e
+       go = do
+           x <- TLS.recvData ctx
+           if B.null x then
+               go
+             else
+               pure $ Just x
+
+    send _ Nothing   = return ()
+    send ctx (Just bs) =
+      TLS.sendData ctx bs
+
+    params mgr creds = def { -- TLS.ServerParams
+        TLS.serverWantClientCert = tlsWantClientCert stts
+      , TLS.serverCACertificates = []
+      , TLS.serverDHEParams      = tlsServerDHEParams stts
+      , TLS.serverHooks          = hooks
+      , TLS.serverShared         = shared mgr creds
+      , TLS.serverSupported      = supported
+      , TLS.serverEarlyDataSize  = 2018
+      }
+    -- Adding alpn to user's tlsServerHooks.
+    hooks = (tlsServerHooks stts)
+      { TLS.onALPNClientSuggest  = TLS.onALPNClientSuggest (tlsServerHooks stts)
+      --  <|> (if settingsHTTP2Enabled set then Just alpn else Nothing)
+      }
+
+    shared mgr creds = def {
+        TLS.sharedCredentials    = creds
+      , TLS.sharedSessionManager = mgr
+      }
+    supported = def { -- TLS.Supported
+        TLS.supportedVersions            = tlsAllowedVersions stts
+      , TLS.supportedCiphers             = tlsCiphers stts
+      , TLS.supportedCompressions        = [TLS.nullCompression]
+      , TLS.supportedSecureRenegotiation = True
+      , TLS.supportedClientInitiatedRenegotiation = False
+      , TLS.supportedSession             = True
+      , TLS.supportedFallbackScsv        = True
+      , TLS.supportedGroups              = [TLS.X25519,TLS.P256,TLS.P384]
+      }
+
+    getSessionManager :: TLSSettings -> IO TLS.SessionManager
+    getSessionManager TLSSettings{ tlsSessionManager = Just mgr } = return mgr
+    getSessionManager stts' = case tlsSessionManagerConfig stts' of
+      Nothing     -> return TLS.noSessionManager
+      Just config -> SM.newSessionManager config
 
 
 --------------------------------------------------------------------------------

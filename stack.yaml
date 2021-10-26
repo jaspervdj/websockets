@@ -4,3 +4,6 @@ flags:
   websockets:
     example: true
 extra-deps: []
+nix:
+  packages:
+  - 'zlib'

@@ -1,4 +1,4 @@
-resolver: lts-15.6
+resolver: lts-18.14
 save-hackage-creds: false
 flags:
   websockets:

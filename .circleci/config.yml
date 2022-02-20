@@ -12,7 +12,7 @@ workflows:
 jobs:
   build:
     docker:
-      - image: 'haskell:8.6'
+      - image: 'haskell:9.0'
 
     steps:
       - checkout
@@ -22,14 +22,19 @@ jobs:
           name: 'Install virtualenv for autobahn'
           command: 'apt-get update && apt-get install --yes virtualenv python2.7-dev'
       - run:
-          name: 'Install and test'
-          command: 'stack --no-terminal --copy-bins test --pedantic'
+          name: 'Update package index'
+          command: 'cabal update'
+      - run:
+          name: 'Build'
+          command: 'cabal build --enable-tests -f Example all'
+      - run:
+          name: 'Test'
+          command: 'cabal test'
       - run:
           name: 'Run autobahn tests'
           command: 'bash tests/autobahn/autobahn.sh'
       - save_cache:
           key: 'v1-websockets-{{ arch }}-{{ .Branch }}-{{ .Revision }}'
           paths:
-            - '~/.stack'
             - '~/.virtualenvs'
-            - '.stack-work'
+            - 'dist-newstyle'

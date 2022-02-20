@@ -17,7 +17,9 @@ else
 fi
 
 echo "Launching websockets server in background..."
-(stack exec websockets-autobahn) & WEBSOCKETS_AUTOBAHN_PID="$!"
+(cabal run websockets-autobahn -f Example) & WEBSOCKETS_AUTOBAHN_PID="$!"
+
+sleep 10
 
 echo "Getting config..."
 cp tests/autobahn/fuzzingclient.json .

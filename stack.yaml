@@ -3,7 +3,9 @@ save-hackage-creds: false
 flags:
   websockets:
     example: true
-extra-deps: []
+    website: true
+extra-deps:
+- 'hakyll-4.15.1.0'
 nix:
   packages:
   - 'zlib'

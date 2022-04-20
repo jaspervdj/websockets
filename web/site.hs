@@ -9,18 +9,6 @@ module Main where
 --------------------------------------------------------------------------------
 import           Hakyll
 import           System.FilePath   (joinPath, splitFileName, splitPath, (</>))
-import           System.Process    (rawSystem)
-
-
---------------------------------------------------------------------------------
-makeHaddock :: IO ()
-makeHaddock = do
-    putStrLn "Generating documentation..."
-    sh "cabal" ["configure"]
-    sh "cabal" ["haddock", "--hyperlink-source"]
-  where
-    -- Ignore exit code
-    sh c as = rawSystem c as >>= \_ -> return ()
 
 
 --------------------------------------------------------------------------------
@@ -34,8 +22,6 @@ pageCompiler =
 --------------------------------------------------------------------------------
 main :: IO ()
 main = hakyllWith config $ do
-    preprocess $ makeHaddock
-
     match "README.md" $ do
         route $ constRoute "index.html"
         compile $ pageCompiler >>= relativizeUrls
@@ -50,12 +36,6 @@ main = hakyllWith config $ do
             , "example/screen.css"
             ]) $ do
         route $ idRoute
-        compile copyFileCompiler
-
-    match "dist/doc/html/websockets/*" $ do
-        route $ customRoute $ \ident ->
-            let (_dir, file) = splitFileName (toFilePath ident) in
-            "reference" </> file
         compile copyFileCompiler
 
     match "web/css/*" $ do

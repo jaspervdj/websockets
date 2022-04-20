@@ -52,6 +52,11 @@ Flag Example
   Default:     False
   Manual:      True
 
+Flag Website
+  Description: Build the website
+  Default:     False
+  Manual:      True
+
 Library
   Hs-source-dirs: src
   Ghc-options:      -Wall
@@ -244,3 +249,15 @@ Benchmark bench-mask
     SHA               >= 1.5    && < 1.7,
     text              >= 0.10   && < 2.1,
     entropy           >= 0.2.1  && < 0.5
+
+Executable websockets-website
+  If !flag(Website)
+    Buildable: False
+
+  Main-is:        site.hs
+  Hs-source-dirs: web
+
+  Build-depends:
+    base     >= 4    && < 5,
+    filepath >= 1.4  && < 1.5,
+    hakyll   >= 4.15 && < 4.16

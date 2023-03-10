@@ -3,7 +3,6 @@
 -- Note that in production you want to use a real webserver such as snap or
 -- warp.
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE LambdaCase #-}
 module Network.WebSockets.Server
     ( ServerApp
     , runServer
@@ -111,22 +110,30 @@ runServerWithOptions opts app = S.withSocketsDo $
     bracket
     (makeListenSocket (serverHost opts) (serverPort opts))
     S.close $ \sock -> do
-        heartbeat <- newEmptyMVar
-
-        let -- Update the connection options to perform a heartbeat whenever a
-            -- pong is received.
-            connOpts = (serverConnectionOptions opts)
-                { connectionOnPong = tryPutMVar heartbeat () >> connectionOnPong connOpts
-                }
-
-            -- Kills the thread if pong was not received within the grace period.
-            reaper grace appAsync = timeout (grace * 1000000) (takeMVar heartbeat) >>= \case
-                Nothing -> appAsync `Async.cancelWith` PongTimeout
-                Just _ -> reaper grace appAsync
+        let connOpts = serverConnectionOptions opts
 
             connThread conn = case serverRequirePong opts of
                 Nothing    -> runApp conn connOpts app
-                Just grace -> runApp conn connOpts app `Async.withAsync` reaper grace
+                Just grace -> do
+                    heartbeat <- newEmptyMVar
+
+                    let -- Update the connection options to perform a heartbeat
+                        -- whenever a pong is received.
+                        connOpts' = connOpts
+                            { connectionOnPong = do
+                                tryPutMVar heartbeat ()
+                                connectionOnPong connOpts
+                            }
+
+                        -- Kills the thread if a pong was not received within
+                        -- the grace period.
+                        reaper grace appAsync = do
+                            result <- timeout (grace * 1000000) (takeMVar heartbeat)
+                            case result of
+                                Nothing -> appAsync `Async.cancelWith` PongTimeout
+                                Just _ -> reaper grace appAsync
+
+                    runApp conn connOpts' app `Async.withAsync` reaper grace
 
             mainThread = do
                 (conn, _) <- S.accept sock

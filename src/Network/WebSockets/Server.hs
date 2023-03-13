@@ -19,7 +19,7 @@ module Network.WebSockets.Server
 
 
 --------------------------------------------------------------------------------
-import           Control.Concurrent            (MVar, takeMVar, tryPutMVar,
+import           Control.Concurrent            (takeMVar, tryPutMVar,
                                                 newEmptyMVar)
 import qualified Control.Concurrent.Async      as Async
 import           Control.Exception             (Exception, bracket,
@@ -121,19 +121,23 @@ runServerWithOptions opts app = S.withSocketsDo $
                         -- whenever a pong is received.
                         connOpts' = connOpts
                             { connectionOnPong = do
-                                tryPutMVar heartbeat ()
+                                _ <- tryPutMVar heartbeat ()
                                 connectionOnPong connOpts
                             }
 
-                        -- Kills the thread if a pong was not received within
-                        -- the grace period.
-                        reaper grace appAsync = do
-                            result <- timeout (grace * 1000000) (takeMVar heartbeat)
+                        whileJust io = do
+                            result <- io
                             case result of
-                                Nothing -> appAsync `Async.cancelWith` PongTimeout
-                                Just _ -> reaper grace appAsync
+                                Nothing -> return ()
+                                Just _ -> whileJust io
 
-                    runApp conn connOpts' app `Async.withAsync` reaper grace
+                        -- Runs until a pong was not received within the grace
+                        -- period.
+                        heart = whileJust $ timeout (grace * 1000000) (takeMVar heartbeat)
+
+                    Async.race_
+                        (runApp conn connOpts' app)
+                        (heart >> throwIO PongTimeout)
 
             mainThread = do
                 (conn, _) <- S.accept sock

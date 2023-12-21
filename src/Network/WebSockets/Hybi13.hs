@@ -78,6 +78,8 @@ finishResponse request response = do
     -- - Switching Protocols
     --
     -- But we don't check it for now
+    when (responseCode response == 400) $ Left $
+        RequestRejected request response 
     when (responseCode response /= 101) $ Left $
         MalformedResponse response "Wrong response status or message."
 

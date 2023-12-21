@@ -40,6 +40,7 @@ tests = testGroup "Network.WebSockets.Server.Tests"
     , testCase "bulk server/client"   testBulkServerClient
     , testCase "onPong"               testOnPong
     , testCase "ipv6 server"          testIpv6Server
+    , testCase "reject request"       testRejectRequest 
     ]
 
 
@@ -81,7 +82,29 @@ testServerClient host sendMessages = withEchoServer host 42940 "Bye" $ do
         expectCloseException conn "Bye"
         return texts'
 
+--------------------------------------------------------------------------------
+testRejectRequest :: Assertion
+testRejectRequest = withRejectingServer
+  where
+    client :: ClientApp ()
+    client _ = error "Client should not be able to connect"
 
+    server :: ServerApp
+    server pendingConnection = rejectRequest pendingConnection "Bye"
+
+    withRejectingServer :: IO ()
+    withRejectingServer = do
+        serverThread <- async $ runServer "127.0.0.1" 42940 server
+        waitSome
+        () <- runClient "127.0.0.1" 42940 "/chat" client `catch` handler
+        waitSome
+        cancel serverThread
+        return ()
+
+    handler :: HandshakeException -> IO ()
+    handler (RequestRejected _ response) = do
+        responseCode response @=? 400
+    handler exc  = error $ "Unexpected exception " ++ show exc
 
 --------------------------------------------------------------------------------
 testOnPong :: Assertion

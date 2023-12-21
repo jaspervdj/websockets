@@ -1,6 +1,11 @@
-resolver: lts-15.6
+resolver: lts-18.14
 save-hackage-creds: false
 flags:
   websockets:
     example: true
-extra-deps: []
+    website: true
+extra-deps:
+- 'hakyll-4.15.1.0'
+nix:
+  packages:
+  - 'zlib'

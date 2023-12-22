@@ -244,6 +244,20 @@ Benchmark bench-mask
     text              >= 0.10   && < 2.2,
     entropy           >= 0.2.1  && < 0.5
 
+Benchmark bench-connections
+  type:             exitcode-stdio-1.0
+  main-is:          connections.hs
+  Hs-source-dirs:   benchmarks
+  ghc-options:      -threaded -O2 -rtsopts "-with-rtsopts=-N"
+  Default-language: Haskell2010
+  Build-depends:
+    async,
+    base,
+    bytestring,
+    criterion,
+    async,
+    websockets
+
 Executable websockets-website
   If !flag(Website)
     Buildable: False

@@ -71,6 +71,9 @@ jobs:
       - name: Build documentation
         run: cabal haddock all
 
+      - name: Benchmark
+        run: cabal bench all
+
       - name: Install virtualenv
         if: matrix.os == 'ubuntu-latest'
         run: | 

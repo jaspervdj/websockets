@@ -10,6 +10,7 @@ module Network.WebSockets.Server.Tests
 import           Control.Applicative            ((<$>), (<|>))
 import           Control.Concurrent             (forkIO, killThread,
                                                  threadDelay)
+import           Control.Concurrent.Async       (Async, async, cancel)
 import           Control.Exception              (SomeException, catch, handle)
 import           Control.Monad                  (forever, replicateM, unless)
 import           Data.IORef                     (IORef, newIORef, readIORef,
@@ -39,6 +40,7 @@ tests = testGroup "Network.WebSockets.Server.Tests"
     , testCase "bulk server/client"   testBulkServerClient
     , testCase "onPong"               testOnPong
     , testCase "ipv6 server"          testIpv6Server
+    , testCase "reject request"       testRejectRequest 
     ]
 
 
@@ -69,7 +71,7 @@ testBulkServerClient = testServerClient "127.0.0.1" sendTextDatas
 testServerClient :: String -> (Connection -> [BL.ByteString] -> IO ()) -> Assertion
 testServerClient host sendMessages = withEchoServer host 42940 "Bye" $ do
     texts  <- map unArbitraryUtf8 <$> sample
-    texts' <- retry $ runClient host 42940 "/chat" $ client texts
+    texts' <- runClient host 42940 "/chat" $ client texts
     texts @=? texts'
   where
     client :: [BL.ByteString] -> ClientApp [BL.ByteString]
@@ -80,7 +82,29 @@ testServerClient host sendMessages = withEchoServer host 42940 "Bye" $ do
         expectCloseException conn "Bye"
         return texts'
 
+--------------------------------------------------------------------------------
+testRejectRequest :: Assertion
+testRejectRequest = withRejectingServer
+  where
+    client :: ClientApp ()
+    client _ = error "Client should not be able to connect"
 
+    server :: ServerApp
+    server pendingConnection = rejectRequest pendingConnection "Bye"
+
+    withRejectingServer :: IO ()
+    withRejectingServer = do
+        serverThread <- async $ runServer "127.0.0.1" 42940 server
+        waitSome
+        () <- runClient "127.0.0.1" 42940 "/chat" client `catch` handler
+        waitSome
+        cancel serverThread
+        return ()
+
+    handler :: HandshakeException -> IO ()
+    handler (RequestRejected _ response) = do
+        responseCode response @=? 400
+    handler exc  = error $ "Unexpected exception " ++ show exc
 
 --------------------------------------------------------------------------------
 testOnPong :: Assertion
@@ -115,29 +139,15 @@ sample = do
 waitSome :: IO ()
 waitSome = threadDelay $ 200 * 1000
 
-
---------------------------------------------------------------------------------
--- HOLY SHIT WHAT SORT OF ATROCITY IS THIS?!?!?!
---
--- The problem is that sometimes, the server hasn't been brought down yet
--- before the next test, which will cause it not to be able to bind to the
--- same port again. In this case, we just retry.
---
--- The same is true for our client: possibly, the server is not up yet
--- before we run the client. We also want to retry in that case.
-retry :: IO a -> IO a
-retry action = (\(_ :: SomeException) -> waitSome >> action) `handle` action
-
-
 --------------------------------------------------------------------------------
 withEchoServer :: String -> Int -> BL.ByteString -> IO a -> IO a
 withEchoServer host port expectedClose action = do
     cRef <- newIORef False
-    serverThread <- forkIO $ retry $ runServer host port (\c -> server c `catch` handleClose cRef)
+    serverThread <- async $ runServer host port (\c -> server c `catch` handleClose cRef)
     waitSome
     result <- action
     waitSome
-    killThread serverThread
+    cancel serverThread
     closeCalled <- readIORef cRef
     unless closeCalled $ error "Expecting the CloseRequest exception"
     return result

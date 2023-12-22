@@ -1,34 +1,37 @@
-websockets
-==========
+# websockets
 
-Introduction
-------------
+![Hackage Version](https://img.shields.io/hackage/v/websockets)
+![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/jaspervdj/websockets/ci.yml)
 
-Provides a sensible, clean and simple way to write WebSocket-capable servers in
-Haskell.
+Provides a sensible, clean and simple way to write WebSocket
+server and client in Haskell.
 
-The following program echoes messages back after appending `meow`:
+## Features
 
-```haskell
-{-# LANGUAGE OverloadedStrings #-}
-import           Control.Monad      (forever)
-import qualified Data.Text          as T
-import qualified Network.WebSockets as WS
+- Provides Server/Client implementations of the websocket protocol
+- Ping/Pong building blocks for stale connection checking
+- TLS support via [wuss](https://hackage.haskell.org/package/wuss) package
 
-meow :: WS.Connection -> IO ()
-meow conn = forever $ do
-    msg <- WS.receiveData conn
-    WS.sendTextData conn $ msg `T.append` ", meow"
-```
+## Caveats
 
-Installation is provided using cabal:
+- [Doesn't implement client ping/pong](https://github.com/jaspervdj/websockets/issues/159)
+- [Send doesn't support streaming](https://github.com/jaspervdj/websockets/issues/119)
+- [Requires careful handling of exceptions](https://github.com/jaspervdj/websockets/issues/48)
+- [DeflateCompression isn't thread-safe](https://github.com/jaspervdj/websockets/issues/208)
+
+## Introduction
+
+See [server](./example/server.lhs) and [client](./example/client.hs) implementations.
+
+## Installation
+
+Using cabal:
 
 ```
 $ cabal install websockets
 ```
 
-Authors
--------
+## Authors
 
 An initial WebSockets library was written in 2010 by Siniša Biđin. In 2011, it
 was rewritten from scratch, and extended to its current state by Jasper Van der
@@ -43,9 +46,9 @@ Contributors:
 - Nathan Howell
 - Steffen Schuldenzucker
 - Yi Huang
+- Domen Kožar
 
-Development
------------
+## Development
 
 Pull requests are always welcome!
 

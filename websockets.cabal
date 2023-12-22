@@ -91,14 +91,13 @@ Library
     base64-bytestring >= 0.1    && < 1.3,
     binary            >= 0.8.1  && < 0.11,
     bytestring        >= 0.9    && < 0.12,
-    bytestring-builder             < 0.11,
     case-insensitive  >= 0.3    && < 1.3,
     containers        >= 0.3    && < 0.7,
     network           >= 2.3    && < 3.2,
-    random            >= 1.0    && < 1.3,
+    random            >= 1.0.1  && < 1.3,
     SHA               >= 1.5    && < 1.7,
     streaming-commons >= 0.1    && < 0.3,
-    text              >= 0.10   && < 2.1,
+    text              >= 0.10   && < 2.2,
     entropy           >= 0.2.1  && < 0.5
 
 Test-suite websockets-tests
@@ -150,17 +149,16 @@ Test-suite websockets-tests
     base64-bytestring >= 0.1    && < 1.3,
     binary            >= 0.8.1  && < 0.11,
     bytestring        >= 0.9    && < 0.12,
-    bytestring-builder             < 0.11,
     case-insensitive  >= 0.3    && < 1.3,
     containers        >= 0.3    && < 0.7,
     network           >= 2.3    && < 3.2,
     random            >= 1.0    && < 1.3,
     SHA               >= 1.5    && < 1.7,
     streaming-commons >= 0.1    && < 0.3,
-    text              >= 0.10   && < 2.1,
+    text              >= 0.10   && < 2.2,
     entropy           >= 0.2.1  && < 0.5
 
-Executable websockets-example
+Executable websockets-server-example
   If !flag(Example)
     Buildable: False
 
@@ -170,22 +168,25 @@ Executable websockets-example
   Default-language: Haskell2010
 
   Build-depends:
+    base,
     websockets,
-    -- Copied from regular dependencies...
-    async             >= 2.2    && < 2.3,
-    attoparsec        >= 0.10   && < 0.15,
-    base              >= 4      && < 5,
-    base64-bytestring >= 0.1    && < 1.3,
-    binary            >= 0.8.1  && < 0.11,
-    bytestring        >= 0.9    && < 0.12,
-    bytestring-builder             < 0.11,
-    case-insensitive  >= 0.3    && < 1.3,
-    containers        >= 0.3    && < 0.7,
-    network           >= 2.3    && < 3.2,
-    random            >= 1.0    && < 1.3,
-    SHA               >= 1.5    && < 1.7,
-    text              >= 0.10   && < 2.1,
-    entropy           >= 0.2.1  && < 0.5
+    text
+
+Executable websockets-client-example
+  If !flag(Example)
+    Buildable: False
+
+  Hs-source-dirs:   example
+  Main-is:          client.hs
+  Ghc-options:      -Wall
+  Default-language: Haskell2010
+
+  Build-depends:
+    base,
+    websockets,
+    text,
+    network,
+    mtl
 
 Executable websockets-autobahn
   If !flag(Example)
@@ -208,13 +209,12 @@ Executable websockets-autobahn
     base64-bytestring >= 0.1    && < 1.3,
     binary            >= 0.8.1  && < 0.11,
     bytestring        >= 0.9    && < 0.12,
-    bytestring-builder             < 0.11,
     case-insensitive  >= 0.3    && < 1.3,
     containers        >= 0.3    && < 0.7,
     network           >= 2.3    && < 3.2,
     random            >= 1.0    && < 1.3,
     SHA               >= 1.5    && < 1.7,
-    text              >= 0.10   && < 2.1,
+    text              >= 0.10   && < 2.2,
     entropy           >= 0.2.1  && < 0.5
 
 Benchmark bench-mask
@@ -236,13 +236,12 @@ Benchmark bench-mask
     base64-bytestring >= 0.1    && < 1.3,
     binary            >= 0.8.1  && < 0.11,
     bytestring        >= 0.9    && < 0.12,
-    bytestring-builder             < 0.11,
     case-insensitive  >= 0.3    && < 1.3,
     containers        >= 0.3    && < 0.7,
     network           >= 2.3    && < 3.2,
     random            >= 1.0    && < 1.3,
     SHA               >= 1.5    && < 1.7,
-    text              >= 0.10   && < 2.1,
+    text              >= 0.10   && < 2.2,
     entropy           >= 0.2.1  && < 0.5
 
 Executable websockets-website
@@ -251,7 +250,7 @@ Executable websockets-website
 
   Main-is:        site.hs
   Hs-source-dirs: web
-
+  Default-language: Haskell2010
   Build-depends:
     base     >= 4    && < 5,
     filepath >= 1.4  && < 1.5,

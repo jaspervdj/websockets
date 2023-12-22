@@ -59,7 +59,7 @@ data Stream = Stream
 --   writing from the stream will be thread-safe, i.e. this function will create
 --   a receive and write lock to be used internally.
 --
--- - Reading from or writing or to a closed 'Stream' will always throw an
+-- - Reading from or writing to a closed 'Stream' will always throw an
 --   exception, even if the underlying "receive" and "send" functions do not
 --   (we do the bookkeeping).
 --

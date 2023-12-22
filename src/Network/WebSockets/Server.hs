@@ -19,17 +19,15 @@ module Network.WebSockets.Server
 
 
 --------------------------------------------------------------------------------
-import           Control.Concurrent            (threadDelay)
+import           Control.Concurrent            (takeMVar, tryPutMVar,
+                                                newEmptyMVar)
 import qualified Control.Concurrent.Async      as Async
-import           Control.Exception             (Exception, allowInterrupt,
-                                                bracket, bracketOnError,
-                                                finally, mask_, throwIO)
-import           Control.Monad                 (forever, void, when)
-import qualified Data.IORef                    as IORef
-import           Data.Maybe                    (isJust)
+import           Control.Exception             (Exception, bracket,
+                                                bracketOnError, finally, mask_,
+                                                throwIO)
 import           Network.Socket                (Socket)
 import qualified Network.Socket                as S
-import qualified System.Clock                  as Clock
+import           System.Timeout                (timeout)
 
 
 --------------------------------------------------------------------------------
@@ -110,59 +108,44 @@ defaultServerOptions = ServerOptions
 runServerWithOptions :: ServerOptions -> ServerApp -> IO a
 runServerWithOptions opts app = S.withSocketsDo $
     bracket
-    (makeListenSocket host port)
-    S.close $ \sock -> mask_ $ forever $ do
-        allowInterrupt
-        (conn, _) <- S.accept sock
+    (makeListenSocket (serverHost opts) (serverPort opts))
+    S.close $ \sock -> do
+        let connOpts = serverConnectionOptions opts
 
-        -- This IORef holds a time at which the thread may be killed.  This time
-        -- can be extended by calling 'tickle'.
-        killRef <- IORef.newIORef =<< (+ killDelay) <$> getSecs
-        let tickle = IORef.writeIORef killRef =<< (+ killDelay) <$> getSecs
+            connThread conn = case serverRequirePong opts of
+                Nothing    -> runApp conn connOpts app
+                Just grace -> do
+                    heartbeat <- newEmptyMVar
 
-        -- Update the connection options to call 'tickle' whenever a pong is
-        -- received.
-        let connOpts'
-                | not useKiller = connOpts
-                | otherwise     = connOpts
-                    { connectionOnPong = tickle >> connectionOnPong connOpts
-                    }
+                    let -- Update the connection options to perform a heartbeat
+                        -- whenever a pong is received.
+                        connOpts' = connOpts
+                            { connectionOnPong = do
+                                _ <- tryPutMVar heartbeat ()
+                                connectionOnPong connOpts
+                            }
 
-        -- Run the application.
-        appAsync  <- Async.asyncWithUnmask $ \unmask ->
-            (unmask $ do
-                runApp conn connOpts' app) `finally`
-            (S.close conn)
+                        whileJust io = do
+                            result <- io
+                            case result of
+                                Nothing -> return ()
+                                Just _ -> whileJust io
 
-        -- Install the killer if required.
-        when useKiller $ void $ Async.async (killer killRef appAsync)
-  where
-    host     = serverHost opts
-    port     = serverPort opts
-    connOpts = serverConnectionOptions opts
+                        -- Runs until a pong was not received within the grace
+                        -- period.
+                        heart = whileJust $ timeout (grace * 1000000) (takeMVar heartbeat)
 
-    -- Get the current number of seconds on some clock.
-    getSecs = Clock.sec <$> Clock.getTime Clock.Monotonic
+                    Async.race_
+                        (runApp conn connOpts' app)
+                        (heart >> throwIO PongTimeout)
 
-    -- Parse the 'serverRequirePong' options.
-    useKiller = isJust $ serverRequirePong opts
-    killDelay = maybe 0 fromIntegral (serverRequirePong opts)
+            mainThread = do
+                (conn, _) <- S.accept sock
+                Async.withAsyncWithUnmask
+                    (\unmask -> unmask (connThread conn) `finally` S.close conn)
+                    (\_ -> mainThread)
 
-    -- Thread that reads the killRef, and kills the application if enough time
-    -- has passed.
-    killer killRef appAsync = do
-        killAt   <- IORef.readIORef killRef
-        now      <- getSecs
-        appState <- Async.poll appAsync
-        case appState of
-            -- Already finished/killed/crashed, we can give up.
-            Just _ -> return ()
-            -- Should not be killed yet.  Wait and try again.
-            Nothing | now < killAt -> do
-                threadDelay (fromIntegral killDelay * 1000 * 1000)
-                killer killRef appAsync
-            -- Time to kill.
-            _ -> Async.cancelWith appAsync PongTimeout
+        mask_ mainThread
 
 
 --------------------------------------------------------------------------------

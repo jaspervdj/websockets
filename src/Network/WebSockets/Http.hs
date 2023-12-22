@@ -101,6 +101,8 @@ data HandshakeException
     -- | The request was well-formed, but the library user rejected it.
     -- (e.g. "unknown path")
     | RequestRejected RequestHead ResponseHead
+    -- | The connection timed out
+    | ConnectionTimeout
     -- | for example "EOF came too early" (which is actually a parse error)
     -- or for your own errors. (like "unknown path"?)
     | OtherHandshakeException String

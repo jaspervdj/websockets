@@ -83,6 +83,9 @@ module Network.WebSockets
     , newClientConnection
 
       -- * Utilities
+    , PingPongOptions(..)
+    , defaultPingPongOptions
+    , withPingPong
     , withPingThread
     , forkPingThread
     ) where
@@ -91,6 +94,7 @@ module Network.WebSockets
 --------------------------------------------------------------------------------
 import           Network.WebSockets.Client
 import           Network.WebSockets.Connection
+import           Network.WebSockets.Connection.PingPong
 import           Network.WebSockets.Http
 import           Network.WebSockets.Server
 import           Network.WebSockets.Types

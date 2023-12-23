@@ -9,13 +9,12 @@ server and client in Haskell.
 ## Features
 
 - Provides Server/Client implementations of the websocket protocol
-- Ping/Pong building blocks for stale connection checking
+- `withPingPong` helper for stale connection checking
 - TLS support via [wuss](https://hackage.haskell.org/package/wuss) package
 
 ## Caveats
 
-- [Doesn't implement client ping/pong](https://github.com/jaspervdj/websockets/issues/159)
-- [Send doesn't support streaming](https://github.com/jaspervdj/websockets/issues/119)
+- [`send` doesn't support streaming](https://github.com/jaspervdj/websockets/issues/119)
 - [Requires careful handling of exceptions](https://github.com/jaspervdj/websockets/issues/48)
 - [DeflateCompression isn't thread-safe](https://github.com/jaspervdj/websockets/issues/208)
 

@@ -50,6 +50,7 @@ import           Control.Applicative                             ((<$>))
 import           Control.Concurrent                              (forkIO,
                                                                   threadDelay)
 import qualified Control.Concurrent.Async                        as Async
+import           Control.Concurrent.MVar                         (MVar, newEmptyMVar, tryPutMVar)
 import           Control.Exception                               (AsyncException,
                                                                   fromException,
                                                                   handle,
@@ -179,13 +180,15 @@ acceptRequestWith pc ar = case find (flip compatible request) protocols of
         write <- foldM (\x ext -> extWrite ext x) writeRaw exts
         parse <- foldM (\x ext -> extParse ext x) parseRaw exts
 
-        sentRef    <- newIORef False
+        sentRef <- newIORef False
+        heartbeat <- newEmptyMVar
         let connection = Connection
                 { connectionOptions   = options
                 , connectionType      = ServerConnection
                 , connectionProtocol  = protocol
                 , connectionParse     = parse
                 , connectionWrite     = write
+                , connectionHeartbeat = heartbeat
                 , connectionSentClose = sentRef
                 }
 
@@ -252,6 +255,9 @@ data Connection = Connection
     { connectionOptions   :: !ConnectionOptions
     , connectionType      :: !ConnectionType
     , connectionProtocol  :: !Protocol
+    , connectionHeartbeat :: !(MVar ())
+    -- ^ This MVar is filled whenever a pong is received.  This is used by
+    -- 'withPingPong' to timeout the connection if a pong is not received.
     , connectionParse     :: !(IO (Maybe Message))
     , connectionWrite     :: !([Message] -> IO ())
     , connectionSentClose :: !(IORef Bool)
@@ -294,6 +300,7 @@ receiveDataMessage conn = do
                 unless hasSentClose $ send conn msg
                 throwIO $ CloseRequest i closeMsg
             Pong _    -> do
+                _ <- tryPutMVar (connectionHeartbeat conn) ()
                 connectionOnPong (connectionOptions conn)
                 receiveDataMessage conn
             Ping pl   -> do
@@ -401,6 +408,9 @@ sendPong conn = send conn . ControlMessage . Pong . toLazyByteString
 -- This is useful to keep idle connections open through proxies and whatnot.
 -- Many (but not all) proxies have a 60 second default timeout, so based on that
 -- sending a ping every 30 seconds is a good idea.
+--
+-- Note that usually you want to use 'Network.WebSockets.Connection.PingPong.withPingPong'
+-- to timeout the connection if a pong is not received.
 withPingThread
     :: Connection
     -> Int    -- ^ Second interval in which pings should be sent.
@@ -409,7 +419,6 @@ withPingThread
     -> IO a   -- ^ Executes application and kills ping thread when done.
 withPingThread conn n action app =
     Async.withAsync (pingThread conn n action) (\_ -> app)
-
 
 --------------------------------------------------------------------------------
 -- | DEPRECATED: Use 'withPingThread' instead.

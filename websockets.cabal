@@ -62,6 +62,7 @@ Library
     Network.WebSockets
     Network.WebSockets.Client
     Network.WebSockets.Connection
+    Network.WebSockets.Connection.PingPong
     Network.WebSockets.Extensions
     Network.WebSockets.Stream
     -- Network.WebSockets.Util.PubSub TODO
@@ -108,6 +109,7 @@ Test-suite websockets-tests
     Network.WebSockets.Client
     Network.WebSockets.Connection
     Network.WebSockets.Connection.Options
+    Network.WebSockets.Connection.PingPong
     Network.WebSockets.Extensions
     Network.WebSockets.Extensions.Description
     Network.WebSockets.Extensions.PermessageDeflate

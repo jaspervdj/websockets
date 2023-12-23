@@ -19,19 +19,17 @@ module Network.WebSockets.Server
 
 
 --------------------------------------------------------------------------------
-import           Control.Concurrent            (takeMVar, tryPutMVar,
-                                                newEmptyMVar)
 import qualified Control.Concurrent.Async      as Async
-import           Control.Exception             (Exception, bracket,
+import           Control.Exception             (bracket,
                                                 bracketOnError, finally, mask_,
                                                 throwIO)
 import           Network.Socket                (Socket)
 import qualified Network.Socket                as S
-import           System.Timeout                (timeout)
 
 
 --------------------------------------------------------------------------------
 import           Network.WebSockets.Connection
+import           Network.WebSockets.Connection.PingPong (PongTimeout(..))
 import           Network.WebSockets.Http
 import qualified Network.WebSockets.Stream     as Stream
 import           Network.WebSockets.Types
@@ -83,10 +81,6 @@ data ServerOptions = ServerOptions
     { serverHost              :: String
     , serverPort              :: Int
     , serverConnectionOptions :: ConnectionOptions
-    -- | Require a pong from the client every N seconds; otherwise kill the
-    -- connection.  If you use this, you should also use 'withPingThread' to
-    -- send a ping at a smaller interval; for example N/2.
-    , serverRequirePong       :: Maybe Int
     }
 
 
@@ -96,7 +90,6 @@ defaultServerOptions = ServerOptions
     { serverHost              = "127.0.0.1"
     , serverPort              = 8080
     , serverConnectionOptions = defaultConnectionOptions
-    , serverRequirePong       = Nothing
     }
 
 
@@ -109,43 +102,16 @@ runServerWithOptions :: ServerOptions -> ServerApp -> IO a
 runServerWithOptions opts app = S.withSocketsDo $
     bracket
     (makeListenSocket (serverHost opts) (serverPort opts))
-    S.close $ \sock -> do
-        let connOpts = serverConnectionOptions opts
-
-            connThread conn = case serverRequirePong opts of
-                Nothing    -> runApp conn connOpts app
-                Just grace -> do
-                    heartbeat <- newEmptyMVar
-
-                    let -- Update the connection options to perform a heartbeat
-                        -- whenever a pong is received.
-                        connOpts' = connOpts
-                            { connectionOnPong = do
-                                _ <- tryPutMVar heartbeat ()
-                                connectionOnPong connOpts
-                            }
-
-                        whileJust io = do
-                            result <- io
-                            case result of
-                                Nothing -> return ()
-                                Just _ -> whileJust io
-
-                        -- Runs until a pong was not received within the grace
-                        -- period.
-                        heart = whileJust $ timeout (grace * 1000000) (takeMVar heartbeat)
-
-                    Async.race_
-                        (runApp conn connOpts' app)
-                        (heart >> throwIO PongTimeout)
-
+    S.close
+    (\sock ->
+        let
             mainThread = do
                 (conn, _) <- S.accept sock
                 Async.withAsyncWithUnmask
-                    (\unmask -> unmask (connThread conn) `finally` S.close conn)
+                    (\unmask -> unmask (runApp conn (serverConnectionOptions opts) app) `finally` S.close conn)
                     (\_ -> mainThread)
-
-        mask_ mainThread
+        in mask_ mainThread
+    )
 
 
 --------------------------------------------------------------------------------
@@ -206,13 +172,3 @@ makePendingConnectionFromStream stream opts = do
             , pendingOnAccept = \_ -> return ()
             , pendingStream   = stream
             }
-
-
---------------------------------------------------------------------------------
--- | Internally used exception type used to kill connections if there
--- is a pong timeout.
-data PongTimeout = PongTimeout deriving Show
-
-
---------------------------------------------------------------------------------
-instance Exception PongTimeout

@@ -14,7 +14,7 @@ module Network.WebSockets.Stream
 
 import           Control.Concurrent.MVar        (MVar, newEmptyMVar, newMVar,
                                                  putMVar, takeMVar, withMVar)
-import           Control.Exception              (SomeException, SomeAsyncException, throwIO, catch, fromException)
+import           Control.Exception              (SomeException, SomeAsyncException, throwIO, catch, try, fromException)
 import           Control.Monad                  (forM_)
 import qualified Data.Attoparsec.ByteString     as Atto
 import qualified Data.Binary.Get                as BIN
@@ -31,6 +31,7 @@ import qualified Network.Socket.ByteString.Lazy as SBL (sendAll)
 #else
 import qualified Network.Socket.ByteString      as SB (sendAll)
 #endif
+import           System.IO.Error                (isResourceVanishedError)
 
 import           Network.WebSockets.Types
 
@@ -116,8 +117,13 @@ makeSocketStream :: S.Socket -> IO Stream
 makeSocketStream socket = makeStream receive send
   where
     receive = do
-        bs <- SB.recv socket 8192
-        return $ if B.null bs then Nothing else Just bs
+        bs <- try $ SB.recv socket 8192
+        case bs of
+            -- If the resource vanished, the socket was closed
+            Left e | isResourceVanishedError e -> return Nothing
+                   | otherwise                 -> throwIO e
+            Right bs' | B.null bs'             -> return Nothing
+                      | otherwise              -> return $ Just bs'
 
     send Nothing   = return ()
     send (Just bs) = do

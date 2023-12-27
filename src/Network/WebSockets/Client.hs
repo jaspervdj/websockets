@@ -26,6 +26,7 @@ import           Data.IORef                    (newIORef)
 import qualified Data.Text                     as T
 import qualified Data.Text.Encoding            as T
 import qualified Network.Socket                as S
+import           System.Timeout                (timeout)
 
 
 --------------------------------------------------------------------------------
@@ -75,10 +76,12 @@ runClientWith host port path0 opts customHeaders app = do
     S.setSocketOption sock S.NoDelay 1
 
     -- Connect WebSocket and run client
-    res <- finally
-        (S.connect sock (S.addrAddress addr) >>
-         runClientWithSocket sock fullHost path opts customHeaders app)
-        (S.close sock)
+    res <- bracket
+        (timeout (connectionTimeout opts * 1000 * 1000) $ S.connect sock (S.addrAddress addr))
+        (const $ S.close sock) $ \maybeConnected -> case maybeConnected of
+            Nothing -> throwIO $ ConnectionTimeout
+            Just () -> runClientWithSocket sock fullHost path opts customHeaders app
+
 
     -- Clean up
     return res

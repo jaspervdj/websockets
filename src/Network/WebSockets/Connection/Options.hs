@@ -31,6 +31,8 @@ data ConnectionOptions = ConnectionOptions
     { connectionOnPong                :: !(IO ())
       -- ^ Whenever a 'pong' is received, this IO action is executed. It can be
       -- used to tickle connections or fire missiles.
+    , connectionTimeout               :: !Int
+      -- ^ Timeout for connection establishment in seconds. Only used in the client.
     , connectionCompressionOptions    :: !CompressionOptions
       -- ^ Enable 'PermessageDeflate'.
     , connectionStrictUnicode         :: !Bool
@@ -59,9 +61,11 @@ data ConnectionOptions = ConnectionOptions
 -- * Nothing happens when a pong is received.
 -- * Compression is disabled.
 -- * Lenient unicode decoding.
+-- * 30 second timeout for connection establishment.
 defaultConnectionOptions :: ConnectionOptions
 defaultConnectionOptions = ConnectionOptions
     { connectionOnPong                = return ()
+    , connectionTimeout               = 30
     , connectionCompressionOptions    = NoCompression
     , connectionStrictUnicode         = False
     , connectionFramePayloadSizeLimit = mempty

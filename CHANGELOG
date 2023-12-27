@@ -1,5 +1,10 @@
 # CHANGELOG
 
+- 0.13.0.0 (xxx)
+    * Introduce `Network.WebSockets.Connection.PingPong` to
+      handle ping pong for any Connection, be it Client or Server.
+    * Remove `serverRequirePong` option in favor of the new implementation.
+
 - 0.12.7.3 (2021-10-26)
     * Bump `attoparsec` dependency upper bound to 0.15
 

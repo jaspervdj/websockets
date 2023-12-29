@@ -241,6 +241,7 @@ rejectRequestWith pc reject = sendResponse pc $ Response
 
 
 --------------------------------------------------------------------------------
+-- | Requires calling 'pendingStream' and 'Stream.close'.
 rejectRequest
     :: PendingConnection  -- ^ Connection to reject
     -> B.ByteString       -- ^ Rejection response body

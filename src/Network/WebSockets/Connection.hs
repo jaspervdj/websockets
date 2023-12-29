@@ -1,6 +1,5 @@
 --------------------------------------------------------------------------------
--- | This module exposes connection internals and should only be used if you
--- really know what you are doing.
+-- | This module exposes connection internals
 {-# LANGUAGE OverloadedStrings #-}
 module Network.WebSockets.Connection
     ( PendingConnection (..)

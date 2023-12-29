@@ -149,7 +149,7 @@ runApp socket opts app =
 
 --------------------------------------------------------------------------------
 -- | Turns a socket, connected to some client, into a 'PendingConnection'. The
--- 'PendingConnection' should be closed using 'Stream.close' later.
+-- 'PendingConnection' should be closed using 'pendingStream' and 'Stream.close' later.
 makePendingConnection
     :: Socket -> ConnectionOptions -> IO PendingConnection
 makePendingConnection socket opts = do

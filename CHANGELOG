@@ -1,10 +1,12 @@
 # CHANGELOG
 
-- 0.13.0.0 (xxx)
-    * BREAKING: Remove `serverRequirePong` option in favor of the new implementation.
-    * BREAKING: Client: Rejecting request raises `RequestRejected RequestHead ResponseHead`
+- 0.13.0.0 (2023-12-30)
+    * **BREAKING**: Remove `serverRequirePong` option in favor of the new
+      implementation.
+    * **BREAKING**: Client: Rejecting request raises
+      `RequestRejected RequestHead ResponseHead`
     * Timeout initial socket connection after 30s.
-    * If the socket is closed unexpectedly, raise ConnectionClosed.
+    * If the socket is closed unexpectedly, raise `ConnectionClosed`.
     * Added a way to manually send a Pong message.
     * `runServer` now cleans up threads correctly.
     * Remove redundant bytestring-builder dependency.

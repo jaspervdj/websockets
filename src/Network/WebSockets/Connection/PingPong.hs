@@ -40,9 +40,21 @@ defaultPingPongOptions = PingPongOptions {
     pingAction = return ()
 }
 
--- | Run an application with ping-pong enabled. Raises PongTimeout if a pong is not received.
--- 
+-- | Run an application with ping-pong enabled. Raises 'PongTimeout' if a pong
+-- is not received.
+--
 -- Can used with Client and Server connections.
+--
+-- The implementation uses multiple threads, so if you want to call this from a
+-- Monad other than 'IO', we recommend using
+-- [unliftio](https://hackage.haskell.org/package/unliftio), e.g. using a
+-- wrapper like this:
+--
+-- > withPingPongUnlifted
+-- >     :: MonadUnliftIO m
+-- >     => PingPongOptions -> Connection -> (Connection -> m ()) -> m ()
+-- > withPingPongUnlifted options connection app = withRunInIO $ \run ->
+-- >     withPingPong options connection (run . app)
 withPingPong :: PingPongOptions -> Connection -> (Connection -> IO ()) -> IO ()
 withPingPong options connection app = void $ 
     withAsync (app connection) $ \appAsync -> do

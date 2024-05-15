@@ -20,6 +20,10 @@ Description:
  .
  * The JavaScript API for dealing with WebSockets:
  <http://www.w3.org/TR/websockets/>
+.
+This package only supports insecure (@ws:\/\/...@) WebSockets.
+If you need secure (@wss:\/\/...@) websockets, consider another package such as Wuss:
+<https://hackage.haskell.org/package/wuss>
 
 License:       BSD3
 License-file:  LICENCE

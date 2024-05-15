@@ -13,6 +13,10 @@ Description:
  An example client:
  <https://github.com/jaspervdj/websockets/blob/master/example/client.hs>
  .
+ This package only supports insecure (@ws:\/\/...@) WebSockets.
+ If you need secure (@wss:\/\/...@) websockets, consider using Wuss:
+ <https://hackage.haskell.org/package/wuss>
+ .
  See also:
  .
  * The specification of the WebSocket protocol:

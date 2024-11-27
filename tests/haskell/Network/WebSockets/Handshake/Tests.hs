@@ -1,4 +1,5 @@
 --------------------------------------------------------------------------------
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Network.WebSockets.Handshake.Tests
     ( tests
@@ -7,14 +8,14 @@ module Network.WebSockets.Handshake.Tests
 
 --------------------------------------------------------------------------------
 import           Control.Concurrent             (forkIO)
-import           Control.Exception              (handle)
+import           Control.Exception              (catch, handle, throwIO)
 import           Data.ByteString.Char8          ()
 import           Data.IORef                     (newIORef, readIORef,
                                                  writeIORef)
 import           Data.Maybe                     (fromJust)
 import           Test.Framework                 (Test, testGroup)
 import           Test.Framework.Providers.HUnit (testCase)
-import           Test.HUnit                     (Assertion, assert, (@?=))
+import           Test.HUnit                     (Assertion, assert, assertFailure, (@?=))
 
 
 --------------------------------------------------------------------------------
@@ -22,6 +23,7 @@ import           Network.WebSockets
 import           Network.WebSockets.Connection
 import           Network.WebSockets.Http
 import qualified Network.WebSockets.Stream      as Stream
+import           Network.WebSockets.Types       (ConnectionException(ConnectionClosed))
 
 
 --------------------------------------------------------------------------------
@@ -33,6 +35,7 @@ tests = testGroup "Network.WebSockets.Handshake.Test"
     , testCase "handshake Hybi13 with subprotocols and headers" testHandshakeHybi13WithProtoAndHeaders
     , testCase "handshake reject"                   testHandshakeReject
     , testCase "handshake reject with custom code"  testHandshakeRejectWithCode
+    , testCase "handshake reject and close connection" testHandshakeRejectAndClose
     , testCase "handshake Hybi9000"                 testHandshakeHybi9000
     ]
 
@@ -157,6 +160,31 @@ testHandshakeRejectWithCode = do
 
     code @?= 401
 
+--------------------------------------------------------------------------------
+testHandshakeRejectAndClose :: Assertion
+testHandshakeRejectAndClose = do
+    ResponseHead code _ _ <- test' rq13 $ \pc -> do
+        rejectRequestAndCloseWith pc defaultRejectRequest
+        (do
+          Stream.write (pendingStream pc) "Stream should be closed"
+          assertFailure "Stream should be closed"
+          ) `catch` (\(e :: ConnectionException) ->
+                        case e of
+                          ConnectionClosed -> pure ()
+                          _ -> throwIO e
+                    )
+
+    code @?= 400
+  where
+    test' rq app = do
+      echo <- Stream.makeEchoStream
+      _    <- forkIO $ do
+          _ <- app (PendingConnection defaultConnectionOptions rq (const $ return ()) echo)
+          return ()
+      mbRh <- Stream.parse echo decodeResponseHead
+      case mbRh of
+          Nothing -> fail "testHandshake: No response"
+          Just rh -> return rh
 
 --------------------------------------------------------------------------------
 -- I don't believe this one is supported yet

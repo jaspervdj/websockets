@@ -11,6 +11,7 @@ module Network.WebSockets.Connection
     , RejectRequest(..)
     , defaultRejectRequest
     , rejectRequestWith
+    , rejectRequestAndCloseWith
 
     , Connection (..)
 
@@ -249,6 +250,16 @@ rejectRequest
 rejectRequest pc body = rejectRequestWith pc
     defaultRejectRequest {rejectBody = body}
 
+--------------------------------------------------------------------------------
+
+-- | Send a rejection message to the client and close the underlying connection
+rejectRequestAndCloseWith
+    :: PendingConnection -- ^ Connection to reject and close
+    -> RejectRequest -- ^ Params on how to reject the request
+    -> IO ()
+rejectRequestAndCloseWith pc reject = do
+  rejectRequestWith pc reject
+  Stream.close $ pendingStream pc
 
 --------------------------------------------------------------------------------
 data Connection = Connection

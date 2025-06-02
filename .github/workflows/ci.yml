@@ -72,11 +72,12 @@ jobs:
         run: cabal haddock all
 
       - name: Install virtualenv
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-22.04'
+          # python2.7-dev is not available on ubuntu-24.04 (or larger, I suppose)
         run: |
           sudo apt-get install --yes virtualenv python2.7-dev
           pip install virtualenv
 
       - name: Run autobahn tests
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-22.04'
         run: bash tests/autobahn/autobahn.sh

@@ -19,13 +19,21 @@ module Network.WebSockets.Server
 
 
 --------------------------------------------------------------------------------
-import qualified Control.Concurrent.Async      as Async
+import           Control.Concurrent            (forkIOWithUnmask,
+                                                myThreadId,
+                                                killThread
+                                               )
 import           Control.Exception             (bracket,
                                                 bracketOnError, finally, mask_,
                                                 throwIO)
+import           Control.Monad                 (forever, forM_)
+import           Data.IORef                    (newIORef,
+                                                readIORef,
+                                                modifyIORef'
+                                               )
+import qualified Data.Set                      as Set
 import           Network.Socket                (Socket)
 import qualified Network.Socket                as S
-
 
 --------------------------------------------------------------------------------
 import           Network.WebSockets.Connection
@@ -99,19 +107,34 @@ defaultServerOptions = ServerOptions
 -- Please use the 'defaultServerOptions' combined with record updates to set the
 -- fields you want.  This way your code is unlikely to break on future changes.
 runServerWithOptions :: ServerOptions -> ServerApp -> IO a
-runServerWithOptions opts app = S.withSocketsDo $
+runServerWithOptions opts app = S.withSocketsDo $ do
+    appThreads <- newIORef Set.empty
+
+    let killAllApps :: IO ()
+        killAllApps = do
+          apps <- readIORef appThreads
+          forM_ apps $ killThread
+
     bracket
-    (makeListenSocket (serverHost opts) (serverPort opts))
-    S.close
-    (\sock ->
-        let
-            mainThread = do
-                (conn, _) <- S.accept sock
-                Async.withAsyncWithUnmask
-                    (\unmask -> unmask (runApp conn (serverConnectionOptions opts) app) `finally` S.close conn)
-                    (\_ -> mainThread)
-        in mask_ mainThread
-    )
+      (makeListenSocket (serverHost opts) (serverPort opts))
+      (\sock -> killAllApps >> S.close sock)
+      (\sock -> do
+          let mainThread :: IO a
+              mainThread = forever $ do
+                  (conn, _) <- S.accept sock
+
+                  let cleanupApp = do
+                        S.close conn
+                        me <- myThreadId
+                        modifyIORef' appThreads $ Set.delete me
+
+                  appThread <- forkIOWithUnmask
+                      (\unmask -> unmask (runApp conn (serverConnectionOptions opts) app) `finally` cleanupApp)
+
+                  modifyIORef' appThreads $ Set.insert appThread
+
+          mask_ mainThread
+      )
 
 
 --------------------------------------------------------------------------------

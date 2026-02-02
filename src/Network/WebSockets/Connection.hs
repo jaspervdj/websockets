@@ -227,6 +227,7 @@ defaultRejectRequest = RejectRequest
 
 
 --------------------------------------------------------------------------------
+-- | Requires calling 'pendingStream' and 'Stream.close'.
 rejectRequestWith
     :: PendingConnection  -- ^ Connection to reject
     -> RejectRequest      -- ^ Params on how to reject the request

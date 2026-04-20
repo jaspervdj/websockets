@@ -12,13 +12,13 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        ghc-version: ['9.8', '9.6', '9.4', '9.2', '9.0']
+        ghc-version: ['9.12', '9.10', '9.8', '9.6', '9.4', '9.2']
 
         include:
           - os: windows-latest
-            ghc-version: '9.8'
+            ghc-version: '9.12'
           - os: macos-latest
-            ghc-version: '9.8'
+            ghc-version: '9.12'
 
     steps:
       - uses: actions/checkout@v4
@@ -39,7 +39,7 @@ jobs:
         # The last step generates dist-newstyle/cache/plan.json for the cache key.
 
       - name: Restore cached dependencies
-        uses: actions/cache/restore@v3
+        uses: actions/cache/restore@v4
         id: cache
         env:
           key: ${{ runner.os }}-ghc-${{ steps.setup.outputs.ghc-version }}-cabal-${{ steps.setup.outputs.cabal-version }}
@@ -55,7 +55,7 @@ jobs:
 
       # Cache dependencies already here, so that we do not have to rebuild them should the subsequent steps fail.
       - name: Save cached dependencies
-        uses: actions/cache/save@v3
+        uses: actions/cache/save@v4
         # If we had an exact cache hit, trying to save the cache would error because of key clash.
         if: steps.cache.outputs.cache-hit != 'true'
         with:
@@ -72,11 +72,12 @@ jobs:
         run: cabal haddock all
 
       - name: Install virtualenv
-        if: matrix.os == 'ubuntu-latest'
-        run: | 
+        if: matrix.os == 'ubuntu-22.04'
+          # python2.7-dev is not available on ubuntu-24.04 (or larger, I suppose)
+        run: |
           sudo apt-get install --yes virtualenv python2.7-dev
           pip install virtualenv
 
       - name: Run autobahn tests
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-22.04'
         run: bash tests/autobahn/autobahn.sh

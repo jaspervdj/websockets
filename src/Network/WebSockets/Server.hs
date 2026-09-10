@@ -32,7 +32,7 @@ import           Data.IORef                    (newIORef,
                                                 modifyIORef'
                                                )
 import qualified Data.Set                      as Set
-import           Network.Socket                (Socket)
+import           Network.Socket                (HostName, PortNumber, Socket)
 import qualified Network.Socket                as S
 
 --------------------------------------------------------------------------------
@@ -66,8 +66,8 @@ type ServerApp = PendingConnection -> IO ()
 -- * <https://hackage.haskell.org/package/wai-websockets>
 --
 -- * <https://hackage.haskell.org/package/websockets-snap>
-runServer :: String     -- ^ Address to bind
-          -> Int        -- ^ Port to listen on
+runServer :: HostName   -- ^ Address to bind
+          -> PortNumber -- ^ Port to listen on
           -> ServerApp  -- ^ Application
           -> IO ()      -- ^ Never returns
 runServer host port app = runServerWith host port defaultConnectionOptions app
@@ -75,7 +75,7 @@ runServer host port app = runServerWith host port defaultConnectionOptions app
 
 --------------------------------------------------------------------------------
 -- | A version of 'runServer' which allows you to customize some options.
-runServerWith :: String -> Int -> ConnectionOptions -> ServerApp -> IO ()
+runServerWith :: HostName -> PortNumber -> ConnectionOptions -> ServerApp -> IO ()
 runServerWith host port opts = runServerWithOptions defaultServerOptions
     { serverHost              = host
     , serverPort              = port
@@ -86,8 +86,8 @@ runServerWith host port opts = runServerWithOptions defaultServerOptions
 
 --------------------------------------------------------------------------------
 data ServerOptions = ServerOptions
-    { serverHost              :: String
-    , serverPort              :: Int
+    { serverHost              :: HostName
+    , serverPort              :: PortNumber
     , serverConnectionOptions :: ConnectionOptions
     }
 
@@ -141,7 +141,7 @@ runServerWithOptions opts app = S.withSocketsDo $ do
 -- | Create a standardized socket on which you can listen for incomming
 -- connections. Should only be used for a quick and dirty solution! Should be
 -- preceded by the call 'Network.Socket.withSocketsDo'.
-makeListenSocket :: String -> Int -> IO Socket
+makeListenSocket :: HostName -> PortNumber -> IO Socket
 makeListenSocket host port = do
   addr:_ <- S.getAddrInfo (Just hints) (Just host) (Just (show port))
   bracketOnError

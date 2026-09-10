@@ -1,5 +1,10 @@
 # CHANGELOG
 
+- 0.14.0.0 (2026-09-10)
+    * **BREAKING**: `runServer`, `runServerWith`, `makeListenSocket`, and
+      `ServerOptions` use `Network.Socket`'s `HostName` and `PortNumber`
+      instead of `String` and `Int`.
+
 - 0.13.0.0 (2023-12-30)
     * **BREAKING**: Remove `serverRequirePong` option in favor of the new
       implementation.

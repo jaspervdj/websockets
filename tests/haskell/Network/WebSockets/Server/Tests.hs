@@ -140,7 +140,7 @@ waitSome :: IO ()
 waitSome = threadDelay $ 200 * 1000
 
 --------------------------------------------------------------------------------
-withEchoServer :: String -> Int -> BL.ByteString -> IO a -> IO a
+withEchoServer :: HostName -> PortNumber -> BL.ByteString -> IO a -> IO a
 withEchoServer host port expectedClose action = do
     cRef <- newIORef False
     serverThread <- async $ runServer host port (\c -> server c `catch` handleClose cRef)

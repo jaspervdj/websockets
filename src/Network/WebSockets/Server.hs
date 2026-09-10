@@ -89,6 +89,7 @@ data ServerOptions = ServerOptions
     { serverHost              :: HostName
     , serverPort              :: PortNumber
     , serverConnectionOptions :: ConnectionOptions
+    , serverListenBacklog     :: Int
     }
 
 
@@ -98,6 +99,7 @@ defaultServerOptions = ServerOptions
     { serverHost              = "127.0.0.1"
     , serverPort              = 8080
     , serverConnectionOptions = defaultConnectionOptions
+    , serverListenBacklog     = 128
     }
 
 
@@ -116,7 +118,7 @@ runServerWithOptions opts app = S.withSocketsDo $ do
           forM_ apps $ killThread
 
     bracket
-      (makeListenSocket (serverHost opts) (serverPort opts))
+      (makeListenSocket (serverHost opts) (serverPort opts) (serverListenBacklog opts))
       (\sock -> killAllApps >> S.close sock)
       (\sock -> do
           let mainThread :: IO a
@@ -141,8 +143,8 @@ runServerWithOptions opts app = S.withSocketsDo $ do
 -- | Create a standardized socket on which you can listen for incomming
 -- connections. Should only be used for a quick and dirty solution! Should be
 -- preceded by the call 'Network.Socket.withSocketsDo'.
-makeListenSocket :: HostName -> PortNumber -> IO Socket
-makeListenSocket host port = do
+makeListenSocket :: HostName -> PortNumber -> Int -> IO Socket
+makeListenSocket host port backlog = do
   addr:_ <- S.getAddrInfo (Just hints) (Just host) (Just (show port))
   bracketOnError
     (S.socket (S.addrFamily addr) S.Stream S.defaultProtocol)
@@ -151,7 +153,7 @@ makeListenSocket host port = do
         _     <- S.setSocketOption sock S.ReuseAddr 1
         _     <- S.setSocketOption sock S.NoDelay   1
         S.bind sock (S.addrAddress addr)
-        S.listen sock 5
+        S.listen sock backlog
         return sock
         )
   where

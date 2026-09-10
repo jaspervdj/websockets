@@ -4,6 +4,9 @@
     * **BREAKING**: `runServer`, `runServerWith`, `makeListenSocket`, and
       `ServerOptions` use `Network.Socket`'s `HostName` and `PortNumber`
       instead of `String` and `Int`.
+    * **BREAKING**: `makeListenSocket` takes an additional `Int`
+      argument, the listen backlog.
+    * `ServerOptions` gains a `serverListenBacklog` field (default 128).
 
 - 0.13.0.0 (2023-12-30)
     * **BREAKING**: Remove `serverRequirePong` option in favor of the new

@@ -8,3 +8,4 @@ tests/coverage
 tests/haskell/TestSuite
 
 .stack-work/
+dist-newstyle/

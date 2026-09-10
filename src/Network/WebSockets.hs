@@ -68,6 +68,8 @@ module Network.WebSockets
     , ServerOptions (..)
     , defaultServerOptions
     , runServerWithOptions
+    , HostName
+    , PortNumber
 
       -- * Utilities for writing your own server
     , makeListenSocket
@@ -92,6 +94,8 @@ module Network.WebSockets
 
 
 --------------------------------------------------------------------------------
+import           Network.Socket                          (HostName,
+                                                           PortNumber)
 import           Network.WebSockets.Client
 import           Network.WebSockets.Connection
 import           Network.WebSockets.Connection.PingPong

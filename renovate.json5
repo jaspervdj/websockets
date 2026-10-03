@@ -1,0 +1,21 @@
+{
+  "$schema": 'https://docs.renovatebot.com/renovate-schema.json',
+  "enabledManagers": ['custom.jsonata', 'haskell-cabal'],
+  "customManagers":
+    {
+      "customType": 'jsonata',
+      "fileFormat": 'yaml',
+      "fileMatch": ['stack.yaml$'],
+      "datasourceTemplate": 'hackage',
+      "versioningTemplate": 'loose',
+      "matchStrings": ['\
+          $map($."extra-deps", function ($depLine) { \n\
+            (function ($strArray) { \n\
+                {"depName": $strArray[0] \n\
+                  , "currentValue":  $strArray[1] \n\
+                } \n\
+            })($split($depLine, "-")) \n\
+          }) \n\
+      ']
+    }
+}
